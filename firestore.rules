@@ -1,0 +1,88 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && 
+             request.auth.token.email == 'alwaelai2000@gmail.com' &&
+             request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Validation Blueprints ---
+    function isValidBoard(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.order is number &&
+             data.keys().hasAll(['name', 'order', 'createdAt']);
+    }
+
+    function isValidBoardUpdate(data) {
+      return (data.get('name', '') is string && data.get('name', '').size() > 0) ||
+             (data.get('order', 0) is number);
+    }
+
+    function isValidPost(data) {
+      return data.text is string && data.text.size() <= 5000 &&
+             (
+               (data.get('imageUrl', '') is string && data.get('imageUrl', '').size() <= 1000000) ||
+               (data.get('imageUrls', []) is list && data.get('imageUrls', []).size() <= 4)
+             ) &&
+             (data.boardId == null || data.boardId is string) &&
+             data.authorId == request.auth.uid &&
+             data.authorEmail == request.auth.token.email &&
+             data.keys().hasAll(['text', 'boardId', 'authorId', 'authorEmail', 'createdAt']) &&
+             (data.keys().hasAny(['imageUrl', 'imageUrls'])) &&
+             (request.method == 'create' ? (data.keys().size() == 6) : (data.keys().hasAll(['updatedAt']) && data.keys().size() == 7));
+    }
+
+    // --- Collections ---
+    match /boards/{boardId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /posts/{postId} {
+      // Public read for the feed
+      allow read: if true;
+
+      allow create: if isAdmin() && 
+                      isValidId(postId) &&
+                      isValidPost(incoming()) &&
+                      incoming().createdAt == request.time;
+
+      allow update: if isAdmin() && 
+                      isValidId(postId) &&
+                      isValidPost(incoming()) &&
+                      incoming().updatedAt == request.time &&
+                      incoming().createdAt == existing().createdAt &&
+                      incoming().authorId == existing().authorId;
+
+      allow delete: if isAdmin() && isValidId(postId);
+    }
+  }
+}
