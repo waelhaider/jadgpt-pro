@@ -49,15 +49,15 @@ service cloud.firestore {
     function isValidPost(data) {
       return data.text is string && data.text.size() <= 5000 &&
              (
-               (data.get('imageUrl', '') is string && data.get('imageUrl', '').size() <= 1000000) ||
-               (data.get('imageUrls', []) is list && data.get('imageUrls', []).size() <= 4)
+               (data.get('imageUrl', '') == null || data.get('imageUrl', '') is string) &&
+               (data.get('imageUrls', []) is list && data.get('imageUrls', []).size() <= 6)
              ) &&
              (data.boardId == null || data.boardId is string) &&
              data.authorId == request.auth.uid &&
              data.authorEmail == request.auth.token.email &&
              data.keys().hasAll(['text', 'boardId', 'authorId', 'authorEmail', 'createdAt']) &&
              (data.keys().hasAny(['imageUrl', 'imageUrls'])) &&
-             (request.method == 'create' ? (data.keys().size() == 6) : (data.keys().hasAll(['updatedAt']) && data.keys().size() == 7));
+             (request.method == 'create' ? (data.keys().size() >= 6 && data.keys().size() <= 7) : (data.keys().hasAll(['updatedAt']) && data.keys().size() >= 7 && data.keys().size() <= 8));
     }
 
     // --- Collections ---

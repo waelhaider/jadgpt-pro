@@ -26,8 +26,8 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
     const files = Array.from(e.target.files || []) as File[];
     if (files.length === 0) return;
 
-    if (images.length + files.length > 4) {
-      alert('يمكنك إضافة 4 صور كحد أقصى في المنشور الواحد.');
+    if (images.length + files.length > 6) {
+      alert('يمكنك إضافة 6 صور كحد أقصى في المنشور الواحد.');
       return;
     }
 
@@ -38,8 +38,7 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
       newImages.push(file);
       const reader = new FileReader();
       reader.onloadend = () => {
-        newPreviews.push(reader.result as string);
-        setPreviews([...newPreviews]);
+        setPreviews(prev => [...prev, reader.result as string]);
       };
       reader.readAsDataURL(file);
     });
@@ -77,9 +76,17 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!text.trim() || !auth.currentUser) return;
+    if (!auth.currentUser) return;
+    
+    const hasText = text.trim().length > 0;
+    const hasImages = images.length > 0;
 
-    if (images.length > 0 && !accessToken) {
+    if (!hasText && !hasImages) {
+      alert('لا يمكن نشر منشور فارغ (برجاء كتابة نص أو إضافة صورة)');
+      return;
+    }
+
+    if (hasImages && !accessToken) {
       handleAuthorize();
       return;
     }
@@ -109,6 +116,7 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
       
       const payload = {
         text: text.trim(),
+        imageUrl: driveUrls.length > 0 ? driveUrls[0] : null,
         imageUrls: driveUrls,
         boardId: activeBoardId || null, // Explicitly null for main feed
         authorId: auth.currentUser.uid,
@@ -238,11 +246,11 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={images.length >= 4}
+              disabled={images.length >= 6}
               className="group flex items-center gap-2 rounded-lg border border-natural-border px-3 py-1.5 text-xs font-medium text-natural-primary transition-all hover:bg-natural-bg disabled:opacity-50"
             >
               <ImageIcon size={16} />
-              إضافة صور ({images.length}/4)
+              إضافة صور ({images.length}/6)
             </button>
             <input
               type="file"
@@ -255,9 +263,9 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
 
             <button
               type="submit"
-              disabled={loading || !text.trim()}
+              disabled={loading || (!text.trim() && images.length === 0)}
               className={`px-6 py-1.5 rounded-lg text-sm font-bold shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                !accessToken && text.trim() && images.length > 0 
+                !accessToken && images.length > 0 
                   ? 'bg-amber-600 hover:bg-amber-700 text-white' 
                   : 'bg-natural-primary hover:bg-[#4A4A35] text-white'
               }`}
@@ -268,7 +276,7 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
                   {status || 'جاري النشر...'}
                 </div>
               ) : (
-                !accessToken && text.trim() && images.length > 0 ? 'تفعيل Google Drive للنشر' : 'نشر الآن'
+                !accessToken && images.length > 0 ? 'تفعيل Google Drive للنشر' : 'نشر الآن'
               )}
             </button>
           </div>
