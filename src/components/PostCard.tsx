@@ -264,7 +264,22 @@ export default function PostCard({ post, isAdmin, boards }: PostCardProps) {
                 {displayName} {isPostFromAdmin && <span className="text-[10px] font-normal text-natural-muted leading-none block opacity-70">(المسؤول)</span>}
               </p>
               <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-natural-muted">
-                {post.createdAt ? formatDistanceToNow(post.createdAt.toDate(), { addSuffix: true }) : 'الآن'} • {boardName}
+                {(() => {
+                  if (!post.createdAt) return 'الآن';
+                  const dateObj = post.createdAt.toDate();
+                  const now = new Date();
+                  const diffTime = Math.abs(now.getTime() - dateObj.getTime());
+                  const diffDays = diffTime / (1000 * 60 * 60 * 24);
+                  
+                  if (diffDays > 3) {
+                    const day = String(dateObj.getDate()).padStart(2, '0');
+                    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                    const year = dateObj.getFullYear();
+                    return `${day}/${month}/${year}`;
+                  }
+                  
+                  return formatDistanceToNow(dateObj, { addSuffix: true });
+                })()} • {boardName}
               </div>
             </div>
           </div>
