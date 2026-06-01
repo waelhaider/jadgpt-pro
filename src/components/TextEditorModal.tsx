@@ -147,17 +147,17 @@ export default function TextEditorModal({ isOpen, onClose, isAdmin, activeBoardI
           dir="rtl"
         >
           {/* Header Area */}
-          <div className="px-6 py-4 bg-natural-bg/50 border-b border-natural-border flex items-center justify-between gap-4">
+          <div className="px-4 py-2 bg-natural-bg/50 border-b border-natural-border flex items-center justify-between gap-2">
             
             {/* Right Side: Original Text Label & Language Selector */}
             <div className="flex-1 text-right flex flex-col items-start justify-center">
-              <span className="text-sm font-black text-[#4A4A35]">النص الأصلي</span>
+              <span className="text-xs font-black text-[#4A4A35]">النص الأصلي</span>
               <select
                 value={srcLang}
                 onChange={(e) => setSrcLang(e.target.value)}
-                className="mt-1.5 text-xs rounded-lg border border-natural-border px-3 py-1.5 bg-white font-bold text-natural-text focus:outline-none focus:ring-1 focus:ring-natural-primary cursor-pointer w-full max-w-[170px]"
+                className="mt-1 text-[11px] rounded-md border border-natural-border px-2 py-1 bg-white font-bold text-natural-text focus:outline-none focus:ring-1 focus:ring-natural-primary cursor-pointer w-full max-w-[140px]"
               >
-                <option value="auto">تحديد تلقائي (Auto-Detect)</option>
+                <option value="auto">تحديد تلقائي (Auto)</option>
                 <option value="ar">العربية (Arabic)</option>
                 <option value="en">الإنجليزية (English)</option>
                 <option value="fr">الفرنسية (French)</option>
@@ -171,33 +171,33 @@ export default function TextEditorModal({ isOpen, onClose, isAdmin, activeBoardI
             </div>
 
             {/* Middle Side: Close button (X) and Swap button between Original text and translation */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={handleSwap}
                 title="تبديل النصوص واللغات"
-                className="flex h-10 w-10 items-center justify-center rounded-xl bg-natural-primary/5 text-natural-primary hover:bg-natural-primary hover:text-white transition-all shadow-sm border border-natural-primary/10"
+                className="flex h-8 w-8 items-center justify-center rounded-lg bg-natural-primary/5 text-natural-primary hover:bg-natural-primary hover:text-white transition-all shadow-sm border border-natural-primary/10"
               >
-                <RefreshCw size={18} />
+                <RefreshCw size={14} />
               </button>
 
               <button
                 type="button"
                 onClick={onClose}
                 title="إغلاق النافذة"
-                className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-red-600 hover:bg-red-100 transition-all shadow-sm border border-red-200"
+                className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-all shadow-sm border border-red-200"
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
             {/* Left Side: Translation Label & Language Selector */}
             <div className="flex-1 text-left flex flex-col items-end justify-center">
-              <span className="text-sm font-black text-[#4A4A35] block w-full max-w-[170px] text-right">الترجمة</span>
+              <span className="text-xs font-black text-[#4A4A35] block w-full max-w-[140px] text-right">الترجمة</span>
               <select
                 value={tgtLang}
                 onChange={(e) => setTgtLang(e.target.value)}
-                className="mt-1.5 text-xs rounded-lg border border-natural-border px-3 py-1.5 bg-white font-bold text-natural-text focus:outline-none focus:ring-1 focus:ring-natural-primary cursor-pointer w-full max-w-[170px] text-right"
+                className="mt-1 text-[11px] rounded-md border border-natural-border px-2 py-1 bg-white font-bold text-natural-text focus:outline-none focus:ring-1 focus:ring-natural-primary cursor-pointer w-full max-w-[140px] text-right"
               >
                 <option value="en">الإنجليزية (English)</option>
                 <option value="ar">العربية (Arabic)</option>
@@ -214,74 +214,54 @@ export default function TextEditorModal({ isOpen, onClose, isAdmin, activeBoardI
           </div>
 
           {/* Text Areas Section (Strictly grid-cols-2 side-by-side for parallel comparison) */}
-          <div className="flex-1 p-6 grid grid-cols-2 gap-6 overflow-y-auto">
+          <div className="flex-1 p-3 grid grid-cols-2 gap-3 overflow-y-auto">
             
             {/* Right Column: Original Input Area */}
-            <div className="flex flex-col h-full min-h-[280px] md:min-h-[380px]">
+            <div className="flex flex-col h-full min-h-[320px] md:min-h-[420px]">
               <textarea
                 value={originalText}
                 onChange={(e) => setOriginalText(e.target.value)}
                 placeholder="لصق أو كتابة النص الأصلي هنا..."
-                className="w-full flex-1 p-4 rounded-xl border border-natural-border focus:outline-none focus:ring-1 focus:ring-natural-primary text-sm font-medium leading-relaxed bg-neutral-50/50 resize-none text-right"
-                maxLength={10000}
+                className="w-full flex-1 p-3 rounded-lg border border-natural-border focus:outline-none focus:ring-1 focus:ring-natural-primary text-xs md:text-sm font-medium leading-relaxed bg-neutral-50/50 resize-none text-right"
+                maxLength={20000}
               />
-              <div className="flex justify-between items-center mt-2 px-1 text-xs text-natural-muted font-medium">
-                <span>{originalText.length} حرف</span>
-                <span className="text-[10px]">كتابة فورية للترجمة اللحظية</span>
-              </div>
             </div>
 
             {/* Left Column: Translation View Area */}
-            <div className="flex flex-col h-full min-h-[280px] md:min-h-[380px]">
+            <div className="flex flex-col h-full min-h-[320px] md:min-h-[420px]">
               <div className="relative w-full flex-1 flex flex-col">
                 <textarea
                   readOnly
                   value={translatedText}
                   placeholder="الترجمة اللحظية ستظهر هنا..."
-                  className="w-full flex-1 p-4 rounded-xl border border-natural-border bg-neutral-100/50 text-sm font-medium leading-relaxed resize-none text-right focus:outline-none"
+                  className="w-full flex-1 p-3 rounded-lg border border-natural-border bg-neutral-100/50 text-xs md:text-sm font-medium leading-relaxed resize-none text-right focus:outline-none"
                 />
 
                 {/* Loading indicator inside translation field */}
                 {isTranslating && (
-                  <div className="absolute inset-0 bg-white/75 backdrop-blur-[1px] flex items-center justify-center rounded-xl">
-                    <div className="flex items-center gap-2 text-natural-primary bg-white px-4 py-2 rounded-xl shadow-md border border-natural-border">
-                      <Loader2 size={16} className="animate-spin" />
-                      <span className="text-xs font-bold">جاري الترجمة فورياً...</span>
+                  <div className="absolute inset-0 bg-white/75 backdrop-blur-[1px] flex items-center justify-center rounded-lg">
+                    <div className="flex items-center gap-2 text-natural-primary bg-white px-3 py-1.5 rounded-lg shadow-md border border-natural-border">
+                      <Loader2 size={14} className="animate-spin" />
+                      <span className="text-xs font-bold">جاري الترجمة...</span>
                     </div>
                   </div>
                 )}
-              </div>
-              <div className="flex justify-between items-center mt-2 px-1 text-xs text-natural-muted font-medium">
-                <span>{translatedText.length} حرف</span>
-                <span className="text-[10px]">ترجمة غوغل اللحظية</span>
               </div>
             </div>
 
           </div>
 
-          {/* Footer Action Buttons Section in a single row */}
-          {/* Order exactly as required: حفظ الاصلي ، نسخ الاصلي ، نسخ الترجمة ، حفظ الترجمة */}
-          <div className="px-6 py-4 bg-natural-bg border-t border-natural-border flex flex-row items-center justify-center gap-3 overflow-x-auto whitespace-nowrap">
+          {/* Footer Action Buttons Section in a single row - Only copy buttons remain */}
+          <div className="px-4 py-2 bg-natural-bg border-t border-natural-border flex flex-row items-center justify-center gap-2.5">
             
-            {/* حفظ الأصلي */}
-            <button
-              type="button"
-              onClick={() => savePost(originalText, 'النص الأصلي', true)}
-              disabled={isSavingOriginal || !originalText.trim()}
-              className="flex items-center justify-center gap-2 rounded-xl bg-natural-primary text-white text-xs font-black tracking-wide px-4 py-2.5 shadow-md hover:bg-[#4A4A35] transition-all disabled:opacity-50 active:scale-95 cursor-pointer shrink-0"
-            >
-              {isSavingOriginal ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              حفظ الأصلي
-            </button>
-
             {/* نسخ الأصلي */}
             <button
               type="button"
               onClick={() => copyText(originalText, 'النص الأصلي')}
               disabled={!originalText.trim()}
-              className="flex items-center justify-center gap-2 rounded-xl bg-white border border-natural-border hover:bg-neutral-50 text-natural-text text-xs font-black tracking-wide px-4 py-2.5 shadow-sm transition-all disabled:opacity-50 active:scale-95 cursor-pointer shrink-0"
+              className="flex items-center justify-center gap-1.5 rounded-lg bg-white border border-natural-border hover:bg-neutral-50 text-natural-text text-xs font-bold px-3 py-1.5 shadow-sm transition-all disabled:opacity-50 active:scale-95 cursor-pointer shrink-0"
             >
-              <Copy size={14} className="text-natural-muted" />
+              <Copy size={13} className="text-natural-muted" />
               نسخ الأصلي
             </button>
 
@@ -290,21 +270,10 @@ export default function TextEditorModal({ isOpen, onClose, isAdmin, activeBoardI
               type="button"
               onClick={() => copyText(translatedText, 'النص المترجم')}
               disabled={!translatedText.trim()}
-              className="flex items-center justify-center gap-2 rounded-xl bg-white border border-natural-border hover:bg-neutral-50 text-natural-text text-xs font-black tracking-wide px-4 py-2.5 shadow-sm transition-all disabled:opacity-50 active:scale-95 cursor-pointer shrink-0"
+              className="flex items-center justify-center gap-1.5 rounded-lg bg-white border border-natural-border hover:bg-neutral-50 text-natural-text text-xs font-bold px-3 py-1.5 shadow-sm transition-all disabled:opacity-50 active:scale-95 cursor-pointer shrink-0"
             >
-              <Copy size={14} className="text-natural-muted" />
+              <Copy size={13} className="text-natural-muted" />
               نسخ الترجمة
-            </button>
-
-            {/* حفظ الترجمة */}
-            <button
-              type="button"
-              onClick={() => savePost(translatedText, 'النص المترجم', false)}
-              disabled={isSavingTranslated || !translatedText.trim()}
-              className="flex items-center justify-center gap-2 rounded-xl bg-natural-primary text-white text-xs font-black tracking-wide px-4 py-2.5 shadow-md hover:bg-[#4A4A35] transition-all disabled:opacity-50 active:scale-95 cursor-pointer shrink-0"
-            >
-              {isSavingTranslated ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              حفظ الترجمة
             </button>
 
           </div>
