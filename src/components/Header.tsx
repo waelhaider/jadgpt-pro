@@ -10,6 +10,7 @@ import { db } from '../lib/firebase';
 import { collection, addDoc, updateDoc, doc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { handleFirestoreError } from '../lib/error-handler';
 import { OperationType } from '../types';
+import TextEditorModal from './TextEditorModal';
 
 interface HeaderProps {
   user: User | null;
@@ -21,6 +22,7 @@ interface HeaderProps {
 
 export default function Header({ user, isAdmin, currentBoard, boards, onSelectBoard }: HeaderProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isTranslatorOpen, setIsTranslatorOpen] = useState(false);
   const [modalState, setModalState] = useState<{isOpen: boolean, type: 'create' | 'edit' | 'reorder'}>({
     isOpen: false,
     type: 'create'
@@ -182,7 +184,22 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
                         )}
                       </div>
 
-                      <div className="border-t border-natural-border pt-6">
+                      <div className="border-t border-natural-border pt-6 space-y-4">
+                        {/* Always available tool for all logged-in users */}
+                        <div className="space-y-2 w-full">
+                          <h4 className="text-[10px] text-natural-muted font-bold uppercase tracking-widest text-right mb-2">الأدوات العامة</h4>
+                          <button
+                            onClick={() => {
+                              setIsSidebarOpen(false);
+                              setIsTranslatorOpen(true);
+                            }}
+                            className="flex w-full items-center gap-3 p-3 rounded-xl hover:bg-natural-secondary-bg text-natural-text transition-colors border border-dashed border-natural-border hover:border-natural-primary"
+                          >
+                            <Edit size={18} className="text-natural-primary animate-pulse" />
+                            <span className="text-sm font-bold col-span-1">تعديل النص</span>
+                          </button>
+                        </div>
+
                         {isAdmin && (
                           <div className="space-y-2 w-full pt-4 border-t border-natural-border">
                             <h4 className="text-[10px] text-natural-muted font-bold uppercase tracking-widest text-right mb-2">إدارة اللوحات</h4>
@@ -245,6 +262,21 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
                         <LogIn size={18} />
                         تسجيل الدخول باستخدام جوجل
                       </button>
+
+                      {/* Tool Button for Guests as well */}
+                      <div className="w-full pt-6 border-t border-natural-border space-y-2">
+                        <h4 className="text-[10px] text-natural-muted font-bold uppercase tracking-widest text-right">الأدوات العامة</h4>
+                        <button
+                          onClick={() => {
+                            setIsSidebarOpen(false);
+                            setIsTranslatorOpen(true);
+                          }}
+                          className="flex w-full items-center gap-3 p-3 rounded-xl hover:bg-natural-secondary-bg text-natural-text transition-colors border border-dashed border-natural-border hover:border-natural-primary"
+                        >
+                          <Edit size={18} className="text-natural-primary animate-pulse" />
+                          <span className="text-sm font-bold">تعديل النص</span>
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -266,6 +298,13 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
         boards={boards}
         onClose={() => setModalState({ ...modalState, isOpen: false })}
         onSubmit={handleBoardSubmit}
+      />
+
+      <TextEditorModal
+        isOpen={isTranslatorOpen}
+        onClose={() => setIsTranslatorOpen(false)}
+        isAdmin={isAdmin}
+        activeBoardId={currentBoard?.id || null}
       />
     </>
   );
