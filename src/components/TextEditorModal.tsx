@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, RefreshCw, Copy, Check, Save, Loader2 } from 'lucide-react';
-import { db, auth } from '../lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { X, ArrowLeftRight, Copy, Loader2 } from 'lucide-react';
 
 interface TextEditorModalProps {
   isOpen: boolean;
@@ -11,14 +9,37 @@ interface TextEditorModalProps {
   activeBoardId: string | null;
 }
 
-export default function TextEditorModal({ isOpen, onClose, isAdmin, activeBoardId }: TextEditorModalProps) {
+export default function TextEditorModal({ isOpen, onClose }: TextEditorModalProps) {
   const [originalText, setOriginalText] = useState('');
   const [translatedText, setTranslatedText] = useState('');
   const [srcLang, setSrcLang] = useState('auto');
   const [tgtLang, setTgtLang] = useState('en');
   const [isTranslating, setIsTranslating] = useState(false);
-  const [isSavingOriginal, setIsSavingOriginal] = useState(false);
-  const [isSavingTranslated, setIsSavingTranslated] = useState(false);
+
+  // Auto-detect direction helper: returns true if Arabic/RTL is matched
+  const isRtl = (text: string): boolean => {
+    if (!text) return true; // Default to natural Arabic direction
+    const rtlChar = /[\u0600-\u06FF\u0750-\u077F\u0590-\u05FF\uFE70-\uFEFC]/;
+    return rtlChar.test(text);
+  };
+
+  // Auto-switch target language based on typed original text
+  useEffect(() => {
+    if (!originalText.trim()) return;
+    const isOrigArabic = /[\u0600-\u06FF]/.test(originalText);
+    
+    if (!isOrigArabic) {
+      // Original text is English / Non-Arabic
+      if (tgtLang === 'en') {
+        setTgtLang('ar');
+      }
+    } else {
+      // Original text is Arabic
+      if (tgtLang === 'ar') {
+        setTgtLang('en');
+      }
+    }
+  }, [originalText]);
 
   // Auto-translate with debounce
   useEffect(() => {
@@ -57,15 +78,17 @@ export default function TextEditorModal({ isOpen, onClose, isAdmin, activeBoardI
     setOriginalText(translatedText);
     setTranslatedText(tempText);
 
-    // Swap languages if source is not auto
-    if (srcLang !== 'auto') {
-      const tempLang = srcLang;
-      setSrcLang(tgtLang);
-      setTgtLang(tempLang);
+    // Swap selected languages seamlessly
+    const currentSrc = srcLang;
+    const currentTgt = tgtLang;
+
+    if (currentSrc === 'auto') {
+      const detectedSrc = /[\u0600-\u06FF]/.test(tempText) ? 'ar' : 'en';
+      setSrcLang(currentTgt);
+      setTgtLang(detectedSrc);
     } else {
-      // If auto, set source to Arabic and target to English or vice versa depending on target
-      setSrcLang(tgtLang);
-      setTgtLang('ar');
+      setSrcLang(currentTgt);
+      setTgtLang(currentSrc);
     }
   };
 
@@ -83,47 +106,10 @@ export default function TextEditorModal({ isOpen, onClose, isAdmin, activeBoardI
     }
   };
 
-  const savePost = async (textToSave: string, label: string, isOriginal: boolean) => {
-    if (!textToSave.trim()) {
-      alert('النص الذي تريد حفظه فارغ!');
-      return;
-    }
-
-    if (!auth.currentUser) {
-      alert('عذراً، يرجى تسجيل الدخول أولاً لتتمكن من النشر.');
-      return;
-    }
-
-    if (!isAdmin) {
-      alert('عذراً، ميزة نشر المنشورات مضافة للمسؤول (الآدمين) فقط لتفادي كتابة محتوى عشوائي، يمكنك نسخ النص واستخدامه.');
-      return;
-    }
-
-    const setSaving = isOriginal ? setIsSavingOriginal : setIsSavingTranslated;
-    setSaving(true);
-
-    try {
-      const payload = {
-        text: textToSave.trim(),
-        imageUrl: null,
-        imageUrls: [],
-        boardId: activeBoardId || null,
-        authorId: auth.currentUser.uid,
-        authorEmail: auth.currentUser.email,
-        createdAt: serverTimestamp(),
-      };
-
-      await addDoc(collection(db, 'posts'), payload);
-      alert(`تم بنجاح حفظ ${label} كمنشور جديد في اللوحة الحالية! 🎉`);
-    } catch (error) {
-      console.error('Failed to save translated post:', error);
-      alert('حدث خطأ أثناء الحفظ. يرجى مراجعة الصلاحيات.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   if (!isOpen) return null;
+
+  const isOriginalRtl = isRtl(originalText);
+  const isTranslatedRtl = isRtl(translatedText);
 
   return (
     <AnimatePresence>
@@ -178,7 +164,7 @@ export default function TextEditorModal({ isOpen, onClose, isAdmin, activeBoardI
                 title="تبديل النصوص واللغات"
                 className="flex h-8 w-8 items-center justify-center rounded-lg bg-natural-primary/5 text-natural-primary hover:bg-natural-primary hover:text-white transition-all shadow-sm border border-natural-primary/10"
               >
-                <RefreshCw size={14} />
+                <ArrowLeftRight size={14} />
               </button>
 
               <button
@@ -222,7 +208,10 @@ export default function TextEditorModal({ isOpen, onClose, isAdmin, activeBoardI
                 value={originalText}
                 onChange={(e) => setOriginalText(e.target.value)}
                 placeholder="لصق أو كتابة النص الأصلي هنا..."
-                className="w-full flex-1 p-3 rounded-lg border border-natural-border focus:outline-none focus:ring-1 focus:ring-natural-primary text-xs md:text-sm font-medium leading-relaxed bg-neutral-50/50 resize-none text-right"
+                dir={isOriginalRtl ? 'rtl' : 'ltr'}
+                className={`w-full flex-1 p-3 rounded-lg border border-natural-border focus:outline-none focus:ring-1 focus:ring-natural-primary text-sm md:text-base font-medium leading-relaxed bg-neutral-50/50 resize-none ${
+                  isOriginalRtl ? 'text-right' : 'text-left'
+                }`}
                 maxLength={20000}
               />
             </div>
@@ -234,7 +223,10 @@ export default function TextEditorModal({ isOpen, onClose, isAdmin, activeBoardI
                   readOnly
                   value={translatedText}
                   placeholder="الترجمة اللحظية ستظهر هنا..."
-                  className="w-full flex-1 p-3 rounded-lg border border-natural-border bg-neutral-100/50 text-xs md:text-sm font-medium leading-relaxed resize-none text-right focus:outline-none"
+                  dir={isTranslatedRtl ? 'rtl' : 'ltr'}
+                  className={`w-full flex-1 p-3 rounded-lg border border-natural-border bg-neutral-100/50 text-sm md:text-base font-medium leading-relaxed resize-none focus:outline-none ${
+                    isTranslatedRtl ? 'text-right' : 'text-left'
+                  }`}
                 />
 
                 {/* Loading indicator inside translation field */}
@@ -283,3 +275,4 @@ export default function TextEditorModal({ isOpen, onClose, isAdmin, activeBoardI
     </AnimatePresence>
   );
 }
+
