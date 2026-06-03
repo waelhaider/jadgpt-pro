@@ -4,6 +4,7 @@ import { X, Upload, Trash2, Key, Play, Sparkles, Image as ImageIcon, Copy, Check
 import { GoogleGenAI } from '@google/genai';
 import { auth } from '../lib/firebase';
 import { getCurrentUser } from '../lib/auth';
+import { safeStorage } from '../lib/safe-storage';
 
 interface PromptTesterModalProps {
   isOpen: boolean;
@@ -60,9 +61,9 @@ export default function PromptTesterModal({ isOpen, onClose, defaultPrompt }: Pr
     }
   }, [defaultPrompt, isOpen]);
 
-  // Load API Key from localStorage on open
+  // Load API Key from safeStorage on open
   useEffect(() => {
-    const savedKey = localStorage.getItem('user_gemini_api_key');
+    const savedKey = safeStorage.getItem('user_gemini_api_key');
     if (savedKey) {
       setApiKey(savedKey);
       setShowKeyInput(false);
@@ -91,14 +92,14 @@ export default function PromptTesterModal({ isOpen, onClose, defaultPrompt }: Pr
       alert('يرجى إدخال مفتاح صالح أولاً!');
       return;
     }
-    localStorage.setItem('user_gemini_api_key', apiKey.trim());
+    safeStorage.setItem('user_gemini_api_key', apiKey.trim());
     setShowKeyInput(false);
     alert('تم حفظ مفتاح الـ API بنجاح في متصفحك! 🔒');
   };
 
   const handleDeleteKey = () => {
     if (confirm('هل أنت متأكد من حذف مفتاح الـ API الخاص بك من المتصفح؟')) {
-      localStorage.removeItem('user_gemini_api_key');
+      safeStorage.removeItem('user_gemini_api_key');
       setApiKey('');
       setShowKeyInput(true);
     }
@@ -176,7 +177,7 @@ export default function PromptTesterModal({ isOpen, onClose, defaultPrompt }: Pr
 
   // Generate Image Handler
   const handleGenerate = async () => {
-    const storedKey = localStorage.getItem('user_gemini_api_key');
+    const storedKey = safeStorage.getItem('user_gemini_api_key');
     const currentUser = getCurrentUser();
 
     if (!storedKey && !currentUser) {

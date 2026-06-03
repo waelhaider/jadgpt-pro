@@ -1,5 +1,6 @@
 import { auth, googleProvider } from './firebase';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User, signOut } from 'firebase/auth';
+import { safeStorage } from './safe-storage';
 
 export interface VirtualUser {
   email: string | null;
@@ -9,8 +10,8 @@ export interface VirtualUser {
   getIdToken: () => Promise<string>;
 }
 
-// Cache the access token in memory and localStorage.
-let cachedAccessToken: string | null = localStorage.getItem('google_access_token');
+// Cache the access token in memory and local storage.
+let cachedAccessToken: string | null = safeStorage.getItem('google_access_token');
 let isSigningIn = false;
 
 export const initAuth = (
@@ -18,9 +19,9 @@ export const initAuth = (
   onAuthFailure?: () => void
 ) => {
   // First, check if there is a local email login stored
-  const localEmail = localStorage.getItem('local_auth_user_email');
+  const localEmail = safeStorage.getItem('local_auth_user_email');
   if (localEmail) {
-    const localName = localStorage.getItem('local_auth_user_name') || localEmail.split('@')[0];
+    const localName = safeStorage.getItem('local_auth_user_name') || localEmail.split('@')[0];
     const virtualUser: VirtualUser = {
       email: localEmail,
       displayName: localName,
@@ -36,7 +37,7 @@ export const initAuth = (
 
   return onAuthStateChanged(auth, async (user: User | null) => {
     // If we have a local email login, don't override with null from firebase load
-    if (localStorage.getItem('local_auth_user_email')) {
+    if (safeStorage.getItem('local_auth_user_email')) {
       return;
     }
 
@@ -48,7 +49,7 @@ export const initAuth = (
       }
     } else {
       cachedAccessToken = null;
-      localStorage.removeItem('google_access_token');
+      safeStorage.removeItem('google_access_token');
       if (onAuthFailure) onAuthFailure();
     }
   });
@@ -64,7 +65,7 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
     }
 
     cachedAccessToken = credential.accessToken;
-    localStorage.setItem('google_access_token', cachedAccessToken);
+    safeStorage.setItem('google_access_token', cachedAccessToken);
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
     console.error('Sign in error:', error);
@@ -78,8 +79,8 @@ export const emailSignIn = async (email: string, name?: string): Promise<{ user:
   const cleanEmail = email.trim().toLowerCase();
   const cleanName = name?.trim() || cleanEmail.split('@')[0];
 
-  localStorage.setItem('local_auth_user_email', cleanEmail);
-  localStorage.setItem('local_auth_user_name', cleanName);
+  safeStorage.setItem('local_auth_user_email', cleanEmail);
+  safeStorage.setItem('local_auth_user_name', cleanName);
 
   const virtualUser: VirtualUser = {
     email: cleanEmail,
@@ -90,7 +91,7 @@ export const emailSignIn = async (email: string, name?: string): Promise<{ user:
   };
 
   cachedAccessToken = 'local-dummy-token';
-  localStorage.setItem('google_access_token', 'local-dummy-token');
+  safeStorage.setItem('google_access_token', 'local-dummy-token');
 
   return { user: virtualUser, accessToken: 'local-dummy-token' };
 };
@@ -100,9 +101,9 @@ export const getAccessToken = (): string | null => {
 };
 
 export const getCurrentUser = (): any => {
-  const localEmail = localStorage.getItem('local_auth_user_email');
+  const localEmail = safeStorage.getItem('local_auth_user_email');
   if (localEmail) {
-    const localName = localStorage.getItem('local_auth_user_name') || localEmail.split('@')[0];
+    const localName = safeStorage.getItem('local_auth_user_name') || localEmail.split('@')[0];
     const virtualUser: VirtualUser = {
       email: localEmail,
       displayName: localName,
@@ -118,7 +119,7 @@ export const getCurrentUser = (): any => {
 export const logout = async () => {
   await signOut(auth);
   cachedAccessToken = null;
-  localStorage.removeItem('google_access_token');
-  localStorage.removeItem('local_auth_user_email');
-  localStorage.removeItem('local_auth_user_name');
+  safeStorage.removeItem('google_access_token');
+  safeStorage.removeItem('local_auth_user_email');
+  safeStorage.removeItem('local_auth_user_name');
 };
