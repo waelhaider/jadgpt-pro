@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Upload, Trash2, Key, Play, Sparkles, Image as ImageIcon, Copy, Check, Download, Info, Eye, EyeOff } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
+import { auth } from '../lib/firebase';
 
 interface PromptTesterModalProps {
   isOpen: boolean;
@@ -175,8 +176,10 @@ export default function PromptTesterModal({ isOpen, onClose, defaultPrompt }: Pr
   // Generate Image Handler
   const handleGenerate = async () => {
     const storedKey = localStorage.getItem('user_gemini_api_key');
-    if (!storedKey) {
-      alert('يرجى حفظ كود مفتاح الـ API الخاص بك لتتمكن من استخدام حصتك الخاصة بالتوليد مجاناً.');
+    const currentUser = auth.currentUser;
+
+    if (!storedKey && !currentUser) {
+      alert('يرجى تسجيل الدخول بحسابك أولاً للاستفادة فوراً من حصة التوليد المجانية للموقع، أو قم بإضافة وحفظ مفتاح الـ API الشخصي الخاص بك من لوحة التحكم بالأسفل للمتابعة.');
       setShowKeyInput(true);
       return;
     }
@@ -191,17 +194,7 @@ export default function PromptTesterModal({ isOpen, onClose, defaultPrompt }: Pr
     setGeneratedImageUrl(null);
 
     try {
-      // 1. Initialize GoogleGenAI client on-the-fly using user's own Key
-      const ai = new GoogleGenAI({
-        apiKey: storedKey,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          }
-        }
-      });
-
-      // 2. Prepare visual parts (reference base64 photos)
+      // 1. Prepare visual parts (reference base64 photos)
       const imageParts = [];
       for (const file of userImages) {
         const base64Data = await fileToBase64(file);
@@ -213,13 +206,24 @@ export default function PromptTesterModal({ isOpen, onClose, defaultPrompt }: Pr
         });
       }
 
-      // 3. Compose style instruction and text prompt
-      const styleObj = STYLE_PRESETS.find(s => s.id === selectedStyle);
-      const styleInstructions = styleObj ? styleObj.suffix : '';
+      if (storedKey) {
+        // Option A: Use direct client-side client using user's personal api key
+        const ai = new GoogleGenAI({
+          apiKey: storedKey,
+          httpOptions: {
+            headers: {
+              'User-Agent': 'aistudio-build',
+            }
+          }
+        });
 
-      let compositePrompt = prompt;
-      if (imageParts.length > 0) {
-        compositePrompt = `
+        // Compose style instruction and text prompt
+        const styleObj = STYLE_PRESETS.find(s => s.id === selectedStyle);
+        const styleInstructions = styleObj ? styleObj.suffix : '';
+
+        let compositePrompt = prompt;
+        if (imageParts.length > 0) {
+          compositePrompt = `
 [VISUAL AND FACE REFERENCE REQUIREMENT]:
 You are provided with ${imageParts.length} real portrait reference file(s) of a person's face.
 Your goal is to generate an image where THIS EXACT PERSON is seamlessly integrated as the main character.
@@ -229,45 +233,86 @@ You must perfectly preserve their realistic face structure, eyes, eyes expressio
 
 [YOUR GENERATED SCENE DESCRIPTION]:
 ${prompt}
-        `.trim();
-      } else {
-        if (styleInstructions) {
-          compositePrompt = `${prompt}. Style: ${styleInstructions}`;
-        }
-      }
-
-      // 4. Run the model generation
-      const response = await ai.models.generateContent({
-        model: selectedModel,
-        contents: {
-          parts: [
-            ...imageParts,
-            { text: compositePrompt }
-          ]
-        },
-        config: {
-          imageConfig: {
-            aspectRatio: aspectRatio as any,
-            imageSize: "1K"
+          `.trim();
+        } else {
+          if (styleInstructions) {
+            compositePrompt = `${prompt}. Style: ${styleInstructions}`;
           }
         }
-      });
 
-      // 5. Read response particles to extract image element
-      let foundImg = null;
-      if (response && response.candidates && response.candidates[0] && response.candidates[0].content && response.candidates[0].content.parts) {
-        for (const part of response.candidates[0].content.parts) {
-          if (part.inlineData) {
-            foundImg = `data:image/png;base64,${part.inlineData.data}`;
-            break;
+        // Run the model generation
+        const response = await ai.models.generateContent({
+          model: selectedModel,
+          contents: {
+            parts: [
+              ...imageParts,
+              { text: compositePrompt }
+            ]
+          },
+          config: {
+            imageConfig: {
+              aspectRatio: aspectRatio as any,
+              imageSize: "1K"
+            }
+          }
+        });
+
+        // Read response particles to extract image element
+        let foundImg = null;
+        let foundText = null;
+        if (response && response.candidates && response.candidates[0] && response.candidates[0].content && response.candidates[0].content.parts) {
+          for (const part of response.candidates[0].content.parts) {
+            if (part.inlineData) {
+              foundImg = `data:image/png;base64,${part.inlineData.data}`;
+              break;
+            } else if (part.text) {
+              foundText = part.text;
+            }
           }
         }
-      }
 
-      if (foundImg) {
-        setGeneratedImageUrl(foundImg);
-      } else {
-        throw new Error('لم يتم إرجاع أي مخرجات صور من الموديل التوليدي. تأكد من تطابق حجم الصور والبرومبت.');
+        if (foundImg) {
+          setGeneratedImageUrl(foundImg);
+        } else if (foundText) {
+          // If the model responded with text instead of an image, it usually indicates a quota/block announcement
+          const isQuotaWarning = foundText.toLowerCase().includes('quota') || 
+                                foundText.toLowerCase().includes('limit') || 
+                                foundText.toLowerCase().includes('billing') ||
+                                foundText.toLowerCase().includes('image');
+          
+          throw new Error(`النموذج استجاب بنص بدلاً من صورة: "${foundText}". ${isQuotaWarning ? '(quota/billing limit)' : ''}`);
+        } else {
+          // Since no image was generated and no explanation text was returned, we flag it as highly likely to be a free tier billing constraint
+          throw new Error('لم يتم إرجاع أي مخرجات صور من الموديل التوليدي. تأكد من تفعيل الفوترة لرمز الـ API الخاص بك حيث تتطلب موديلات توليد الصور تفعيل الدفع (quota/billing limit).');
+        }
+      } else if (currentUser) {
+        // Option B: Proxy image generation secure request via the custom Express backend route
+        const idToken = await currentUser.getIdToken();
+        const response = await fetch('/api/generate-image', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+          },
+          body: JSON.stringify({
+            prompt,
+            selectedModel,
+            aspectRatio,
+            selectedStyle,
+            imageParts
+          })
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'فشل توليد الصورة من خادم المعالجة الرئيسي.');
+        }
+
+        if (data.imageUrl) {
+          setGeneratedImageUrl(data.imageUrl);
+        } else {
+          throw new Error('لم يتم استلام أي رابط للصور من الخادم المعالج.');
+        }
       }
     } catch (err: any) {
       console.error('Generation Error:', err);
@@ -275,8 +320,19 @@ ${prompt}
       const errorStr = err?.message || String(err);
       if (errorStr.includes('API_KEY_INVALID') || errorStr.includes('invalid API key')) {
         setErrorMessage('رمز الـ API المدخل غير صحيح أو غير مفعل. الرجاء مراجعته أو إصدار رمز جديد.');
-      } else if (errorStr.includes('quota') || errorStr.includes('Quota exceeded')) {
-        setErrorMessage('لقد تجاوزت ليميت الاستخدام المسموح به لمفتاحك المجاني حالياً. يرجى تجربة مفتاح آخر أو المحاولة لاحقاً.');
+      } else if (
+        errorStr.includes('quota') || 
+        errorStr.includes('Quota exceeded') || 
+        errorStr.includes('limit') || 
+        errorStr.includes('exhausted') || 
+        errorStr.includes('blocked') || 
+        errorStr.includes('billing') ||
+        errorStr.includes('429') ||
+        errorStr.includes('Resource')
+      ) {
+        setErrorMessage(
+          '⚠️ قيد من Google AI Studio: جميع موديلات توليد وتعديل الصور تتطلب تفعيل الفوترة لـ API Key الخاص بك (Pay-as-you-go). المفاتيح المجانية العادية مخصصة للنصوص فقط، وعند استخدامها مع الصور تفشل فوراً وتُظهر خطأ نقاد الكوتا هذا حتى لو كان الحساب أو الإيميل جديداً تماماً. يرجى تفعيل الدفع/الفوترة في لوحة حسابك لتفعيل توليد الصور.'
+        );
       } else {
         setErrorMessage(`فشل توليد التحفة الفنية: ${errorStr}`);
       }
@@ -413,15 +469,27 @@ ${prompt}
                       </button>
                     </div>
 
-                    <div className="flex items-start gap-1.5 text-[10px] text-natural-muted bg-white border border-natural-border p-2.5 rounded-xl">
-                      <Info size={12} className="text-natural-primary shrink-0 mt-0.5" />
-                      <p>
-                        مفتاحك الشخصي يُحفّظ محلياً بالكامل (localStorage) ولا يُرسل أبداً لأي خادم وسيط. الطلبات ستتجه مباشرة من حاسوبك لخوادم Google Gemini الرسمية. للحصول على مفتاح فوري مجاني برقم جوالك، اذهب إلى
-                        <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" className="text-natural-primary hover:underline font-bold mx-1">
-                          Google AI Studio
-                        </a>
-                        واضغط على &quot;Get API Key&quot;.
-                      </p>
+                    <div className="space-y-2">
+                      <div className="flex items-start gap-1.5 text-[10px] text-natural-muted bg-white border border-natural-border p-2.5 rounded-xl">
+                        <Info size={12} className="text-natural-primary shrink-0 mt-0.5" />
+                        <p>
+                          مفتاحك الشخصي يُحفّظ محلياً بالكامل (localStorage) ولا يُرسل لأي خادم وسيط. الطلبات تتوجه مباشرة من متصفحك لخوادم Google Gemini الرسمية. للحصول على مفتاح، اذهب إلى 
+                          <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" className="text-natural-primary hover:underline font-bold mx-1">
+                            Google AI Studio
+                          </a>
+                          واضغط على &quot;Get API Key&quot;.
+                        </p>
+                      </div>
+
+                      <div className="bg-amber-50/50 border border-amber-200/60 p-3 rounded-xl text-[11px] text-[#7A6432] space-y-1">
+                        <span className="font-black block">💡 تنبيه هام بخصوص توليد الصور (Image Generation):</span>
+                        <p className="leading-relaxed">
+                          شركة جوجل تمنع استخدام موديلات توليد وتعديل الصور (مثل <span className="font-bold">Gemini Image</span>) على حسابات الـ API المجانية العادية. عند استخدام مفتاح مجاني لتوليد صور، يظهر لك خطأ <span className="font-bold">&quot;Quota Exceeded/تجاوز ليميت الاستخدام&quot;</span> تلقائياً منذ المحاولة الأولى حتى لو أنشأت حساباً أو مفتاحاً جديداً.
+                        </p>
+                        <p className="font-bold leading-normal">
+                          حل المشكلة: لتشغيل توليد الصور برمزك الشخصي، يرجى ترقية حسابك في لوحة تحكم Google AI Studio إلى شريحة التدفق المرن (Pay-as-you-go) وربط بطاقة الدفع (فوترة مفعّلة).
+                        </p>
+                      </div>
                     </div>
                   </motion.form>
                 )}

@@ -37,11 +37,28 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
   }, [isSidebarOpen]);
 
   const handleLogin = async () => {
+    // Check if running inside an iframe (such as the AI Studio integrated preview)
+    const isIframe = window.self !== window.top;
+    if (isIframe) {
+      alert('⚠️ تنبيه هام: تسجيل الدخول بواسطة Google غير مدعوم مباشرةً داخل نافذة المعاينة (IFrame) بسبب قيود الحماية في متصفحك. يرجى فتح التطبيق في نافذة/تبويب جديد بالضغط على زر (فتح في نافذة جديدة) أعلى المتصفح، ثم سجل دخولك هناك لتستمع بكامل المزايا الفورية.');
+      window.open(window.location.href, '_blank');
+      return;
+    }
+
     try {
-      await googleSignIn();
+      const res = await googleSignIn();
+      if (res) {
+        alert('تم تسجيل الدخول بنجاح! 🎉');
+      }
       setIsSidebarOpen(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login failed:', error);
+      const isPopupBlocked = error?.code === 'auth/popup-blocked' || error?.message?.toLowerCase().includes('popup-blocked') || error?.message?.toLowerCase().includes('popup');
+      if (isPopupBlocked) {
+        alert('❌ تم حظر النافذة المنبثقة! يرجى السماح بالنوافذ المنبثقة (Popups) في إعدادات متصفحك لإتمام تسجيل الدخول باستخدام Google.');
+      } else {
+        alert(`❌ فشل تسجيل الدخول: ${error?.message || error}`);
+      }
     }
   };
 

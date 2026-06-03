@@ -1,8 +1,8 @@
 import { auth, googleProvider } from './firebase';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User, signOut } from 'firebase/auth';
 
-// Cache the access token in memory.
-let cachedAccessToken: string | null = null;
+// Cache the access token in memory and localStorage.
+let cachedAccessToken: string | null = localStorage.getItem('google_access_token');
 let isSigningIn = false;
 
 export const initAuth = (
@@ -11,11 +11,6 @@ export const initAuth = (
 ) => {
   return onAuthStateChanged(auth, async (user: User | null) => {
     if (user) {
-      // If we have a user but no cached token, we can try to get one
-      // if the user just signed in, it would be set by googleSignIn.
-      // If it's a page reload, we might need to trigger signInWithPopup 
-      // or rely on the user clicking button. 
-      // Recommendation: show login button if token is null.
       if (cachedAccessToken) {
         if (onAuthSuccess) onAuthSuccess(user, cachedAccessToken);
       } else {
@@ -23,6 +18,7 @@ export const initAuth = (
       }
     } else {
       cachedAccessToken = null;
+      localStorage.removeItem('google_access_token');
       if (onAuthFailure) onAuthFailure();
     }
   });
@@ -38,7 +34,7 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
     }
 
     cachedAccessToken = credential.accessToken;
-    // We can also store a timestamp in memory if we want to enforce expiry checks
+    localStorage.setItem('google_access_token', cachedAccessToken);
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
     console.error('Sign in error:', error);
@@ -55,4 +51,5 @@ export const getAccessToken = (): string | null => {
 export const logout = async () => {
   await signOut(auth);
   cachedAccessToken = null;
+  localStorage.removeItem('google_access_token');
 };
