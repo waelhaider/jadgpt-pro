@@ -9,6 +9,7 @@ import UploadPost from './components/UploadPost';
 import Feed from './components/Feed';
 import ScrollToTop from './components/ScrollToTop';
 import BoardTabs from './components/BoardTabs';
+import PromptTesterModal from './components/PromptTesterModal';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
@@ -25,6 +26,8 @@ export default function App() {
   const [boards, setBoards] = useState<Board[]>([]);
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
   const [postCounts, setPostCounts] = useState<Record<string, number>>({});
+  const [testerOpen, setTesterOpen] = useState(false);
+  const [testerPrompt, setTesterPrompt] = useState('');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -112,11 +115,25 @@ export default function App() {
         </AnimatePresence>
 
         <div className="mt-4">
-          <Feed isAdmin={isAdmin} boardId={activeBoardId} boards={boards} />
+          <Feed 
+            isAdmin={isAdmin} 
+            boardId={activeBoardId} 
+            boards={boards} 
+            onTestPrompt={(text) => {
+              setTesterPrompt(text);
+              setTesterOpen(true);
+            }} 
+          />
         </div>
       </main>
 
       <ScrollToTop />
+
+      <PromptTesterModal 
+        isOpen={testerOpen} 
+        onClose={() => setTesterOpen(false)} 
+        defaultPrompt={testerPrompt} 
+      />
 
       <footer className="py-8 bg-white border-t border-natural-border text-center">
         <p className="text-[10px] text-natural-muted font-medium tracking-widest uppercase">

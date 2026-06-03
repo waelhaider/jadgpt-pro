@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Post, OperationType, Board } from '../types';
 import { db } from '../lib/firebase';
 import { doc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { MoreHorizontal, Trash2, Edit3, Check, X, Clock, Copy, Loader2, Image as ImageIcon, Plus } from 'lucide-react';
+import { MoreHorizontal, Trash2, Edit3, Check, X, Clock, Copy, Loader2, Image as ImageIcon, Plus, Sparkles } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError } from '../lib/error-handler';
@@ -15,11 +15,12 @@ interface PostCardProps {
   post: Post;
   isAdmin: boolean;
   boards: Board[];
+  onTestPrompt: (text: string) => void;
 }
 
 import { ADMIN_CONFIG } from '../config';
 
-export default function PostCard({ post, isAdmin, boards }: PostCardProps) {
+export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCardProps) {
   const isPostFromAdmin = post.authorEmail === ADMIN_CONFIG.email;
   const displayName = isPostFromAdmin ? ADMIN_CONFIG.displayName : post.authorEmail.split('@')[0];
 
@@ -411,9 +412,18 @@ export default function PostCard({ post, isAdmin, boards }: PostCardProps) {
                     {isTextExpanded ? 'عرض أقل ↑' : 'عرض المزيد ↓'}
                   </button>
                 ) : <div />}
-                <button onClick={handleCopy} className="flex items-center gap-1 rounded-md bg-natural-bg px-2 py-1 text-[10px] font-bold text-natural-muted transition-all hover:bg-natural-secondary-bg hover:text-natural-primary">
-                  {isCopied ? <><Check size={12} className="text-green-600" /><span className="text-green-600">تم النسخ</span></> : <><Copy size={12} /><span>نسخ النص</span></>}
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button 
+                    onClick={() => onTestPrompt(post.text)} 
+                    className="flex items-center gap-1 rounded-md bg-natural-primary/10 px-2.5 py-1 text-[10px] font-black text-natural-primary transition-all hover:bg-natural-primary hover:text-white"
+                  >
+                    <Sparkles size={11} className="text-natural-primary hover:text-white" />
+                    <span>تجريب البرومبت</span>
+                  </button>
+                  <button onClick={handleCopy} className="flex items-center gap-1 rounded-md bg-natural-bg px-2 py-1 text-[10px] font-bold text-natural-muted transition-all hover:bg-natural-secondary-bg hover:text-natural-primary">
+                    {isCopied ? <><Check size={12} className="text-green-600" /><span className="text-green-600">تم النسخ</span></> : <><Copy size={12} /><span>نسخ النص</span></>}
+                  </button>
+                </div>
               </div>
             </div>
           )}

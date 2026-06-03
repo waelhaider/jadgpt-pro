@@ -11,9 +11,10 @@ interface FeedProps {
   isAdmin: boolean;
   boardId: string | null;
   boards: Board[];
+  onTestPrompt: (text: string) => void;
 }
 
-export default function Feed({ isAdmin, boardId, boards }: FeedProps) {
+export default function Feed({ isAdmin, boardId, boards, onTestPrompt }: FeedProps) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -72,7 +73,7 @@ export default function Feed({ isAdmin, boardId, boards }: FeedProps) {
       <AnimatePresence mode="popLayout">
         {posts.map((post) => (
           <div key={post.id}>
-            <PostCard post={post} isAdmin={isAdmin} boards={boards} />
+            <PostCard post={post} isAdmin={isAdmin} boards={boards} onTestPrompt={onTestPrompt} />
           </div>
         ))}
       </AnimatePresence>
