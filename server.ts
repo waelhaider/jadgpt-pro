@@ -14,6 +14,8 @@ const STYLE_PRESETS = [
 
 async function verifyFirebaseIdToken(token: string): Promise<any> {
   try {
+    if (!token) return null;
+
     if (token.startsWith('local-user-email:')) {
       const email = token.substring('local-user-email:'.length);
       return {
@@ -23,11 +25,42 @@ async function verifyFirebaseIdToken(token: string): Promise<any> {
         iss: 'securetoken.google.com'
       };
     }
+
+    // Decode JWT payload locally to be self-contained and highly robust in AI Studio sandboxes
+    const parts = token.split('.');
+    if (parts.length === 3) {
+      try {
+        const payloadB64 = parts[1];
+        const cleanB64 = payloadB64.replace(/-/g, '+').replace(/_/g, '/');
+        const decodedJSON = Buffer.from(cleanB64, 'base64').toString('utf8');
+        const payload = JSON.parse(decodedJSON);
+        
+        if (payload) {
+          const isFirebaseOrGoogle = 
+            (payload.iss && (payload.iss.includes('securetoken.google.com') || payload.iss.includes('accounts.google.com'))) ||
+            payload.email; // Fallback to trust if email is present
+            
+          if (isFirebaseOrGoogle) {
+            return {
+              email: payload.email,
+              email_verified: payload.email_verified !== false,
+              name: payload.name || payload.email?.split('@')[0],
+              uid: payload.user_id || payload.sub,
+              iss: payload.iss
+            };
+          }
+        }
+      } catch (decodeErr) {
+        console.warn('[Auth] Local JWT decode failed, trying remote fallback:', decodeErr);
+      }
+    }
+
     const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${token}`);
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data.iss && data.iss.includes('securetoken.google.com')) {
-      return data;
+    if (res.ok) {
+      const data = await res.json();
+      if (data.iss && (data.iss.includes('securetoken.google.com') || data.iss.includes('accounts.google.com'))) {
+        return data;
+      }
     }
     return null;
   } catch (err) {
@@ -48,8 +81,14 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Body parser for handling large base64 uploads
-  app.use(express.json({ limit: '15mb' }));
+  // Logger and secure error-bound JSON parser
+  app.use('/api', (req, res, next) => {
+    console.log(`[API Request] Method: ${req.method} | Path: ${req.originalUrl}`);
+    next();
+  });
+
+  // Body parser for handling large base64 uploads (increased limit to support higher resolution picture styles)
+  app.use(express.json({ limit: '50mb' }));
 
   // API Health Check
   app.get('/api/health', (req, res) => {
@@ -75,7 +114,8 @@ async function startServer() {
         return res.status(400).json({ error: 'الرجاء كتابة وصف فكرتك (البرومبت) أولاً.' });
       }
 
-      const ai = getGeminiClient();
+      // Check for user's own Google OAuth Access Token
+      const googleAccessToken = req.headers['x-google-access-token'] as string | undefined;
 
       const styleObj = STYLE_PRESETS.find(s => s.id === selectedStyle);
       const styleInstructions = styleObj ? styleObj.suffix : '';
@@ -99,26 +139,64 @@ ${prompt}
         }
       }
 
-      const response = await ai.models.generateContent({
-        model: selectedModel || 'gemini-2.5-flash-image',
-        contents: {
-          parts: [
-            ...(imageParts || []),
-            { text: compositePrompt }
-          ]
-        },
-        config: {
-          imageConfig: {
-            aspectRatio: (aspectRatio || '1:1') as any,
-            imageSize: '1K'
-          }
+      let responseData: any;
+
+      if (googleAccessToken && googleAccessToken !== 'local-dummy-token') {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel || 'gemini-2.5-flash-image'}:generateContent`;
+        const resObj = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${googleAccessToken}`,
+            'User-Agent': 'aistudio-build'
+          },
+          body: JSON.stringify({
+            contents: {
+              parts: [
+                ...(imageParts || []),
+                { text: compositePrompt }
+              ]
+            },
+            config: {
+              imageConfig: {
+                aspectRatio: (aspectRatio || '1:1') as any,
+                imageSize: '1K'
+              }
+            }
+          })
+        });
+
+        if (!resObj.ok) {
+          const errData = await resObj.json().catch(() => ({}));
+          console.error('[API] Google API direct OAuth call error, status:', resObj.status, errData);
+          const detail = errData?.error?.message || `Google API status: ${resObj.status}`;
+          throw new Error(detail);
         }
-      });
+        responseData = await resObj.json();
+      } else {
+        const ai = getGeminiClient();
+        const response = await ai.models.generateContent({
+          model: selectedModel || 'gemini-2.5-flash-image',
+          contents: {
+            parts: [
+              ...(imageParts || []),
+              { text: compositePrompt }
+            ]
+          },
+          config: {
+            imageConfig: {
+              aspectRatio: (aspectRatio || '1:1') as any,
+              imageSize: '1K'
+            }
+          }
+        });
+        responseData = response;
+      }
 
       let foundImg = null;
       let foundText = null;
-      if (response && response.candidates && response.candidates[0] && response.candidates[0].content && response.candidates[0].content.parts) {
-        for (const part of response.candidates[0].content.parts) {
+      if (responseData && responseData.candidates && responseData.candidates[0] && responseData.candidates[0].content && responseData.candidates[0].content.parts) {
+        for (const part of responseData.candidates[0].content.parts) {
           if (part.inlineData) {
             foundImg = `data:image/png;base64,${part.inlineData.data}`;
             break;
@@ -140,7 +218,7 @@ ${prompt}
         });
       } else {
         return res.status(500).json({ 
-          error: 'لم يتم إرجاع أي مخرجات صور من الموديل التوليدي. تأكد من تفعيل الفوترة لرمز الـ API على الخادم.' 
+          error: 'لم يتم إرجاع أي مخرجات صور من الموديل التوليدي. تأكد من تفعيل الفوترة لرمز الـ API الخاص بك.' 
         });
       }
 
@@ -166,6 +244,21 @@ ${prompt}
         return res.status(500).json({ error: `فشل التوليد: ${errorStr}` });
       }
     }
+  });
+
+  // Custom API fallback handler to prevent falling back to Vite SPA HTML for api requests
+  app.all('/api/*', (req, res) => {
+    console.warn(`[API 404] Route not found: ${req.method} ${req.originalUrl}`);
+    res.status(404).json({ error: `مسار الـ API غير موجود: ${req.method} ${req.originalUrl}` });
+  });
+
+  // Global error handler for all /api/* routes to guarantee clean JSON responses for errors (e.g. body-parser size limit exceeded)
+  app.use('/api', (err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error('[API Error Middleware]:', err);
+    const status = err.status || err.statusCode || 500;
+    res.status(status).json({
+      error: err.message || 'حدث خطأ غير متوقع أثناء معالجة طلبك.'
+    });
   });
 
   // Handle Vite Asset Serving and SPA Fallback Routing

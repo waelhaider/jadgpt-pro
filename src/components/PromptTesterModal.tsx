@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Upload, Trash2, Key, Play, Sparkles, Image as ImageIcon, Copy, Check, Download, Info, Eye, EyeOff } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import { auth } from '../lib/firebase';
-import { getCurrentUser } from '../lib/auth';
+import { getCurrentUser, getAccessToken } from '../lib/auth';
 import { safeStorage } from '../lib/safe-storage';
 
 interface PromptTesterModalProps {
@@ -44,6 +44,9 @@ export default function PromptTesterModal({ isOpen, onClose, defaultPrompt }: Pr
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+
+  const currentUser = getCurrentUser();
+  const hasGToken = !!getAccessToken();
 
   const loadingMessages = [
     'جاري قراءة وتحليل ملامح الوجه المرسلة...',
@@ -290,11 +293,13 @@ ${prompt}
       } else if (currentUser) {
         // Option B: Proxy image generation secure request via the custom Express backend route
         const idToken = await currentUser.getIdToken();
+        const gToken = getAccessToken();
         const response = await fetch('/api/generate-image', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${idToken}`
+            'Authorization': `Bearer ${idToken}`,
+            ...(gToken ? { 'X-Google-Access-Token': gToken } : {})
           },
           body: JSON.stringify({
             prompt,
@@ -497,6 +502,44 @@ ${prompt}
                 )}
               </AnimatePresence>
             </div>
+
+            {/* Quota & Authentication Status banner */}
+            {currentUser && (
+              <div className="bg-emerald-50/70 border border-emerald-100 p-3.5 rounded-xl flex items-center justify-between text-xs text-emerald-800 shadow-sm animate-fade-in gap-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <p className="font-bold text-[#4A4A35] leading-relaxed">
+                    أنت متصل بحساب: <span className="font-black text-emerald-900">{currentUser.email}</span>
+                    {hasGToken ? (
+                      <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold inline-block mr-2 select-none">
+                        مفعل بحصتها من Google Quota ✅
+                      </span>
+                    ) : (
+                      <span className="text-[10px] bg-amber-100 text-[#7A6432] px-2 py-0.5 rounded-full font-bold inline-block mr-2 select-none font-sans">
+                        تسجيل محلي (ايميل) ✉️
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <div className="text-[10px] text-emerald-700 font-bold leading-none">
+                  {hasGToken 
+                    ? 'نظام كوتا جيميني: تتوجه طلبات توليد الصور مباشرة بحسابك لتفادي أي قيود على السيرفر.' 
+                    : 'سجل دخولك بجوجل لتفعيل نظام كوتا حسابك مباشرة!'
+                  }
+                </div>
+              </div>
+            )}
+
+            {currentUser && !hasGToken && (
+              <div className="bg-amber-50/50 border border-amber-200/60 p-3.5 rounded-xl text-xs space-y-1">
+                <p className="font-black text-[#7A6432]">💡 تبديل سهل لتخطي قيود كوتا الصور:</p>
+                <p className="leading-relaxed text-[#8A7442]">
+                  بما أنك مسجيل حالياً عبر الإيميل فقط، نوصيك بـ 
+                  <strong className="mx-1 text-natural-primary">تسجيل الخروج والاتصال باستخدام زر حساب Google</strong> 
+                  حتى يتم ربط كوتا حسابك الخاص بالتوليد مباشرة دون أي قيود، تماماً مثل نظام كوتا موقع Gemini الرسمي!
+                </p>
+              </div>
+            )}
 
             {/* Split view: Inputs Left, Studio Output Right on desktop */}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-6">

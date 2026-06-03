@@ -65,6 +65,7 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
       const res = await googleSignIn();
       if (res) {
         alert('تم تسجيل الدخول بنجاح! 🎉');
+        window.location.reload();
       }
       setIsSidebarOpen(false);
     } catch (error: any) {
@@ -120,6 +121,7 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
     try {
       await authLogout();
       setIsSidebarOpen(false);
+      window.location.reload();
     } catch (error) {
       console.error('Logout failed:', error);
     }
