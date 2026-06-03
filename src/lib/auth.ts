@@ -26,8 +26,8 @@ export const initAuth = (
       email: localEmail,
       displayName: localName,
       photoURL: null,
-      uid: 'local-' + btoa(localEmail),
-      getIdToken: async () => 'local-user-email:' + localEmail,
+      uid: auth.currentUser ? auth.currentUser.uid : 'local-' + btoa(localEmail),
+      getIdToken: async () => auth.currentUser ? auth.currentUser.getIdToken() : 'local-user-email:' + localEmail,
     };
     cachedAccessToken = 'local-dummy-token';
     if (onAuthSuccess) {
@@ -36,8 +36,20 @@ export const initAuth = (
   }
 
   return onAuthStateChanged(auth, async (user: User | null) => {
-    // If we have a local email login, don't override with null from firebase load
-    if (safeStorage.getItem('local_auth_user_email')) {
+    const activeLocalEmail = safeStorage.getItem('local_auth_user_email');
+    if (activeLocalEmail) {
+      // If we have a local email login and an active firebase auth, sync the UID
+      if (user && onAuthSuccess) {
+        const localName = safeStorage.getItem('local_auth_user_name') || activeLocalEmail.split('@')[0];
+        const updatedVirtualUser: VirtualUser = {
+          email: activeLocalEmail,
+          displayName: localName,
+          photoURL: null,
+          uid: user.uid,
+          getIdToken: async () => user.getIdToken(),
+        };
+        onAuthSuccess(updatedVirtualUser, cachedAccessToken || 'local-dummy-token');
+      }
       return;
     }
 
@@ -66,6 +78,15 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
 
     cachedAccessToken = credential.accessToken;
     safeStorage.setItem('google_access_token', cachedAccessToken);
+
+    // Synchronize local / virtual session state with Google Login
+    if (result.user.email) {
+      safeStorage.setItem('local_auth_user_email', result.user.email);
+      if (result.user.displayName) {
+        safeStorage.setItem('local_auth_user_name', result.user.displayName);
+      }
+    }
+
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
     console.error('Sign in error:', error);
@@ -86,8 +107,8 @@ export const emailSignIn = async (email: string, name?: string): Promise<{ user:
     email: cleanEmail,
     displayName: cleanName,
     photoURL: null,
-    uid: 'local-' + btoa(cleanEmail),
-    getIdToken: async () => 'local-user-email:' + cleanEmail,
+    uid: auth.currentUser ? auth.currentUser.uid : 'local-' + btoa(cleanEmail),
+    getIdToken: async () => auth.currentUser ? auth.currentUser.getIdToken() : 'local-user-email:' + cleanEmail,
   };
 
   cachedAccessToken = 'local-dummy-token';
@@ -97,23 +118,33 @@ export const emailSignIn = async (email: string, name?: string): Promise<{ user:
 };
 
 export const getAccessToken = (): string | null => {
+  const token = safeStorage.getItem('google_access_token');
+  if (token && token !== 'local-dummy-token') {
+    return token;
+  }
   return cachedAccessToken;
 };
 
 export const getCurrentUser = (): any => {
   const localEmail = safeStorage.getItem('local_auth_user_email');
+  const firebaseUser = auth.currentUser;
+
+  if (firebaseUser && (!localEmail || firebaseUser.email === localEmail)) {
+    return firebaseUser;
+  }
+
   if (localEmail) {
     const localName = safeStorage.getItem('local_auth_user_name') || localEmail.split('@')[0];
     const virtualUser: VirtualUser = {
       email: localEmail,
       displayName: localName,
       photoURL: null,
-      uid: 'local-' + btoa(localEmail),
-      getIdToken: async () => 'local-user-email:' + localEmail,
+      uid: firebaseUser ? firebaseUser.uid : 'local-' + btoa(localEmail),
+      getIdToken: async () => firebaseUser ? firebaseUser.getIdToken() : 'local-user-email:' + localEmail,
     };
     return virtualUser;
   }
-  return auth.currentUser;
+  return firebaseUser;
 };
 
 export const logout = async () => {

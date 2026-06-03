@@ -57,7 +57,8 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
   const [status, setStatus] = useState<string>('');
   const [uploadError, setUploadError] = useState<{message: string, showRefresh: boolean} | null>(null);
 
-  const accessToken = getAccessToken();
+  const currentToken = getAccessToken();
+  const hasDriveAccess = !!currentToken && currentToken !== 'local-dummy-token';
 
   const handleAuthorize = async () => {
     setLoading(true);
@@ -87,7 +88,9 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
       return;
     }
 
-    if (hasImages && !accessToken) {
+    const currentToken = getAccessToken();
+
+    if (hasImages && (!currentToken || currentToken === 'local-dummy-token')) {
       handleAuthorize();
       return;
     }
@@ -98,13 +101,13 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
     try {
       // 1. Upload all to Drive if any
       const driveUrls: string[] = [];
-      if (images.length > 0 && accessToken) {
+      if (images.length > 0 && currentToken) {
         for (let i = 0; i < images.length; i++) {
           const file = images[i];
           const currentStatus = `جاري رفع الصورة ${i + 1} من ${images.length}...`;
           console.log(`[UploadPost] Status: ${currentStatus}`);
           setStatus(currentStatus);
-          const url = await uploadToDrive(file, accessToken);
+          const url = await uploadToDrive(file, currentToken);
           driveUrls.push(url);
         }
       }
@@ -266,7 +269,7 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
               type="submit"
               disabled={loading || (!text.trim() && images.length === 0)}
               className={`px-6 py-1.5 rounded-lg text-sm font-bold shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                !accessToken && images.length > 0 
+                !hasDriveAccess && images.length > 0 
                   ? 'bg-amber-600 hover:bg-amber-700 text-white' 
                   : 'bg-natural-primary hover:bg-[#4A4A35] text-white'
               }`}
@@ -277,7 +280,7 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
                   {status || 'جاري النشر...'}
                 </div>
               ) : (
-                !accessToken && images.length > 0 ? 'تفعيل Google Drive للنشر' : 'نشر الآن'
+                !hasDriveAccess && images.length > 0 ? 'تفعيل Google Drive للنشر' : 'نشر الآن'
               )}
             </button>
           </div>
