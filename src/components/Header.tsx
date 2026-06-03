@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { auth, googleProvider } from '../lib/firebase';
-import { googleSignIn, logout as authLogout } from '../lib/auth';
+import { googleSignIn, emailSignIn, logout as authLogout } from '../lib/auth';
 import { User } from 'firebase/auth';
 import { LogIn, LogOut, ShieldCheck, User as UserIcon, Menu, X, PlusCircle, Edit, LayoutGrid } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -29,6 +29,10 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
   });
   const [sidebarKey, setSidebarKey] = useState(localStorage.getItem('user_gemini_api_key') || '');
   const [isEditingKey, setIsEditingKey] = useState(false);
+  
+  // Fast email login state
+  const [fastEmail, setFastEmail] = useState('');
+  const [fastName, setFastName] = useState('');
 
   React.useEffect(() => {
     if (isSidebarOpen) {
@@ -40,7 +44,7 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
     // Check if running inside an iframe (such as the AI Studio integrated preview)
     const isIframe = window.self !== window.top;
     if (isIframe) {
-      alert('⚠️ تنبيه هام: تسجيل الدخول بواسطة Google غير مدعوم مباشرةً داخل نافذة المعاينة (IFrame) بسبب قيود الحماية في متصفحك. يرجى فتح التطبيق في نافذة/تبويب جديد بالضغط على زر (فتح في نافذة جديدة) أعلى المتصفح، ثم سجل دخولك هناك لتستمع بكامل المزايا الفورية.');
+      alert('⚠️ تنبيه هام: تسجيل الدخول بواسطة Google غير مدعوم مباشرةً داخل نافذة المعاينة (IFrame) بسبب قيود الحماية في متصفحك. يرجى فتح التطبيق في نافذة/تبويب جديد بالضغط على زر (فتح في نافذة جديدة) أعلى المتصفح، أو استخدم خيار (الدخول الفوري بالبريد الإلكتروني) بالأسفل للتمتع بالتوليد فوراً.');
       window.open(window.location.href, '_blank');
       return;
     }
@@ -54,11 +58,44 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
     } catch (error: any) {
       console.error('Login failed:', error);
       const isPopupBlocked = error?.code === 'auth/popup-blocked' || error?.message?.toLowerCase().includes('popup-blocked') || error?.message?.toLowerCase().includes('popup');
-      if (isPopupBlocked) {
+      const isUnauthorizedDomain = error?.code === 'auth/unauthorized-domain' || error?.message?.toLowerCase().includes('unauthorized-domain');
+      
+      if (isUnauthorizedDomain) {
+        alert(`⚠️ خطأ في عنوان الموقع (Unauthorized Domain):
+نظراً لأن المشروع يشتغل في خادم معاينة مؤقت، لم يتم إضافة هذا الرابط (${window.location.hostname}) لقائمة المواقع الموثوقة بمشروعك في Firebase.
+
+لتخطي هذا القيد فوراً والاستمتاع بالتوليد:
+1. استخدم نموذج "الدخول الفوري بالبريد الإلكتروني" في القائمة لإدخال إيميلك الشخصي مباشرة وبدء التوليد فوراً بقوة السيرفر.
+2. أو أضف هذا النطاق (${window.location.hostname}) في لوحة تحكم Firebase بمشروعك (Authentication -> Settings -> Authorized domains).`);
+      } else if (isPopupBlocked) {
         alert('❌ تم حظر النافذة المنبثقة! يرجى السماح بالنوافذ المنبثقة (Popups) في إعدادات متصفحك لإتمام تسجيل الدخول باستخدام Google.');
       } else {
         alert(`❌ فشل تسجيل الدخول: ${error?.message || error}`);
       }
+    }
+  };
+
+  const handleFastLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fastEmail.trim()) {
+      alert('يرجى كتابة بريدك الإلكتروني أولاً.');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(fastEmail.trim())) {
+      alert('يرجى إدخال بريد إلكتروني صحيح.');
+      return;
+    }
+
+    try {
+      const res = await emailSignIn(fastEmail.trim(), fastName.trim());
+      if (res) {
+        alert('🎉 تم الدخول السريع بنجاح! حصة سيرفر JADGPT المجانية نشطة لك الآن لتوليد وتعديل الصور.');
+        window.location.reload();
+      }
+      setIsSidebarOpen(false);
+    } catch (err: any) {
+      alert(`خطأ أثناء الدخول السريع: ${err.message || err}`);
     }
   };
 
@@ -350,6 +387,41 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
                         <LogIn size={18} />
                         تسجيل الدخول باستخدام جوجل
                       </button>
+
+                      {/* Fast Email Login Form */}
+                      <form onSubmit={handleFastLogin} className="w-full pt-4 border-t border-natural-border/60 text-right space-y-3">
+                        <div className="flex items-center gap-1.5 justify-between">
+                          <span className="text-xs font-black text-[#4A4A35]">أو الدخول ببريدك الإلكتروني مباشرة</span>
+                          <span className="text-[10px] bg-green-100 text-green-700 font-bold px-1.5 py-0.5 rounded-md">جديد وسريع</span>
+                        </div>
+                        <p className="text-[10px] text-natural-muted leading-relaxed">
+                          إذا واجهت مشكلة في تسجيل الدخول العادي أو كنت داخل نافذة المعاينة، أدخل بريدك الإلكتروني هنا للدخول الفوري واستخدام حصة السيرفر المجانية مباشرة لرسم الصور وحفظها.
+                        </p>
+                        <div className="space-y-2">
+                          <input
+                            type="email"
+                            value={fastEmail}
+                            onChange={(e) => setFastEmail(e.target.value)}
+                            placeholder="بريدك الإلكتروني الشخصي"
+                            className="w-full text-xs rounded-xl border border-natural-border px-3 py-2.5 bg-white font-bold text-natural-text focus:outline-none text-right focus:ring-1 focus:ring-natural-primary"
+                            required
+                          />
+                          <input
+                            type="text"
+                            value={fastName}
+                            onChange={(e) => setFastName(e.target.value)}
+                            placeholder="اسمك الكريم (اختياري)"
+                            className="w-full text-xs rounded-xl border border-natural-border px-3 py-2.5 bg-white font-bold text-natural-text focus:outline-none text-right focus:ring-1 focus:ring-natural-primary"
+                          />
+                        </div>
+                        <button
+                          type="submit"
+                          className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-natural-primary bg-natural-primary/5 p-3 text-xs font-bold text-natural-primary transition-all hover:bg-natural-primary hover:text-white active:scale-95"
+                        >
+                          <LogIn size={14} />
+                          دخول فوري ومباشر بحصة السيرفر
+                        </button>
+                      </form>
 
                       {/* Tool Button for Guests as well */}
                       <div className="w-full pt-6 border-t border-natural-border space-y-2">

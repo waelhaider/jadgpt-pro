@@ -11,7 +11,8 @@ import ScrollToTop from './components/ScrollToTop';
 import BoardTabs from './components/BoardTabs';
 import PromptTesterModal from './components/PromptTesterModal';
 import { auth, db } from './lib/firebase';
-import { onAuthStateChanged, User } from 'firebase/auth';
+import { User } from 'firebase/auth';
+import { initAuth } from './lib/auth';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { Board } from './types';
@@ -30,10 +31,16 @@ export default function App() {
   const [testerPrompt, setTesterPrompt] = useState('');
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setLoading(false);
-    });
+    const unsubscribe = initAuth(
+      (currentUser) => {
+        setUser(currentUser as any);
+        setLoading(false);
+      },
+      () => {
+        setUser(null);
+        setLoading(false);
+      }
+    );
 
     // Fetch Boards
     const q = query(collection(db, 'boards'), orderBy('order', 'asc'));

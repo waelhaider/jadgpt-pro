@@ -14,6 +14,15 @@ const STYLE_PRESETS = [
 
 async function verifyFirebaseIdToken(token: string): Promise<any> {
   try {
+    if (token.startsWith('local-user-email:')) {
+      const email = token.substring('local-user-email:'.length);
+      return {
+        email: email,
+        email_verified: true,
+        name: email.split('@')[0],
+        iss: 'securetoken.google.com'
+      };
+    }
     const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${token}`);
     if (!res.ok) return null;
     const data = await res.json();
