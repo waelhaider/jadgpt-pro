@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Upload, Trash2, Key, Play, Sparkles, Image as ImageIcon, Copy, Check, Download, Info, Eye, EyeOff } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import { auth } from '../lib/firebase';
+import { getCurrentUser } from '../lib/auth';
 
 interface PromptTesterModalProps {
   isOpen: boolean;
@@ -176,7 +177,7 @@ export default function PromptTesterModal({ isOpen, onClose, defaultPrompt }: Pr
   // Generate Image Handler
   const handleGenerate = async () => {
     const storedKey = localStorage.getItem('user_gemini_api_key');
-    const currentUser = auth.currentUser;
+    const currentUser = getCurrentUser();
 
     if (!storedKey && !currentUser) {
       alert('يرجى تسجيل الدخول بحسابك أولاً للاستفادة فوراً من حصة التوليد المجانية للموقع، أو قم بإضافة وحفظ مفتاح الـ API الشخصي الخاص بك من لوحة التحكم بالأسفل للمتابعة.');

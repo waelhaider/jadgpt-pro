@@ -99,6 +99,22 @@ export const getAccessToken = (): string | null => {
   return cachedAccessToken;
 };
 
+export const getCurrentUser = (): any => {
+  const localEmail = localStorage.getItem('local_auth_user_email');
+  if (localEmail) {
+    const localName = localStorage.getItem('local_auth_user_name') || localEmail.split('@')[0];
+    const virtualUser: VirtualUser = {
+      email: localEmail,
+      displayName: localName,
+      photoURL: null,
+      uid: 'local-' + btoa(localEmail),
+      getIdToken: async () => 'local-user-email:' + localEmail,
+    };
+    return virtualUser;
+  }
+  return auth.currentUser;
+};
+
 export const logout = async () => {
   await signOut(auth);
   cachedAccessToken = null;

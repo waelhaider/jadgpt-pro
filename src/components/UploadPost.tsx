@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { db, auth } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Image as ImageIcon, Send, X, Loader2, RefreshCw } from 'lucide-react';
-import { googleSignIn, getAccessToken } from '../lib/auth';
+import { googleSignIn, getAccessToken, getCurrentUser } from '../lib/auth';
 import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError } from '../lib/error-handler';
 import { OperationType } from '../types';
@@ -76,7 +76,8 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth.currentUser) return;
+    const currentUser = getCurrentUser();
+    if (!currentUser) return;
     
     const hasText = text.trim().length > 0;
     const hasImages = images.length > 0;
@@ -119,8 +120,8 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
         imageUrl: driveUrls.length > 0 ? driveUrls[0] : null,
         imageUrls: driveUrls,
         boardId: activeBoardId || null, // Explicitly null for main feed
-        authorId: auth.currentUser.uid,
-        authorEmail: auth.currentUser.email,
+        authorId: currentUser.uid,
+        authorEmail: currentUser.email,
         createdAt: serverTimestamp(),
       };
 
