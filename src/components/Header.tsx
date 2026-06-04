@@ -280,68 +280,7 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
                             <span className="text-sm font-bold col-span-1">تعديل النص</span>
                           </button>
 
-                          {/* API Key management for logged in users */}
-                          <div className="bg-neutral-50 border border-natural-border/60 rounded-xl p-3 mt-3 text-right">
-                            <div className="flex items-center gap-1.5 justify-between">
-                              <span className="text-[10px] font-black text-[#4A4A35]">مفتاح Gemini API الشخصي</span>
-                              <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-md ${sidebarKey ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                                {sidebarKey ? 'محفوظ' : 'غير محفوظ'}
-                              </span>
-                            </div>
-                            {isEditingKey ? (
-                              <div className="space-y-1.5 pt-1.5">
-                                <input
-                                  type="password"
-                                  value={sidebarKey}
-                                  onChange={(e) => {
-                                    setSidebarKey(e.target.value);
-                                    safeStorage.setItem('user_gemini_api_key', e.target.value.trim());
-                                  }}
-                                  placeholder="ألصق AI Studio API Key"
-                                  className="w-full text-xs rounded-lg border border-natural-border px-2.5 py-1.5 bg-white font-bold text-natural-text focus:outline-none text-right"
-                                />
-                                <div className="flex gap-1.5 justify-end">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      if (!sidebarKey.trim()) {
-                                        safeStorage.removeItem('user_gemini_api_key');
-                                        setSidebarKey('');
-                                      }
-                                      setIsEditingKey(false);
-                                    }}
-                                    className="text-[9px] bg-natural-primary text-white font-bold rounded px-2 py-1"
-                                  >
-                                    تأكيد وحفظ
-                                  </button>
-                                  {sidebarKey && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        safeStorage.removeItem('user_gemini_api_key');
-                                        setSidebarKey('');
-                                        setIsEditingKey(false);
-                                      }}
-                                      className="text-[9px] bg-red-50 text-red-600 rounded px-2 py-1 border border-red-100"
-                                    >
-                                      حذف
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-between pt-1">
-                                <p className="text-[9px] text-[#8C8C70]">لتجريب برومبت الصور مجاناً.</p>
-                                <button
-                                  type="button"
-                                  onClick={() => setIsEditingKey(true)}
-                                  className="text-[9px] text-natural-primary hover:underline font-bold"
-                                >
-                                  {sidebarKey ? 'تعديل المفتاح' : 'إضافة مفتاح'}
-                                </button>
-                              </div>
-                            )}
-                          </div>
+
                         </div>
 
                         {isAdmin && (
@@ -456,68 +395,7 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
                           <span className="text-sm font-bold">تعديل النص</span>
                         </button>
 
-                        {/* API Key management for guests */}
-                        <div className="bg-neutral-50 border border-natural-border/60 rounded-xl p-3 mt-3 text-right">
-                          <div className="flex items-center gap-1.5 justify-between">
-                            <span className="text-[10px] font-black text-[#4A4A35]">مفتاح Gemini API الشخصي</span>
-                            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-md ${sidebarKey ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                              {sidebarKey ? 'محفوظ' : 'غير محفوظ'}
-                            </span>
-                          </div>
-                          {isEditingKey ? (
-                            <div className="space-y-1.5 pt-1.5">
-                              <input
-                                  type="password"
-                                  value={sidebarKey}
-                                  onChange={(e) => {
-                                    setSidebarKey(e.target.value);
-                                    safeStorage.setItem('user_gemini_api_key', e.target.value.trim());
-                                  }}
-                                  placeholder="ألصق AI Studio API Key"
-                                  className="w-full text-xs rounded-lg border border-natural-border px-2.5 py-1.5 bg-white font-bold text-natural-text focus:outline-none text-right"
-                              />
-                              <div className="flex gap-1.5 justify-end">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                      if (!sidebarKey.trim()) {
-                                        safeStorage.removeItem('user_gemini_api_key');
-                                        setSidebarKey('');
-                                      }
-                                      setIsEditingKey(false);
-                                    }}
-                                    className="text-[9px] bg-natural-primary text-white font-bold rounded px-2 py-1"
-                                >
-                                  تأكيد وحفظ
-                                </button>
-                                {sidebarKey && (
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                          safeStorage.removeItem('user_gemini_api_key');
-                                          setSidebarKey('');
-                                          setIsEditingKey(false);
-                                        }}
-                                        className="text-[9px] bg-red-50 text-red-600 rounded px-2 py-1 border border-red-100"
-                                    >
-                                      حذف
-                                    </button>
-                                )}
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-between pt-1">
-                              <p className="text-[9px] text-[#8C8C70]">لتجريب برومبت الصور مجاناً.</p>
-                              <button
-                                  type="button"
-                                  onClick={() => setIsEditingKey(true)}
-                                  className="text-[9px] text-natural-primary hover:underline font-bold"
-                              >
-                                {sidebarKey ? 'تعديل المفتاح' : 'إضافة مفتاح'}
-                              </button>
-                            </div>
-                          )}
-                        </div>
+
                       </div>
                     </div>
                   )}

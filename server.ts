@@ -97,21 +97,37 @@ async function startServer() {
 
   // Server-side Image Generation Proxy Route for Logged In Users
   app.post('/api/generate-image', async (req, res) => {
-    try {
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'من فضلك سجل دخولك في الموقع أولاً لتتمكن من استخدام حصة الخادم المجانية للتوليد.' });
-      }
-      
-      const idToken = authHeader.split(' ')[1];
-      const decodedToken = await verifyFirebaseIdToken(idToken);
-      if (!decodedToken) {
-        return res.status(401).json({ error: 'جلسة تسجيل الدخول غير صالحة أو منتهية. يرجى تسجيل الدخول مجدداً.' });
-      }
+    let prompt = '';
+    let selectedModel = '';
+    let aspectRatio = '1:1';
+    let selectedStyle = 'realistic';
+    let imageParts: any[] = [];
+    let compositePrompt = '';
 
-      const { prompt, selectedModel, aspectRatio, selectedStyle, imageParts } = req.body;
+    try {
+      prompt = req.body.prompt || '';
+      selectedModel = req.body.selectedModel || '';
+      aspectRatio = req.body.aspectRatio || '1:1';
+      selectedStyle = req.body.selectedStyle || 'realistic';
+      imageParts = req.body.imageParts || [];
+
       if (!prompt || !prompt.trim()) {
         return res.status(400).json({ error: 'الرجاء كتابة وصف فكرتك (البرومبت) أولاً.' });
+      }
+
+      const isFreeModel = selectedModel.startsWith('pollinations-') || selectedModel === 'gpt-image-2';
+
+      if (!isFreeModel) {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          return res.status(401).json({ error: 'من فضلك سجل دخولك في الموقع أولاً لتتمكن من استخدام حصة الخادم المجانية للتوليد.' });
+        }
+        
+        const idToken = authHeader.split(' ')[1];
+        const decodedToken = await verifyFirebaseIdToken(idToken);
+        if (!decodedToken) {
+          return res.status(401).json({ error: 'جلسة تسجيل الدخول غير صالحة أو منتهية. يرجى تسجيل الدخول مجدداً.' });
+        }
       }
 
       // Check for user's own Google OAuth Access Token
@@ -120,7 +136,7 @@ async function startServer() {
       const styleObj = STYLE_PRESETS.find(s => s.id === selectedStyle);
       const styleInstructions = styleObj ? styleObj.suffix : '';
 
-      let compositePrompt = prompt;
+      compositePrompt = prompt;
       if (imageParts && imageParts.length > 0) {
         compositePrompt = `
 [VISUAL AND FACE REFERENCE REQUIREMENT]:
@@ -136,6 +152,64 @@ ${prompt}
       } else {
         if (styleInstructions) {
           compositePrompt = `${prompt}. Style: ${styleInstructions}`;
+        }
+      }
+
+      // 1. Direct routing for Pollinations models & GPT-Image-2 (completely free)
+      if (isFreeModel) {
+        try {
+          let width = 1024;
+          let height = 1024;
+          if (aspectRatio === '16:9') {
+            width = 1024;
+            height = 576;
+          } else if (aspectRatio === '9:16') {
+            width = 576;
+            height = 1024;
+          } else if (aspectRatio === '4:3') {
+            width = 1024;
+            height = 768;
+          }
+
+          const randomSeed = Math.floor(Math.random() * 10000000);
+          
+          let polModel = 'flux';
+          if (selectedModel === 'gpt-image-2' || selectedModel === 'pollinations-turbo') {
+            polModel = 'turbo';
+          } else if (selectedModel === 'pollinations-sana') {
+            polModel = 'sana';
+          }
+
+          let pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(compositePrompt)}?width=${width}&height=${height}&seed=${randomSeed}&nologo=true&enhance=true&model=${polModel}`;
+
+          console.log('[Pollinations] Server Proxy Generating via URL:', pollinationsUrl);
+          let polRes = await fetch(pollinationsUrl);
+          
+          // Intelligent Fallback: If Flux returns 402 or is down, try ultra-stable Turbo (gpt-image-2)
+          if (!polRes.ok && polModel === 'flux') {
+            console.warn('[Pollinations Server] Flux failed. Retrying with turbo model...');
+            polModel = 'turbo';
+            pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(compositePrompt)}?width=${width}&height=${height}&seed=${randomSeed}&nologo=true&enhance=true&model=${polModel}`;
+            polRes = await fetch(pollinationsUrl);
+          }
+
+          // If still fails, try without model parameters (highest availability default endpoint)
+          if (!polRes.ok) {
+            console.warn('[Pollinations Server] Retrying with general default model endpoint...');
+            pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(compositePrompt)}?width=${width}&height=${height}&seed=${randomSeed}&nologo=true`;
+            polRes = await fetch(pollinationsUrl);
+          }
+
+          if (!polRes.ok) {
+            throw new Error(`سيرفرات التوليد مستغرقة حالياً (كود الخطأ: ${polRes.status})`);
+          }
+
+          const arrayBuffer = await polRes.arrayBuffer();
+          const base64Img = Buffer.from(arrayBuffer).toString('base64');
+          return res.json({ imageUrl: `data:image/png;base64,${base64Img}` });
+        } catch (polErr: any) {
+          console.error('[Pollinations] Generation failed:', polErr);
+          throw new Error(`فشل نظام التوليد المجاني للصور: ${polErr.message || polErr}`);
         }
       }
 
@@ -225,6 +299,41 @@ ${prompt}
     } catch (err: any) {
       console.error('[API] Server Image Gen Error:', err);
       const errorStr = err?.message || String(err);
+
+      // Attempt automatic fallback to Pollinations Flux due to Gemini billing/quota error
+      console.log('[API] Attempting automatic fallback to Pollinations Flux due to Gemini error:', errorStr);
+      try {
+        let width = 1024;
+        let height = 1024;
+        if (aspectRatio === '16:9') {
+          width = 1024;
+          height = 576;
+        } else if (aspectRatio === '9:16') {
+          width = 576;
+          height = 1024;
+        } else if (aspectRatio === '4:3') {
+          width = 1024;
+          height = 768;
+        }
+
+        const randomSeed = Math.floor(Math.random() * 10000000);
+        const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(compositePrompt)}?width=${width}&height=${height}&seed=${randomSeed}&nologo=true&enhance=true&model=flux`;
+
+        const polRes = await fetch(pollinationsUrl);
+        if (polRes.ok) {
+          const arrayBuffer = await polRes.arrayBuffer();
+          const base64Img = Buffer.from(arrayBuffer).toString('base64');
+          console.log('[API] Successfully generated fallback image via Pollinations!');
+          return res.json({
+            imageUrl: `data:image/png;base64,${base64Img}`,
+            isFallback: true,
+            warning: 'تم التوليد عبر الموديل البديل المجاني فائق الجودة لتخطي قيود الفوترة لـ Google AI Studio.'
+          });
+        }
+      } catch (fallbackErr) {
+        console.error('[API] Fallback also failed:', fallbackErr);
+      }
+
       if (errorStr.includes('API_KEY_INVALID') || errorStr.includes('invalid API key')) {
         return res.status(403).json({ error: 'رمز الـ API المبرمج على خادم JADGPT غير صالح حالياً. يرجى استخدام مفتاحك الخاص.' });
       } else if (

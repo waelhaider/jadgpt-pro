@@ -93,21 +93,41 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
   const handleDelete = async () => {
     setIsDeleting(true);
     const postPath = `posts/${post.id}`;
+    let driveCount = 0;
+    let driveFailedCount = 0;
     
     try {
       const accessToken = getAccessToken();
-      if (accessToken && (post.imageUrls || post.imageUrl)) {
-        const urlsToDelete = post.imageUrls || (post.imageUrl ? [post.imageUrl] : []);
-        for (const url of urlsToDelete) {
-          try {
-            await deleteFromDrive(url, accessToken);
-          } catch (driveErr) {
-            console.warn('[PostCard] Failed to delete image from Drive (continuing):', driveErr);
+      const hasRealToken = accessToken && accessToken !== 'local-dummy-token';
+      const urlsToDelete = post.imageUrls || (post.imageUrl ? [post.imageUrl] : []);
+      
+      if (urlsToDelete.length > 0) {
+        if (hasRealToken) {
+          for (const url of urlsToDelete) {
+            try {
+              await deleteFromDrive(url, accessToken);
+              driveCount++;
+            } catch (driveErr) {
+              console.warn('[PostCard] Failed to delete image from Drive (continuing):', driveErr);
+              driveFailedCount++;
+            }
           }
         }
       }
 
       await deleteDoc(doc(db, 'posts', post.id));
+
+      if (urlsToDelete.length > 0) {
+        if (!hasRealToken) {
+          alert('تم حذف المنشور من قاعدة البيانات بنجاح! 🗑️\n(تنبيه: لم يحذف الملف من Google Drive لعدم تسجيل الدخول بحساب Google لمزامنة الصلاحيات)');
+        } else if (driveFailedCount > 0) {
+          alert(`تم حذف المنشور بنجاح! 🗑️\n(تنبيه: تم حذف ${driveCount} صور وفشل حذف ${driveFailedCount} من Google Drive)`);
+        } else {
+          alert('تم حذف المنشور وجميع الصور المرتبطة به من Google Drive بنجاح! 🗑️');
+        }
+      } else {
+        alert('تم حذف المنشور بنجاح! 🗑️');
+      }
     } catch (err) {
       console.error('Delete error:', err);
       alert('حدث خطأ أثناء الحذف: ' + (err instanceof Error ? err.message : String(err)));

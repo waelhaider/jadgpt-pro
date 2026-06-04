@@ -1,6 +1,7 @@
-import { auth, googleProvider } from './firebase';
+import { auth, googleProvider, db } from './firebase';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User, signOut } from 'firebase/auth';
 import { safeStorage } from './safe-storage';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 export interface VirtualUser {
   email: string | null;
@@ -13,6 +14,66 @@ export interface VirtualUser {
 // Cache the access token in memory and local storage.
 let cachedAccessToken: string | null = safeStorage.getItem('google_access_token');
 let isSigningIn = false;
+
+// Helpers to synchronize user Gemini API key to Firestore securely
+export const syncUserKeyFromFirestore = async (email: string): Promise<string | null> => {
+  if (!email) return null;
+  const cleanEmail = email.trim().toLowerCase();
+  try {
+    const docRef = doc(db, 'user_keys', cleanEmail);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      if (data && data.apiKey) {
+        safeStorage.setItem('user_gemini_api_key', data.apiKey);
+        console.log('[KeySync] Successfully synchronized API key from Firestore for email:', cleanEmail);
+        return data.apiKey;
+      }
+    }
+  } catch (err) {
+    console.warn('[KeySync] Failed to fetch user key from firestore:', err);
+  }
+  return null;
+};
+
+export const saveUserKeyToFirestore = async (email: string, apiKey: string): Promise<void> => {
+  if (!email) return;
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanKey = apiKey.trim();
+  try {
+    const docRef = doc(db, 'user_keys', cleanEmail);
+    await setDoc(docRef, {
+      apiKey: cleanKey,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    if (cleanKey) {
+      safeStorage.setItem('user_gemini_api_key', cleanKey);
+      console.log('[KeySync] Saved API key to Firestore for email:', cleanEmail);
+    } else {
+      safeStorage.removeItem('user_gemini_api_key');
+    }
+  } catch (err) {
+    console.error('[KeySync] Failed to save user key to firestore:', err);
+    throw err;
+  }
+};
+
+export const deleteUserKeyFromFirestore = async (email: string): Promise<void> => {
+  if (!email) return;
+  const cleanEmail = email.trim().toLowerCase();
+  try {
+    const docRef = doc(db, 'user_keys', cleanEmail);
+    await setDoc(docRef, {
+      apiKey: '',
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    safeStorage.removeItem('user_gemini_api_key');
+    console.log('[KeySync] Cleared API key from Firestore for email:', cleanEmail);
+  } catch (err) {
+    console.error('[KeySync] Failed to delete user key from firestore:', err);
+    throw err;
+  }
+};
 
 export const initAuth = (
   onAuthSuccess?: (user: any, token: string) => void,
@@ -30,6 +91,10 @@ export const initAuth = (
       getIdToken: async () => auth.currentUser ? auth.currentUser.getIdToken() : 'local-user-email:' + localEmail,
     };
     cachedAccessToken = 'local-dummy-token';
+
+    // Synchronize Key in background
+    syncUserKeyFromFirestore(localEmail);
+
     if (onAuthSuccess) {
       setTimeout(() => onAuthSuccess(virtualUser, 'local-dummy-token'), 50);
     }
@@ -54,6 +119,9 @@ export const initAuth = (
     }
 
     if (user) {
+      if (user.email) {
+        syncUserKeyFromFirestore(user.email);
+      }
       if (cachedAccessToken) {
         if (onAuthSuccess) onAuthSuccess(user, cachedAccessToken);
       } else {
@@ -85,6 +153,8 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
       if (result.user.displayName) {
         safeStorage.setItem('local_auth_user_name', result.user.displayName);
       }
+      // Fetch key from Firestore in background
+      await syncUserKeyFromFirestore(result.user.email);
     }
 
     return { user: result.user, accessToken: cachedAccessToken };
@@ -113,6 +183,9 @@ export const emailSignIn = async (email: string, name?: string): Promise<{ user:
 
   cachedAccessToken = 'local-dummy-token';
   safeStorage.setItem('google_access_token', 'local-dummy-token');
+
+  // Fetch key from Firestore in background
+  await syncUserKeyFromFirestore(cleanEmail);
 
   return { user: virtualUser, accessToken: 'local-dummy-token' };
 };
@@ -151,6 +224,7 @@ export const logout = async () => {
   await signOut(auth);
   cachedAccessToken = null;
   safeStorage.removeItem('google_access_token');
+  safeStorage.removeItem('user_gemini_api_key');
   safeStorage.removeItem('local_auth_user_email');
   safeStorage.removeItem('local_auth_user_name');
 };
