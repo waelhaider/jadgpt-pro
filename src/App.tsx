@@ -9,7 +9,6 @@ import UploadPost from './components/UploadPost';
 import Feed from './components/Feed';
 import ScrollToTop from './components/ScrollToTop';
 import BoardTabs from './components/BoardTabs';
-import PromptTesterModal from './components/PromptTesterModal';
 import { auth, db } from './lib/firebase';
 import { User } from 'firebase/auth';
 import { initAuth } from './lib/auth';
@@ -27,8 +26,6 @@ export default function App() {
   const [boards, setBoards] = useState<Board[]>([]);
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
   const [postCounts, setPostCounts] = useState<Record<string, number>>({});
-  const [testerOpen, setTesterOpen] = useState(false);
-  const [testerPrompt, setTesterPrompt] = useState('');
 
   useEffect(() => {
     const unsubscribe = initAuth(
@@ -127,20 +124,55 @@ export default function App() {
             boardId={activeBoardId} 
             boards={boards} 
             onTestPrompt={(text) => {
-              setTesterPrompt(text);
-              setTesterOpen(true);
+              let successful = false;
+              try {
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                textArea.style.position = 'fixed';
+                textArea.style.top = '0';
+                textArea.style.left = '0';
+                textArea.style.width = '2em';
+                textArea.style.height = '2em';
+                textArea.style.padding = '0';
+                textArea.style.border = 'none';
+                textArea.style.outline = 'none';
+                textArea.style.boxShadow = 'none';
+                textArea.style.background = 'transparent';
+                textArea.style.opacity = '0';
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                successful = document.execCommand('copy');
+                document.body.removeChild(textArea);
+              } catch (err) {
+                console.warn('Fallback execCommand copy failed:', err);
+              }
+
+              if (!successful && navigator.clipboard && navigator.clipboard.writeText) {
+                try {
+                  navigator.clipboard.writeText(text);
+                  successful = true;
+                } catch (err) {
+                  console.warn('Modern Clipboard API failed:', err);
+                }
+              }
+
+              // Open stable clean duck.ai
+              const targetUrl = 'https://duck.ai';
+              window.open(targetUrl, '_blank');
+
+              // Inform the user
+              alert(
+                `🔮 تم نسخ البرومبت بنجاح! 📋✨\n\n` +
+                `لقد تم فتح منصة التوليد الرسمية في نافذة جديدة.\n` +
+                `كل ما عليك الآن هو الضغط على لصق أو (Ctrl + V) داخل مربع الكتابة هناك لبدء الابتكار المذهل فوراً! 🎯`
+              );
             }} 
           />
         </div>
       </main>
 
       <ScrollToTop />
-
-      <PromptTesterModal 
-        isOpen={testerOpen} 
-        onClose={() => setTesterOpen(false)} 
-        defaultPrompt={testerPrompt} 
-      />
 
       <footer className="py-8 bg-white border-t border-natural-border text-center">
         <p className="text-[10px] text-natural-muted font-medium tracking-widest uppercase">
