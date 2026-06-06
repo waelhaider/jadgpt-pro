@@ -56,6 +56,18 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
             )}
           </button>
 
+          <button
+            onClick={() => onSelectBoard('try-prompt')}
+            className={`relative whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-bold transition-all shadow-sm ${
+              activeBoardId === 'try-prompt'
+                ? 'bg-amber-600 text-white scale-105 shadow-md'
+                : 'bg-amber-500/10 text-amber-800 hover:bg-amber-500/20'
+            }`}
+          >
+            🧪 تجرية البرومبت
+          </button>
+
+
           {sortedBoards.map((board) => (
             <button
               key={board.id}

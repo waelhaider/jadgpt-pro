@@ -44,3 +44,12 @@ export interface FirestoreErrorInfo {
     }[];
   }
 }
+
+export interface GeneratedImage {
+  id: string;
+  title: string;
+  imageUrl: string | null;
+  status: 'pending' | 'loading' | 'completed' | 'failed';
+  error?: string;
+}
+
