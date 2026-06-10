@@ -1,8 +1,8 @@
-import { GoogleGenAI } from "@google/genai";
+import { safeStorage } from '../lib/safe-storage';
 
 // قراءة المفتاح المحفوظ من المتصفح الخاص بالمستخدم
 export const getApiKey = (): string | null => {
-  return localStorage.getItem("GEMINI_API_KEY");
+  return safeStorage.getItem("user_gemini_api_key") || safeStorage.getItem("GEMINI_API_KEY");
 };
 
 // تعريف الأنماط الفنية الأربعة للصور الأربعة
@@ -22,14 +22,9 @@ export const generateSingleImage = async (
   modelName: string = "gemini-2.5-flash-image"
 ): Promise<string> => {
   const apiKey = getApiKey();
-  if (!apiKey) {
-    throw new Error("API Key is missing. Please save your API Key first.");
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
 
   // التحقق من الصور المرجعية وتحويلها إلى أجزاء Gemini
-  const imageParts = referenceImagesBase64.map(imageBase64 => {
+  const imageParts = (referenceImagesBase64 || []).map(imageBase64 => {
     const base64Data = imageBase64.split(',')[1] || imageBase64;
     return {
       inlineData: {
@@ -39,48 +34,87 @@ export const generateSingleImage = async (
     };
   });
 
-  const finalPrompt = `
-    Based on the attached ${referenceImagesBase64.length} reference image(s), generate a brand new photorealistic cinematic image that illustrates this creative prompt:
-    "${userPrompt}"
-    
-    Styling & Framing guidance to apply:
-    ${variantStyle}
-    
-    Subject & Character Consistency:
-    You MUST keep 100% visual consistency with the main subjects/characters/products from all the provided reference images. Combine their visual elements, facial details, brand shapes, styles, and distinct traits realistically, and place them beautifully into the brand new scene described by the prompt.
-    
-    Quality constraints:
-    8k resolution, professional photography studio lighting, hyper-realistic, no mutations, no visual distortion, beautiful cinematic color correction.
-  `;
+  let finalPrompt = "";
+  if (referenceImagesBase64 && referenceImagesBase64.length > 0) {
+    finalPrompt = `
+      Based on the attached ${referenceImagesBase64.length} reference image(s), generate a brand new photorealistic cinematic image that illustrates this creative prompt:
+      "${userPrompt}"
+      
+      Styling & Framing guidance to apply:
+      ${variantStyle}
+      
+      Subject & Character Consistency:
+      You MUST keep 100% visual consistency with the main subjects/characters/products from all the provided reference images. Combine their visual elements, facial details, brand shapes, styles, and distinct traits realistically, and place them beautifully into the brand new scene described by the prompt.
+      
+      Quality constraints:
+      8k resolution, professional photography studio lighting, hyper-realistic, no mutations, no visual distortion, beautiful cinematic color correction.
+    `.trim();
+  } else {
+    finalPrompt = `
+      Generate a brand new photorealistic cinematic image that illustrates this creative prompt:
+      "${userPrompt}"
+      
+      Styling & Framing guidance to apply:
+      ${variantStyle}
+      
+      Quality constraints:
+      8k resolution, professional photography studio lighting, hyper-realistic, no mutations, no visual distortion, beautiful cinematic color correction.
+    `.trim();
+  }
 
   try {
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: {
-        parts: [
-          { text: finalPrompt },
-          ...imageParts
-        ],
-      },
-      config: {
-        imageConfig: {
-          aspectRatio: aspectRatio,
-        },
-      },
+    let authHeader = "";
+    try {
+      const { getCurrentUser } = await import("../lib/auth");
+      const currentUser = getCurrentUser();
+      if (currentUser) {
+        const idToken = await currentUser.getIdToken();
+        authHeader = `Bearer ${idToken}`;
+      }
+    } catch (e) {
+      console.warn("Could not retrieve firebase id token:", e);
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (authHeader) {
+      headers["Authorization"] = authHeader;
+    }
+    if (apiKey) {
+      headers["x-gemini-api-key"] = apiKey;
+    }
+    const googleToken = safeStorage.getItem("google_access_token");
+    if (googleToken && googleToken !== "local-dummy-token") {
+      headers["x-google-access-token"] = googleToken;
+    }
+
+    const response = await fetch("/api/generate-image", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        prompt: finalPrompt,
+        selectedModel: modelName,
+        aspectRatio: aspectRatio,
+        useRawPrompt: true, // نخبر السيرفر بأن هذا برومبت ناصع ومجهز بالكامل ولا يحتاج تعديل آخر
+        imageParts: imageParts,
+        apiKey: apiKey
+      })
     });
 
-    const parts = response.candidates?.[0]?.content?.parts;
-    if (!parts) throw new Error("No image content returned");
-
-    for (const part of parts) {
-      if (part.inlineData && part.inlineData.data) {
-        return `data:image/png;base64,${part.inlineData.data}`;
-      }
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `خطأ من الخادم: ${response.status}`);
     }
-    throw new Error("No image data found in response");
+
+    const data = await response.json();
+    if (data.imageUrl) {
+      return data.imageUrl;
+    }
+    throw new Error("لم يتم إرجاع رابط الصورة من الخادم.");
   } catch (error: any) {
-    console.error("Gemini Generation Error:", error);
-    throw new Error(error.message || "فشلت عملية التوليد. يُرجى التحقق من صلاحية مفتاح الـ API.");
+    console.error("Google Gemini API Error (Server-Proxy):", error);
+    throw new Error(error.message || "فشلت عملية التوليد والمباشر.");
   }
 };
 
@@ -90,40 +124,69 @@ export const editImageWithPrompt = async (
   editInstruction: string
 ): Promise<string> => {
   const apiKey = getApiKey();
-  if (!apiKey) {
-    throw new Error("API Key is missing.");
-  }
-
   const base64Data = imageBase64.split(',')[1] || imageBase64;
-  const ai = new GoogleGenAI({ apiKey });
 
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: 'image/jpeg',
-              data: base64Data
-            }
-          },
-          {
-            text: `Apply these edits to the image: "${editInstruction}". Maintain high quality, preserve subject identity and overall setting, changing ONLY the requested aspects.`
-          }
-        ]
-      }
-    });
-
-    const parts = response.candidates?.[0]?.content?.parts;
-    if (!parts) throw new Error("No content returned from edit");
-
-    for (const part of parts) {
-      if (part.inlineData && part.inlineData.data) {
-        return `data:image/png;base64,${part.inlineData.data}`;
+  const imageParts = [
+    {
+      inlineData: {
+        mimeType: 'image/jpeg',
+        data: base64Data
       }
     }
-    throw new Error("No image data found in edit response");
+  ];
+
+  try {
+    let authHeader = "";
+    try {
+      const { getCurrentUser } = await import("../lib/auth");
+      const currentUser = getCurrentUser();
+      if (currentUser) {
+        const idToken = await currentUser.getIdToken();
+        authHeader = `Bearer ${idToken}`;
+      }
+    } catch (e) {
+      console.warn("Could not retrieve firebase id token for edit:", e);
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (authHeader) {
+      headers["Authorization"] = authHeader;
+    }
+    if (apiKey) {
+      headers["x-gemini-api-key"] = apiKey;
+    }
+    const googleToken = safeStorage.getItem("google_access_token");
+    if (googleToken && googleToken !== "local-dummy-token") {
+      headers["x-google-access-token"] = googleToken;
+    }
+
+    const finalPrompt = `Apply these edits to the image: "${editInstruction}". Maintain high quality, preserve subject identity and overall setting, changing ONLY the requested aspects.`;
+
+    const response = await fetch("/api/generate-image", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        prompt: finalPrompt,
+        selectedModel: 'gemini-2.5-flash-image',
+        aspectRatio: '16:9',
+        useRawPrompt: true, // ناصع جاهز
+        imageParts: imageParts,
+        apiKey: apiKey
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `خطأ من الخادم: ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (data.imageUrl) {
+      return data.imageUrl;
+    }
+    throw new Error("لم يتم إرجاع رابط الصورة المعدلة من الخادم.");
   } catch (error: any) {
     console.error("Gemini Edit Error:", error);
     throw new Error(error.message || "فشلت عملية التعديل.");

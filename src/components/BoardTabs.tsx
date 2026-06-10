@@ -57,14 +57,14 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
           </button>
 
           <button
-            onClick={() => onSelectBoard('try-prompt')}
+            onClick={() => onSelectBoard('merged-app')}
             className={`relative whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-bold transition-all shadow-sm ${
-              activeBoardId === 'try-prompt'
-                ? 'bg-amber-600 text-white scale-105 shadow-md'
-                : 'bg-amber-500/10 text-amber-800 hover:bg-amber-500/20'
+              activeBoardId === 'merged-app'
+                ? 'bg-indigo-600 text-white scale-105 shadow-md'
+                : 'bg-indigo-500/10 text-indigo-800 hover:bg-indigo-500/20'
             }`}
           >
-            🧪 تجرية البرومبت
+            📸 استوديو التصوير
           </button>
 
 

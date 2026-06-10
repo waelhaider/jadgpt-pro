@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 
@@ -69,8 +70,8 @@ async function verifyFirebaseIdToken(token: string): Promise<any> {
   }
 }
 
-const getGeminiClient = () => {
-  const apiKey = process.env.GEMINI_API_KEY;
+const getGeminiClient = (customApiKey?: string) => {
+  const apiKey = customApiKey || process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY environment variable is not defined.');
   }
@@ -95,6 +96,84 @@ async function startServer() {
     res.json({ status: 'ok', time: new Date() });
   });
 
+  // API Upload Endpoint
+  app.post('/api/upload', (req, res) => {
+    try {
+      const { fileName, fileType, base64Data } = req.body;
+      if (!base64Data) {
+        return res.status(400).json({ error: 'لم يتم توفير ملف للرفع.' });
+      }
+
+      // Extract raw base64 data
+      const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      let buffer: Buffer;
+      let extension = 'jpg';
+
+      if (matches && matches.length === 3) {
+        buffer = Buffer.from(matches[2], 'base64');
+        const mimeType = matches[1];
+        const ext = mimeType.split('/')[1];
+        if (ext) extension = ext;
+      } else {
+        // Fallback for raw base64
+        const cleanBase64 = base64Data.split(',')[1] || base64Data;
+        buffer = Buffer.from(cleanBase64, 'base64');
+        if (fileName) {
+          const parts = fileName.split('.');
+          if (parts.length > 1) {
+            extension = parts.pop() || 'jpg';
+          }
+        }
+      }
+
+      // Generate a clean safe name with timestamps to avoid collision
+      const cleanName = (fileName || 'image')
+        .replace(/\.[^/.]+$/, '') // remove ext
+        .replace(/[^a-zA-Z0-9_.-]/g, '_'); // sanitize
+      const uniqueName = `${Date.now()}_${cleanName}.${extension}`;
+
+      // Ensure directory exists
+      const uploadsDir = path.join(process.cwd(), 'uploads');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+
+      // Write file
+      fs.writeFileSync(path.join(uploadsDir, uniqueName), buffer);
+      console.log(`[Upload API] Successfully saved original file: ${uniqueName} (${buffer.length} bytes)`);
+
+      res.json({ url: `/uploads/${uniqueName}` });
+    } catch (err: any) {
+      console.error('[Upload API] Error:', err);
+      res.status(500).json({ error: `فشل معالجة ورفع الملف: ${err.message || err}` });
+    }
+  });
+
+  // API Delete-Upload Endpoint
+  app.post('/api/delete-upload', (req, res) => {
+    try {
+      const { filename } = req.body;
+      if (!filename) {
+        return res.status(400).json({ error: 'اسم الملف غير محدد.' });
+      }
+
+      // Sanitize filename to prevent directory traversal
+      const safeFilename = path.basename(filename);
+      const filePath = path.join(process.cwd(), 'uploads', safeFilename);
+
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        console.log(`[Upload API] Deleted file: ${safeFilename}`);
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ error: 'الملف غير موجود.' });
+      }
+    } catch (err: any) {
+      console.error('[Upload API] Delete Error:', err);
+      res.status(500).json({ error: `فشل حذف الملف: ${err.message || err}` });
+    }
+  });
+
   // Server-side Image Generation Proxy Route for Logged In Users
   app.post('/api/generate-image', async (req, res) => {
     let prompt = '';
@@ -110,6 +189,8 @@ async function startServer() {
       aspectRatio = req.body.aspectRatio || '1:1';
       selectedStyle = req.body.selectedStyle || 'realistic';
       imageParts = req.body.imageParts || [];
+      const useRawPrompt = !!req.body.useRawPrompt;
+      const customApiKey = (req.body.apiKey as string | undefined) || (req.headers['x-gemini-api-key'] as string | undefined || req.headers['x-api-key'] as string | undefined) || '';
 
       if (!prompt || !prompt.trim()) {
         return res.status(400).json({ error: 'الرجاء كتابة وصف فكرتك (البرومبت) أولاً.' });
@@ -117,7 +198,7 @@ async function startServer() {
 
       const isFreeModel = selectedModel.startsWith('pollinations-') || selectedModel === 'gpt-image-2';
 
-      if (!isFreeModel) {
+      if (!isFreeModel && !customApiKey) {
         const authHeader = req.headers.authorization;
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
           return res.status(401).json({ error: 'من فضلك سجل دخولك في الموقع أولاً لتتمكن من استخدام حصة الخادم المجانية للتوليد.' });
@@ -136,9 +217,12 @@ async function startServer() {
       const styleObj = STYLE_PRESETS.find(s => s.id === selectedStyle);
       const styleInstructions = styleObj ? styleObj.suffix : '';
 
-      compositePrompt = prompt;
-      if (imageParts && imageParts.length > 0) {
-        compositePrompt = `
+      if (useRawPrompt) {
+        compositePrompt = prompt;
+      } else {
+        compositePrompt = prompt;
+        if (imageParts && imageParts.length > 0) {
+          compositePrompt = `
 [VISUAL AND FACE REFERENCE REQUIREMENT]:
 You are provided with ${imageParts.length} real portrait reference file(s) of a person's face.
 Your goal is to generate an image where THIS EXACT PERSON is seamlessly integrated as the main character.
@@ -148,10 +232,11 @@ You must perfectly preserve their realistic face structure, eyes, eyes expressio
 
 [YOUR GENERATED SCENE DESCRIPTION]:
 ${prompt}
-        `.trim();
-      } else {
-        if (styleInstructions) {
-          compositePrompt = `${prompt}. Style: ${styleInstructions}`;
+          `.trim();
+        } else {
+          if (styleInstructions) {
+            compositePrompt = `${prompt}. Style: ${styleInstructions}`;
+          }
         }
       }
 
@@ -214,41 +299,56 @@ ${prompt}
       }
 
       let responseData: any;
+      let usedOAuth = false;
 
       if (googleAccessToken && googleAccessToken !== 'local-dummy-token') {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel || 'gemini-2.5-flash-image'}:generateContent`;
-        const resObj = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${googleAccessToken}`,
-            'User-Agent': 'aistudio-build'
-          },
-          body: JSON.stringify({
-            contents: {
-              parts: [
-                ...(imageParts || []),
-                { text: compositePrompt }
-              ]
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel || 'gemini-2.5-flash-image'}:generateContent`;
+          console.log('[API] Attempting direct Google OAuth call for image generation...');
+          const resObj = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${googleAccessToken}`,
+              'User-Agent': 'aistudio-build'
             },
-            config: {
-              imageConfig: {
-                aspectRatio: (aspectRatio || '1:1') as any,
-                imageSize: '1K'
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    ...(imageParts || []),
+                    { text: compositePrompt }
+                  ]
+                }
+              ],
+              generationConfig: {
+                imageConfig: {
+                  aspectRatio: (aspectRatio || '1:1') as any,
+                  imageSize: '1K'
+                },
+                responseModalities: ['IMAGE']
               }
-            }
-          })
-        });
+            })
+          });
 
-        if (!resObj.ok) {
-          const errData = await resObj.json().catch(() => ({}));
-          console.error('[API] Google API direct OAuth call error, status:', resObj.status, errData);
-          const detail = errData?.error?.message || `Google API status: ${resObj.status}`;
-          throw new Error(detail);
+          if (resObj.ok) {
+            responseData = await resObj.json();
+            usedOAuth = true;
+            console.log('[API] Direct Google OAuth call succeeded!');
+          } else {
+            const errData = await resObj.json().catch(() => ({}));
+            const errMsg = errData?.error?.message || errData?.error?.status || `Status ${resObj.status}`;
+            throw new Error(`Google OAuth API Error: ${errMsg}`);
+          }
+        } catch (oauthErr: any) {
+          console.error('[API] Google API direct OAuth flow error:', oauthErr);
+          throw oauthErr;
         }
-        responseData = await resObj.json();
-      } else {
-        const ai = getGeminiClient();
+      }
+
+      if (!usedOAuth) {
+        console.log('[API] Using getGeminiClient with custom or server key...');
+        const ai = getGeminiClient(customApiKey);
         const response = await ai.models.generateContent({
           model: selectedModel || 'gemini-2.5-flash-image',
           contents: {
@@ -261,7 +361,8 @@ ${prompt}
             imageConfig: {
               aspectRatio: (aspectRatio || '1:1') as any,
               imageSize: '1K'
-            }
+            },
+            responseModalities: ['IMAGE']
           }
         });
         responseData = response;
@@ -292,7 +393,7 @@ ${prompt}
         });
       } else {
         return res.status(500).json({ 
-          error: 'لم يتم إرجاع أي مخرجات صور من الموديل التوليدي. تأكد من تفعيل الفوترة لرمز الـ API الخاص بك.' 
+          error: 'لم يتم إرجاع أي مخرجات صور من الموديل التوليدي.' 
         });
       }
 
@@ -300,42 +401,8 @@ ${prompt}
       console.error('[API] Server Image Gen Error:', err);
       const errorStr = err?.message || String(err);
 
-      // Attempt automatic fallback to Pollinations Flux due to Gemini billing/quota error
-      console.log('[API] Attempting automatic fallback to Pollinations Flux due to Gemini error:', errorStr);
-      try {
-        let width = 1024;
-        let height = 1024;
-        if (aspectRatio === '16:9') {
-          width = 1024;
-          height = 576;
-        } else if (aspectRatio === '9:16') {
-          width = 576;
-          height = 1024;
-        } else if (aspectRatio === '4:3') {
-          width = 1024;
-          height = 768;
-        }
-
-        const randomSeed = Math.floor(Math.random() * 10000000);
-        const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(compositePrompt)}?width=${width}&height=${height}&seed=${randomSeed}&nologo=true&enhance=true&model=flux`;
-
-        const polRes = await fetch(pollinationsUrl);
-        if (polRes.ok) {
-          const arrayBuffer = await polRes.arrayBuffer();
-          const base64Img = Buffer.from(arrayBuffer).toString('base64');
-          console.log('[API] Successfully generated fallback image via Pollinations!');
-          return res.json({
-            imageUrl: `data:image/png;base64,${base64Img}`,
-            isFallback: true,
-            warning: 'تم التوليد عبر الموديل البديل المجاني فائق الجودة لتخطي قيود الفوترة لـ Google AI Studio.'
-          });
-        }
-      } catch (fallbackErr) {
-        console.error('[API] Fallback also failed:', fallbackErr);
-      }
-
       if (errorStr.includes('API_KEY_INVALID') || errorStr.includes('invalid API key')) {
-        return res.status(403).json({ error: 'رمز الـ API المبرمج على خادم JADGPT غير صالح حالياً. يرجى استخدام مفتاحك الخاص.' });
+        return res.status(403).json({ error: 'رمز الـ API للمصادقة غير صالح حالياً.' });
       } else if (
         errorStr.includes('quota') || 
         errorStr.includes('Quota exceeded') || 
@@ -347,7 +414,7 @@ ${prompt}
         errorStr.includes('Resource')
       ) {
         return res.status(429).json({ 
-          error: '⚠️ تم تجاوز حد التوليد المجاني للصور على سيرفر JADGPT حالياً. لتخطي هذا القيد والاستمرار بالتوليد فوراً، يرجى تفعيل الدفع (Pay-as-you-go) في حسابك على Google AI Studio وإضافة مفتاحك الشخصي في خيار (حفظ مفتاح الـ API).' 
+          error: '⚠️ تم تجاوز حد توليد الصور على خادم JADGPT كضيف. لكي تستمر بالتوليد دون انقطاع وبأقصى سرعة مجانية (حتى 1500 صورة يومياً) من Google، يرجى الضغط على زر القائمة وتسجيل الدخول بحساب Google (جوجل) الخاص بك لتوجيه التوليد من حصتك الشخصية مباشرة.' 
         });
       } else {
         return res.status(500).json({ error: `فشل التوليد: ${errorStr}` });
@@ -369,6 +436,9 @@ ${prompt}
       error: err.message || 'حدث خطأ غير متوقع أثناء معالجة طلبك.'
     });
   });
+
+  // Serve uploaded images statically
+  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
   // Handle Vite Asset Serving and SPA Fallback Routing
   if (process.env.NODE_ENV !== 'production') {

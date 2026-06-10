@@ -17,7 +17,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Board } from './types';
 import { handleFirestoreError } from './lib/error-handler';
 import { OperationType } from './types';
-import TryPromptWorkspace from './components/TryPromptWorkspace';
+import MergedAppWorkspace from './components/MergedAppWorkspace';
 
 import { ADMIN_CONFIG } from './config';
 
@@ -109,7 +109,7 @@ export default function App() {
         </div>
 
         <AnimatePresence mode="wait">
-          {isAdmin && activeBoardId !== 'try-prompt' && (
+          {isAdmin && activeBoardId !== 'merged-app' && (
             <motion.div
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -122,13 +122,8 @@ export default function App() {
         </AnimatePresence>
 
         <div className="mt-4">
-          {activeBoardId === 'try-prompt' ? (
-            <TryPromptWorkspace 
-              initialPrompt={tryPromptText} 
-              onPostCreated={() => {
-                setActiveBoardId(null);
-              }} 
-            />
+          {activeBoardId === 'merged-app' ? (
+            <MergedAppWorkspace initialPrompt={tryPromptText} />
           ) : (
             <Feed 
               isAdmin={isAdmin} 
@@ -169,7 +164,7 @@ export default function App() {
                 }
 
                 setTryPromptText(text);
-                setActiveBoardId('try-prompt');
+                setActiveBoardId('merged-app');
               }} 
             />
           )}

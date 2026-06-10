@@ -6,7 +6,7 @@ import { MoreHorizontal, Trash2, Edit3, Check, X, Clock, Copy, Loader2, Image as
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError } from '../lib/error-handler';
-import { deleteFromDrive, uploadToDrive } from '../lib/drive';
+import { uploadPostImage, deletePostImage } from '../lib/upload-helper';
 import { getAccessToken, googleSignIn } from '../lib/auth';
 import Lightbox from "yet-another-react-lightbox";
 import Zoom from "yet-another-react-lightbox/plugins/zoom";
@@ -93,41 +93,23 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
   const handleDelete = async () => {
     setIsDeleting(true);
     const postPath = `posts/${post.id}`;
-    let driveCount = 0;
-    let driveFailedCount = 0;
     
     try {
       const accessToken = getAccessToken();
-      const hasRealToken = accessToken && accessToken !== 'local-dummy-token';
       const urlsToDelete = post.imageUrls || (post.imageUrl ? [post.imageUrl] : []);
       
       if (urlsToDelete.length > 0) {
-        if (hasRealToken) {
-          for (const url of urlsToDelete) {
-            try {
-              await deleteFromDrive(url, accessToken);
-              driveCount++;
-            } catch (driveErr) {
-              console.warn('[PostCard] Failed to delete image from Drive (continuing):', driveErr);
-              driveFailedCount++;
-            }
+        for (const url of urlsToDelete) {
+          try {
+            await deletePostImage(url, accessToken);
+          } catch (err) {
+            console.warn('[PostCard] Failed to delete image:', err);
           }
         }
       }
 
       await deleteDoc(doc(db, 'posts', post.id));
-
-      if (urlsToDelete.length > 0) {
-        if (!hasRealToken) {
-          alert('تم حذف المنشور من قاعدة البيانات بنجاح! 🗑️\n(تنبيه: لم يحذف الملف من Google Drive لعدم تسجيل الدخول بحساب Google لمزامنة الصلاحيات)');
-        } else if (driveFailedCount > 0) {
-          alert(`تم حذف المنشور بنجاح! 🗑️\n(تنبيه: تم حذف ${driveCount} صور وفشل حذف ${driveFailedCount} من Google Drive)`);
-        } else {
-          alert('تم حذف المنشور وجميع الصور المرتبطة به من Google Drive بنجاح! 🗑️');
-        }
-      } else {
-        alert('تم حذف المنشور بنجاح! 🗑️');
-      }
+      alert('تم حذف المنشور بنجاح! 🗑️');
     } catch (err) {
       console.error('Delete error:', err);
       alert('حدث خطأ أثناء الحذف: ' + (err instanceof Error ? err.message : String(err)));
@@ -161,39 +143,54 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
       return;
     }
 
-    const accessToken = getAccessToken();
-    if (newImages.length > 0 && !accessToken) {
-      handleAuthorize();
-      return;
-    }
-
     setIsSaving(true);
     setStatus('جاري الحفظ...');
 
     try {
-      const freshToken = getAccessToken();
-      console.log('[PostCard] Access token status:', freshToken ? 'Available' : 'Missing');
-      
       setStatus('جاري معالجة الصور...');
       const finalImageUrls = [...editedImageUrls];
       
       // 1. Upload new images if any
-      if (newImages.length > 0 && freshToken) {
+      if (newImages.length > 0) {
+        const activeToken = getAccessToken();
+        if (!activeToken || activeToken === 'local-dummy-token') {
+          alert('يتطلب رفع صور جديدة تسجيل الدخول إلى Google Drive.');
+          await handleAuthorize();
+          const freshToken = getAccessToken();
+          if (!freshToken || freshToken === 'local-dummy-token') {
+            setIsSaving(false);
+            setStatus('');
+            return;
+          }
+        }
+
         for (let i = 0; i < newImages.length; i++) {
-          setStatus(`جاري رفع الصورة ${i + 1}/${newImages.length}...`);
-          const url = await uploadToDrive(newImages[i], freshToken);
-          finalImageUrls.push(url);
+          setStatus(`جاري رفع الصورة ${i + 1}/${newImages.length} إلى Google Drive...`);
+          try {
+            const url = await uploadPostImage(newImages[i], post.authorId);
+            finalImageUrls.push(url);
+          } catch (uploadErr: any) {
+            console.warn('[PostCard] Image upload error:', uploadErr);
+            if (uploadErr.message === 'AUTH_REQUIRED' || uploadErr.message === 'AUTH_EXPIRED') {
+              await handleAuthorize();
+              const url = await uploadPostImage(newImages[i], post.authorId);
+              finalImageUrls.push(url);
+              continue;
+            }
+            throw uploadErr;
+          }
         }
       }
 
-      // 2. Delete removed images from Drive if token is available
-      if (removedImageUrls.length > 0 && freshToken) {
+      // 2. Delete removed images
+      if (removedImageUrls.length > 0) {
         setStatus('جاري حذف الصور القديمة...');
+        const token = getAccessToken();
         for (const url of removedImageUrls) {
           try {
-            await deleteFromDrive(url, freshToken);
+            await deletePostImage(url, token);
           } catch (deleteErr) {
-            console.warn('[PostCard] Drive delete failed:', deleteErr);
+            console.warn('[PostCard] Delete failed:', deleteErr);
           }
         }
       }

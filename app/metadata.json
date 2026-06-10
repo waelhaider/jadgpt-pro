@@ -1,0 +1,6 @@
+{
+  "name": "Remix:  of Adult Photo Session Generator",
+  "description": "Generate structured prompts for AI photo sessions based on user specifications.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

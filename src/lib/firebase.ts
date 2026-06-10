@@ -19,6 +19,6 @@ export const db = getFirestore(app, dbId);
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
+// Request Google Drive file scope for permanent user storage
 googleProvider.addScope('https://www.googleapis.com/auth/drive.file');
-googleProvider.addScope('https://www.googleapis.com/auth/generative-language');
-googleProvider.addScope('https://www.googleapis.com/auth/generative-language.retriever');
+
