@@ -30,8 +30,37 @@ export const syncUserKeyFromFirestore = async (email: string): Promise<string | 
         return data.apiKey;
       }
     }
+
+    // If no key is configured in Firestore for this user, automatically fetch and provision the default API key
+    let idToken = '';
+    if (auth.currentUser) {
+      idToken = await auth.currentUser.getIdToken();
+    } else {
+      idToken = 'local-user-email:' + cleanEmail;
+    }
+
+    if (idToken) {
+      const response = await fetch('/api/default-key', {
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
+      if (response.ok) {
+        const resData = await response.json();
+        if (resData.apiKey) {
+          safeStorage.setItem('user_gemini_api_key', resData.apiKey);
+          // Set via setDoc directly to avoid recursive calls from saveUserKeyToFirestore
+          await setDoc(docRef, {
+            apiKey: resData.apiKey,
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+          console.log('[KeySync] Auto-provisioned server Gemini API Key for user:', cleanEmail);
+          return resData.apiKey;
+        }
+      }
+    }
   } catch (err) {
-    console.warn('[KeySync] Failed to fetch user key from firestore:', err);
+    console.warn('[KeySync] Failed to fetch user key from firestore/server:', err);
   }
   return null;
 };

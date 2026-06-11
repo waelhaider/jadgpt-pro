@@ -17,8 +17,7 @@ import {
   Compass,
   Zap
 } from 'lucide-react';
-import { GoogleGenAI, Modality } from "@google/genai";
-import { safeStorage } from '../lib/safe-storage';
+import { generateSingleImage } from '../services/geminiService';
 
 export interface StylePreset {
   id: string;
@@ -194,6 +193,7 @@ export default function PhotoSessionGenerator({ initialPrompt }: PhotoSessionGen
     }
   }, [initialPrompt]);
   const [aspectRatio, setAspectRatio] = useState('1:1');
+  const [modelType, setModelType] = useState<'gemini' | 'flux'>('gemini');
   const [isLoading, setIsLoading] = useState(false);
   const [currentProgressIndex, setCurrentProgressIndex] = useState(0);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
@@ -276,12 +276,6 @@ export default function PhotoSessionGenerator({ initialPrompt }: PhotoSessionGen
     `;
   };
 
-  const getClientApiKey = (): string => {
-    return safeStorage.getItem("user_gemini_api_key") || 
-           safeStorage.getItem("GEMINI_API_KEY") || 
-           (process.env.GEMINI_API_KEY || "");
-  };
-
   const handleGenerate = async (event: FormEvent) => {
     event.preventDefault();
 
@@ -302,53 +296,46 @@ export default function PhotoSessionGenerator({ initialPrompt }: PhotoSessionGen
     const selectedPreset = STYLE_PRESETS.find(p => p.id === styleId) || STYLE_PRESETS[0];
 
     try {
-      const apiKey = getClientApiKey();
-      if (!apiKey) {
-        throw new Error("لم يتم العثور على مفتاح API الخاص بك. يرجى إدخال مفتاح Gemini API في الإعدادات أو تسجيل الدخول.");
-      }
-
-      const ai = new GoogleGenAI({ apiKey });
       const localGenerated: string[] = [];
 
       for (let i = 0; i < numImages; i++) {
         setCurrentProgressIndex(i);
         const textPrompt = buildPrompt(selectedPreset, age, extraNotes);
 
-        const imagePart = {
-          inlineData: {
-            data: personImage.base64,
-            mimeType: personImage.mimeType,
-          },
-        };
-        const textPart = { text: textPrompt };
-
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash-image',
-          contents: { parts: [imagePart, textPart] },
-          config: {
-            responseModalities: [Modality.IMAGE],
-            imageConfig: {
-              aspectRatio: aspectRatio as any,
-            },
-          },
-        });
-
-        let imageUrl = '';
-        if (response.candidates?.[0]?.content?.parts) {
-          for (const part of response.candidates[0].content.parts) {
-            if (part.inlineData) {
-              imageUrl = `data:image/png;base64,${part.inlineData.data}`;
-              break;
-            }
+        let resultingUrl = '';
+        try {
+          resultingUrl = await generateSingleImage(
+            [personImage.preview], 
+            textPrompt, 
+            selectedPreset.prompt, 
+            aspectRatio, 
+            modelType === 'gemini' ? 'gemini-2.5-flash-image' : 'gpt-image-2'
+          );
+        } catch (genErr: any) {
+          const errMsg = genErr?.message || '';
+          const isQuota = errMsg.includes('quota') || errMsg.includes('limit') || errMsg.includes('429') || errMsg.includes('مفتاح') || errMsg.includes('المصادقة') || errMsg.includes('API');
+          
+          if (modelType === 'gemini' && isQuota) {
+            console.warn("Gemini limit/key issue detected. Falling back to Flux seamlessly.");
+            setError("💡 تم تجاوز الحد أو تعذر المصادقة بمفتاح جيميناي الخاص بك. جاري التحويل التلقائي واستخدام محرك Flux الفوري اللامحدود مجاناً لإكمال الجلسة دون انقطاع...");
+            resultingUrl = await generateSingleImage(
+              [personImage.preview], 
+              textPrompt, 
+              selectedPreset.prompt, 
+              aspectRatio, 
+              'gpt-image-2'
+            );
+          } else {
+            throw genErr;
           }
         }
 
-        if (!imageUrl) {
-          throw new Error("لم ترجع خوادم Google أي محتوى للصورة.");
+        if (!resultingUrl) {
+          throw new Error("لم ترجع خوادم التوليد أي محتوى للصورة.");
         }
 
-        localGenerated.push(imageUrl);
-        setGeneratedImages(prev => [...prev, imageUrl]);
+        localGenerated.push(resultingUrl);
+        setGeneratedImages(prev => [...prev, resultingUrl]);
       }
     } catch (e: any) {
         console.error(e);
@@ -489,6 +476,42 @@ export default function PhotoSessionGenerator({ initialPrompt }: PhotoSessionGen
                     <p className="text-[10px] text-gray-400">يدعم JPG, PNG او WEBP (يفضل صورة واضحة ومباشرة للوجه)</p>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Model Selection Row */}
+            <div className="bg-[#FAF9F5] border border-natural-border/40 rounded-2xl p-4.5 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] bg-pink-100 text-pink-700 font-extrabold px-2 py-0.5 rounded-full">محركات التوليد المتقدمة</span>
+                <label className="text-xs font-bold text-gray-800">محرك تصميم الصور (الذكاء الاصطناعي)</label>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setModelType('gemini')}
+                  className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                    modelType === 'gemini'
+                      ? 'bg-white border-pink-500 text-pink-700 font-extrabold shadow-sm ring-1 ring-pink-500'
+                      : 'bg-white/50 border-gray-100 hover:border-pink-200 text-gray-600'
+                  }`}
+                  disabled={isLoading}
+                >
+                  <span className="text-xs font-black">جوجل جيميناي (حصتك الشخصية) 🔥</span>
+                  <span className="text-[9px] text-gray-400 mt-0.5">يتطلب أو يسحب مفتاحك في الجانبية</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModelType('flux')}
+                  className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                    modelType === 'flux'
+                      ? 'bg-white border-pink-500 text-pink-700 font-extrabold shadow-sm ring-1 ring-pink-500'
+                      : 'bg-white/50 border-gray-100 hover:border-pink-200 text-gray-600'
+                  }`}
+                  disabled={isLoading}
+                >
+                  <span className="text-xs font-black">رسم Flux اللامحدود ⭐</span>
+                  <span className="text-[9px] text-gray-400 mt-0.5">مجاني تماماً، حر، وسريع جداً بدون مفاتيح</span>
+                </button>
               </div>
             </div>
 

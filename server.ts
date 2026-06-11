@@ -174,6 +174,28 @@ async function startServer() {
     }
   });
 
+  // Endpoint to fetch the default server Gemini key for logged-in sessions inside iframes
+  app.get('/api/default-key', async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'عذراً، يجب تسجيل الدخول أولاً للحصول على المفتاح الافتراضي.' });
+      }
+
+      const idToken = authHeader.split(' ')[1];
+      const decodedToken = await verifyFirebaseIdToken(idToken);
+      if (!decodedToken) {
+        return res.status(401).json({ error: 'جلسة تسجيل الدخول غير صالحة.' });
+      }
+
+      const apiKey = process.env.GEMINI_API_KEY || '';
+      return res.json({ apiKey });
+    } catch (err: any) {
+      console.error('[API] Default Key Error:', err);
+      return res.status(500).json({ error: err.message || 'فشل استرجاع المفتاح.' });
+    }
+  });
+
   // Server-side Image Generation Proxy Route for Logged In Users
   app.post('/api/generate-image', async (req, res) => {
     let prompt = '';

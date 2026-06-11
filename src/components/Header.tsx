@@ -265,6 +265,53 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
                         )}
                       </div>
 
+                      {/* Gemini API Key Setting */}
+                      <div className="border border-natural-border/60 rounded-xl p-4 bg-[#FAF9F5] space-y-3 text-right">
+                        <div className="flex items-center justify-between">
+                          <button
+                            onClick={() => setIsEditingKey(!isEditingKey)}
+                            className="text-xs text-natural-primary hover:underline font-bold"
+                          >
+                            {isEditingKey ? 'إلغاء' : 'تعديل'}
+                          </button>
+                          <span className="text-xs font-bold text-natural-text">مفتاح جيميناي API 🔑</span>
+                        </div>
+                        {isEditingKey ? (
+                          <div className="space-y-2">
+                            <input
+                              type="password"
+                              value={sidebarKey}
+                              onChange={(e) => setSidebarKey(e.target.value)}
+                              placeholder="أدخل مفتاح AIzaSy..."
+                              className="w-full text-xs rounded-lg border border-natural-border px-2.5 py-1.5 bg-white font-mono text-left focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  const { saveUserKeyToFirestore } = await import('../lib/auth');
+                                  await saveUserKeyToFirestore(user.email || '', sidebarKey);
+                                  setIsEditingKey(false);
+                                  alert('تم حفظ وتحديث مفتاحك الخاص بنجاح! 🎉');
+                                } catch (error: any) {
+                                  alert(`خطأ في الحفظ: ${error.message}`);
+                                }
+                              }}
+                              className="w-full bg-natural-primary text-white text-[11px] font-bold py-1.5 rounded-lg transition-colors hover:bg-[#4A4A35]"
+                            >
+                              حفظ ومزامنة المفتاح 💾
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="text-[11px] font-mono text-natural-muted truncate bg-white rounded border border-natural-border/30 px-2 py-1 text-left" dir="ltr">
+                            {sidebarKey ? `••••••••${sidebarKey.slice(-6)}` : 'لم يتم تسجيل مفتاح خاص بعد'}
+                          </p>
+                        )}
+                        <p className="text-[9px] text-natural-muted leading-relaxed">
+                          يتم جلب مفتاح افتراضي تلقائي للرسم فور الدخول، ويمكنك تعديله وكتابة مفتاحك الخاص للحصول على أقصى سرعة وحصة مجانية مستقلة.
+                        </p>
+                      </div>
+
                       <div className="border-t border-natural-border pt-6 space-y-4">
                         {/* Always available tool for all logged-in users */}
                         <div className="space-y-2 w-full">
