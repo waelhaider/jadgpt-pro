@@ -20,6 +20,14 @@ interface PostCardProps {
 
 import { ADMIN_CONFIG } from '../config';
 
+const DEFAULT_SITES = [
+  { label: "بدون تسجيل دخول: duck.ai", url: "https://duck.ai" },
+  { label: "وان (10 نقاط يومية)", url: "https://create.wan.video/generate/image/draft?model=wan2.7" },
+  { label: "أرينا", url: "https://arena.ai/image/side-by-side" },
+  { label: "كل ايميل له عدد نقاط: promptsref.com", url: "https://promptsref.com/tool/AI-Image-Generator" },
+  { label: "كل ايميل له عدد نقاط: chataibot.pro", url: "https://chataibot.pro" }
+];
+
 export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCardProps) {
   const isPostFromAdmin = post.authorEmail === ADMIN_CONFIG.email;
   const displayName = isPostFromAdmin ? ADMIN_CONFIG.displayName : post.authorEmail.split('@')[0];
@@ -47,6 +55,75 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  // States for the new prompt dropdown menu
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [newSiteUrl, setNewSiteUrl] = useState('');
+  const [newSiteName, setNewSiteName] = useState('');
+  const [customSites, setCustomSites] = useState<{ label?: string; url: string }[]>(() => {
+    try {
+      const saved = localStorage.getItem('user_custom_generator_sites');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const handleTestPromptClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    // Copy the prompt text toclipboard automatically
+    try {
+      await navigator.clipboard.writeText(post.text);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+      // Fallback
+      try {
+        const textArea = document.createElement('textarea');
+        textArea.value = post.text;
+        textArea.style.position = 'fixed';
+        textArea.style.top = '0';
+        textArea.style.left = '0';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
+      } catch (fallbackErr) {
+        console.warn('Fallback copy failed:', fallbackErr);
+      }
+    }
+
+    setShowDropdown(prev => !prev);
+  };
+
+  const handleSaveCustomSite = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!newSiteUrl.trim()) return;
+    
+    let url = newSiteUrl.trim();
+    if (!/^https?:\/\//i.test(url)) {
+      url = 'https://' + url;
+    }
+
+    const label = newSiteName.trim();
+
+    const updated = [...customSites, { label: label || undefined, url }];
+    setCustomSites(updated);
+    setNewSiteUrl('');
+    setNewSiteName('');
+    localStorage.setItem('user_custom_generator_sites', JSON.stringify(updated));
+  };
+
+  const handleDeleteCustomSite = (urlToDelete: string) => {
+    const updated = customSites.filter(site => site.url !== urlToDelete);
+    setCustomSites(updated);
+    localStorage.setItem('user_custom_generator_sites', JSON.stringify(updated));
+  };
 
   // Handle mobile back gesture to close lightbox
   useEffect(() => {
@@ -265,7 +342,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className={`mx-auto mb-4 w-full max-w-xl overflow-hidden rounded-2xl border border-natural-border bg-white transition-shadow hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] ${isDeleting ? 'opacity-50 grayscale pointer-events-none' : ''}`}
+        className={`mx-auto mb-4 w-full max-w-xl rounded-2xl border border-natural-border bg-white transition-shadow hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] ${isDeleting ? 'opacity-50 grayscale pointer-events-none' : ''}`}
       >
         {/* Post Header */}
         <div className="flex items-center justify-between p-4" dir="rtl">
@@ -429,14 +506,129 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                     {isTextExpanded ? 'عرض أقل ↑' : 'عرض المزيد ↓'}
                   </button>
                 ) : <div />}
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 relative">
                   <button 
-                    onClick={() => onTestPrompt(post.text)} 
+                    onClick={handleTestPromptClick} 
                     className="flex items-center gap-1 rounded-md bg-natural-primary/10 px-2.5 py-1 text-[10px] font-black text-natural-primary transition-all hover:bg-natural-primary hover:text-white"
                   >
                     <Sparkles size={11} className="text-natural-primary hover:text-white" />
                     <span>تجريب البرومبت</span>
                   </button>
+
+                  <AnimatePresence>
+                    {showDropdown && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        className="absolute top-full mt-2 left-0 sm:left-auto sm:right-0 z-[100] w-72 rounded-2xl border border-natural-border bg-white p-4 shadow-2xl text-right animate-in fade-in zoom-in-95 duration-150"
+                        dir="rtl"
+                      >
+                        <div className="flex items-center justify-between border-b border-natural-border/50 pb-2 mb-2">
+                          <p className="text-[11px] font-black text-natural-primary flex items-center gap-1">
+                            <Sparkles size={12} />
+                            اختر موقعاً لتوليد الصورة
+                          </p>
+                          <button
+                            onClick={() => setShowDropdown(false)}
+                            className="p-1 rounded-md hover:bg-natural-bg text-natural-muted transition-colors"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+
+                        {/* Copied feedback banner */}
+                        <div className="mb-3 rounded-lg bg-green-50 border border-green-200/50 p-2 text-center text-[10px] text-green-700 font-bold">
+                          📋 تم نسخ البرومبت بنجاح إلى الحافظة!
+                        </div>
+
+                        {/* Websites list */}
+                        <div className="space-y-1.5 max-h-48 overflow-y-auto no-scrollbar pr-0.5">
+                          {DEFAULT_SITES.map((site, index) => (
+                            <a
+                              key={`default-${index}`}
+                              href={site.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={() => setShowDropdown(false)}
+                              className="flex items-center justify-between rounded-lg p-2 text-xs font-medium text-[#4A4A35] bg-natural-bg/50 hover:bg-natural-primary/10 hover:text-natural-primary transition-all text-right"
+                            >
+                              <span>{site.label}</span>
+                              <span className="text-[9px] text-natural-muted font-mono">{new URL(site.url).hostname}</span>
+                            </a>
+                          ))}
+
+                          {customSites.map((site, index) => {
+                            const displayLabel = site.label || site.url.replace(/^https?:\/\/(www\.)?/i, '');
+                            return (
+                              <div
+                                key={`custom-${index}`}
+                                className="flex items-center justify-between rounded-lg p-2 text-xs font-medium text-[#4A4A35] bg-amber-50/50 hover:bg-amber-100/50 transition-all text-right"
+                              >
+                                <a
+                                  href={site.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={() => setShowDropdown(false)}
+                                  className="flex-1 truncate hover:text-natural-primary text-right pl-1 text-[11px]"
+                                >
+                                  <span className="font-bold">{displayLabel}</span>
+                                  {site.label && (
+                                    <span className="text-[9px] text-natural-muted font-mono block" dir="ltr">
+                                      {site.url.replace(/^https?:\/\/(www\.)?/i, '')}
+                                    </span>
+                                  )}
+                                </a>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteCustomSite(site.url);
+                                  }}
+                                  className="p-1 rounded-md hover:bg-red-100 text-red-500 transition-colors shrink-0"
+                                  title="حذف"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Add custom site form */}
+                        <div className="mt-3 border-t border-natural-border/50 pt-3 space-y-2">
+                          <label className="block text-[10px] font-bold text-natural-muted mb-1">
+                            أضف موقعك المفضل:
+                          </label>
+                          <div className="space-y-1.5 text-right">
+                            <input
+                              type="text"
+                              value={newSiteName}
+                              onChange={(e) => setNewSiteName(e.target.value)}
+                              placeholder="اسم الموقع (مثال: ميدجورني)"
+                              className="w-full text-right rounded-lg border border-natural-border bg-natural-bg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-natural-primary focus:outline-none"
+                            />
+                            <div className="flex gap-1.5">
+                              <input
+                                type="text"
+                                value={newSiteUrl}
+                                onChange={(e) => setNewSiteUrl(e.target.value)}
+                                placeholder="رابط الموقع (example.com)"
+                                className="flex-1 text-right rounded-lg border border-natural-border bg-natural-bg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-natural-primary focus:outline-none"
+                                dir="ltr"
+                              />
+                              <button
+                                onClick={handleSaveCustomSite}
+                                className="rounded-lg bg-natural-primary text-white px-3 py-1.5 text-xs font-bold hover:bg-[#4A4A35] transition-colors shrink-0"
+                              >
+                                حفظ
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
                   <button onClick={handleCopy} className="flex items-center gap-1 rounded-md bg-natural-bg px-2 py-1 text-[10px] font-bold text-natural-muted transition-all hover:bg-natural-secondary-bg hover:text-natural-primary">
                     {isCopied ? <><Check size={12} className="text-green-600" /><span className="text-green-600">تم النسخ</span></> : <><Copy size={12} /><span>نسخ النص</span></>}
                   </button>
@@ -447,7 +639,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
         </div>
 
         {/* Image Grid/Gallery */}
-        <div className="grid gap-0.5 overflow-hidden bg-natural-border">
+        <div className="grid gap-0.5 overflow-hidden bg-natural-border rounded-b-2xl">
           {imageUrls.length === 1 && (
             <div 
               className="relative aspect-video w-full bg-natural-secondary-bg overflow-hidden cursor-pointer"

@@ -41,6 +41,17 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
           dir="rtl"
         >
           <button
+            onClick={() => onSelectBoard('prompt-builder')}
+            className={`relative whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-bold transition-all shadow-sm ${
+              activeBoardId === 'prompt-builder'
+                ? 'bg-natural-primary text-white scale-105 shadow-md'
+                : 'bg-white text-natural-text hover:bg-natural-secondary-bg'
+            }`}
+          >
+          صانع البرومبت
+          </button>
+
+          <button
             onClick={() => onSelectBoard(null)}
             className={`relative whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-bold transition-all shadow-sm ${
               activeBoardId === null
@@ -56,16 +67,7 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
             )}
           </button>
 
-          <button
-            onClick={() => onSelectBoard('merged-app')}
-            className={`relative whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-bold transition-all shadow-sm ${
-              activeBoardId === 'merged-app'
-                ? 'bg-indigo-600 text-white scale-105 shadow-md'
-                : 'bg-indigo-500/10 text-indigo-800 hover:bg-indigo-500/20'
-            }`}
-          >
-            📸 استوديو التصوير
-          </button>
+
 
 
           {sortedBoards.map((board) => (

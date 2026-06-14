@@ -4,15 +4,6 @@ import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 
-const STYLE_PRESETS = [
-  { id: 'realistic', suffix: 'Realistic, cinematic lighting, 8k resolution, highly detailed, photorealistic photoportrait.' },
-  { id: '3d-cartoon', suffix: '3D animated character, Pixar style, cute, vibrant, whimsical lighting, raytraced.' },
-  { id: 'oil-painting', suffix: 'Masterpiece oil painting style, visible brush strokes, rich warm lighting, classical artistic texture.' },
-  { id: 'cyberpunk', suffix: 'Cyberpunk style, glowing neon lights, futuristic high-tech streets, vibrant purple and cyan accents.' },
-  { id: 'superhero', suffix: 'Epic superhero suit, heroic pose, dramatic volumetric lighting, cinematic background action.' },
-  { id: 'anime', suffix: 'Anime style, hand-drawn aesthetic, beautiful watercolor accents, whimsical atmosphere.' },
-];
-
 async function verifyFirebaseIdToken(token: string): Promise<any> {
   try {
     if (!token) return null;
@@ -69,14 +60,6 @@ async function verifyFirebaseIdToken(token: string): Promise<any> {
     return null;
   }
 }
-
-const getGeminiClient = (customApiKey?: string) => {
-  const apiKey = customApiKey || process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY environment variable is not defined.');
-  }
-  return new GoogleGenAI({ apiKey });
-};
 
 async function startServer() {
   const app = express();
@@ -174,30 +157,10 @@ async function startServer() {
     }
   });
 
-  // Endpoint to fetch the default server Gemini key for logged-in sessions inside iframes
-  app.get('/api/default-key', async (req, res) => {
-    try {
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'عذراً، يجب تسجيل الدخول أولاً للحصول على المفتاح الافتراضي.' });
-      }
-
-      const idToken = authHeader.split(' ')[1];
-      const decodedToken = await verifyFirebaseIdToken(idToken);
-      if (!decodedToken) {
-        return res.status(401).json({ error: 'جلسة تسجيل الدخول غير صالحة.' });
-      }
-
-      const apiKey = process.env.GEMINI_API_KEY || '';
-      return res.json({ apiKey });
-    } catch (err: any) {
-      console.error('[API] Default Key Error:', err);
-      return res.status(500).json({ error: err.message || 'فشل استرجاع المفتاح.' });
-    }
-  });
-
   // Server-side Image Generation Proxy Route for Logged In Users
   app.post('/api/generate-image', async (req, res) => {
+    return res.status(410).json({ error: 'تم إيقاف التوليد الداخلي.' });
+    /*
     let prompt = '';
     let selectedModel = '';
     let aspectRatio = '1:1';
@@ -441,6 +404,54 @@ ${prompt}
       } else {
         return res.status(500).json({ error: `فشل التوليد: ${errorStr}` });
       }
+    }
+    */
+  });
+
+  // Server-side Gemini Prompt Enhancement Endpoint
+  app.post('/api/enhance-prompt', async (req, res) => {
+    try {
+      const { prompt } = req.body;
+      if (!prompt) {
+        return res.status(400).json({ error: 'لم يتم توفير النص المراد تحسينه.' });
+      }
+
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: 'لم يتم العثور على مفتاح API الخاص بـ Gemini (GEMINI_API_KEY) في خادم التطبيق.' });
+      }
+
+      const ai = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
+        }
+      });
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.5-flash',
+        contents: `أنت خبير ذكاء اصطناعي محترف ومتميز في كتابة وتحسين برومبتات (prompts) توليد الصور لمولدات الصور الرائدة مثل Midjourney و Stable Diffusion و Leonardo AI و Imagen.
+مهمتك هي إعادة صياغة وترقية وتطوير البرومبت التالي لتجعله فائق الجاذبية والاحترافية والسينمائية.
+
+المعايير المطلوبة:
+1. حافظ على كافة تفاصيل وهيكل المعطيات التي حددها المستخدم بدقة تامة (مثل الجنس والكل، العمر، المظهر، الوضعية، النمط، مقاس الصورة، الزي، التعبير، الإضاءة، وإعدادات الكاميرا). لا تغير أو تلغي أي عنصر أساسي حدده المستخدم.
+2. قم بإعادة صياغة النص بصورة وصفية سينمائية فائقة الجمال وغنية بالتفاصيل البصرية الفنية (مثل التفاصيل الدقيقة للوجه، الملمس الواقعي للبشرة والأقمشة، والجو العام).
+3. اكتب البرومبت المحسن بالكامل إما باللغة العربية بأسلوب راق للغاية وإما كبرومبت احترافي يمزج الكلمات المفتاحية بالإنجليزية لضمان وصول المولد لأفضل جودة جمالية (يفضل كتابة الأجزاء الوصفية بالإنجليزية في قالب منظم لتناسب محركات التوليد).
+4. لا تضف أي مقدمات أو شروحات أو عبارات مثل "تفضل البرومبت" أو علامات اقتباس إضافية. قم بإرجاع النص البرومبت النهائي مباشرة وبشكل فوري وجاهز للاستخدام.
+
+البرومبت الأصلي المراد تحسينه:
+"""
+${prompt}
+"""`
+      });
+
+      const enhancedText = response.text?.trim() || prompt;
+      res.json({ enhancedText });
+    } catch (err: any) {
+      console.error('[Enhance Prompt API] Error:', err);
+      res.status(500).json({ error: `فشل تحسين البرومبت بالذكاء الاصطناعي: ${err.message || err}` });
     }
   });
 

@@ -59,7 +59,7 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
 
   const handleAuthorize = async (): Promise<boolean> => {
     setLoading(true);
-    setStatus('جاري طلب صلاحيات Google Drive للرفع والحفظ الأبدي...');
+    setStatus('جاري طلب صلاحيات Google Drive للرفع والحفظ ');
     try {
       await googleSignIn();
       setUploadError(null);
