@@ -416,9 +416,14 @@ ${prompt}
         return res.status(400).json({ error: 'لم يتم توفير النص المراد تحسينه.' });
       }
 
-      const apiKey = process.env.GEMINI_API_KEY;
+      // Check for user-provided custom API key in body or headers
+      const customApiKey = (req.body.apiKey as string | undefined) || 
+                           (req.headers['x-gemini-api-key'] as string | undefined) || 
+                           (req.headers['x-api-key'] as string | undefined) || '';
+      
+      const apiKey = customApiKey || process.env.GEMINI_API_KEY;
       if (!apiKey) {
-        return res.status(500).json({ error: 'لم يتم العثور على مفتاح API الخاص بـ Gemini (GEMINI_API_KEY) في خادم التطبيق.' });
+        return res.status(500).json({ error: 'لم يتم العثور على مفتاح API الخاص بـ Gemini. يرجى تسجيل الدخول بحساب Google أو إضافة مفتاح الـ API الخاص بك في القائمة الجانبية (أعلى الشاشة).' });
       }
 
       const ai = new GoogleGenAI({
@@ -430,9 +435,21 @@ ${prompt}
         }
       });
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
-        contents: `أنت خبير ذكاء اصطناعي محترف ومتميز في كتابة وتحسين برومبتات (prompts) توليد الصور لمولدات الصور الرائدة مثل Midjourney و Stable Diffusion و Leonardo AI و Imagen.
+      let response;
+      let lastError;
+      
+      const modelsToTry = [
+        'gemini-3.5-flash',
+        'gemini-3.1-flash-lite',
+        'gemini-flash-latest'
+      ];
+
+      for (const modelName of modelsToTry) {
+        try {
+          console.log(`[Enhance Prompt API] Trying model: ${modelName}`);
+          response = await ai.models.generateContent({
+            model: modelName,
+            contents: `أنت خبير ذكاء اصطناعي محترف ومتميز في كتابة وتحسين برومبتات (prompts) توليد الصور لمولدات الصور الرائدة مثل Midjourney و Stable Diffusion و Leonardo AI و Imagen.
 مهمتك هي إعادة صياغة وترقية وتطوير البرومبت التالي لتجعله فائق الجاذبية والاحترافية والسينمائية.
 
 المعايير المطلوبة:
@@ -445,13 +462,45 @@ ${prompt}
 """
 ${prompt}
 """`
-      });
+          });
+          if (response && response.text) {
+            console.log(`[Enhance Prompt API] Success with model: ${modelName}`);
+            break;
+          }
+        } catch (err: any) {
+          console.warn(`[Enhance Prompt API] Model ${modelName} failed:`, err.message || err);
+          lastError = err;
+        }
+      }
 
-      const enhancedText = response.text?.trim() || prompt;
+      if (!response || !response.text) {
+        throw lastError || new Error('فشلت جميع النماذج المتاحة في معالجة طلب تحسين البرومبت بسبب ضغط الاستخدام.');
+      }
+
+      const enhancedText = response.text.trim();
       res.json({ enhancedText });
     } catch (err: any) {
       console.error('[Enhance Prompt API] Error:', err);
-      res.status(500).json({ error: `فشل تحسين البرومبت بالذكاء الاصطناعي: ${err.message || err}` });
+      const errorMsg = err.message || String(err);
+      
+      let clientError = `فشل تحسين البرومبت بالذكاء الاصطناعي: ${errorMsg}`;
+      
+      if (
+        errorMsg.includes('quota') || 
+        errorMsg.includes('Quota exceeded') || 
+        errorMsg.includes('limit') || 
+        errorMsg.includes('exhausted') || 
+        errorMsg.includes('blocked') || 
+        errorMsg.includes('billing') ||
+        errorMsg.includes('429') ||
+        errorMsg.includes('Resource')
+      ) {
+        clientError = '⚠️ تم تجاوز حد الاستخدام (الكوتا) الخاص بمفتاح الخادم المجاني لـ Gemini أو تم حظره مؤقتاً. يرجى تسجيل الدخول بحساب Google أو إضافة مفتاح الـ API الخاص بك في القائمة الجانبية (شريط الرأس في الأعلى) لمتابعة تحسين البرومبتات دون قيود.';
+      } else if (errorMsg.includes('API_KEY_INVALID') || errorMsg.includes('key is invalid') || errorMsg.includes('invalid API key')) {
+        clientError = '⚠️ مفتاح API المستخدم غير صالح. يرجى التأكد من كتابة المفتاح بشكل صحيح في القائمة الجانبية (شريط الرأس في الأعلى).';
+      }
+      
+      res.status(500).json({ error: clientError });
     }
   });
 

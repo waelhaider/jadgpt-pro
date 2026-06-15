@@ -21,11 +21,20 @@ interface PostCardProps {
 import { ADMIN_CONFIG } from '../config';
 
 const DEFAULT_SITES = [
-  { label: "بدون تسجيل دخول: duck.ai", url: "https://duck.ai" },
+  { label: "بدون تسجيل دخول", url: "https://duck.ai" },
   { label: "وان (10 نقاط يومية)", url: "https://create.wan.video/generate/image/draft?model=wan2.7" },
   { label: "أرينا", url: "https://arena.ai/image/side-by-side" },
-  { label: "كل ايميل له عدد نقاط: promptsref.com", url: "https://promptsref.com/tool/AI-Image-Generator" },
-  { label: "كل ايميل له عدد نقاط: chataibot.pro", url: "https://chataibot.pro" }
+  { label: "كل ايميل له عدد نقاط", url: "https://promptsref.com/tool/AI-Image-Generator" },
+  { label: "كل ايميل له عدد نقاط", url: "https://chataibot.pro" },
+  { label: " جيميناي", url: "https://gemini.google.com/app?hl=ar" },
+  { label: " notegpt.io ", url: "https://notegpt.io " },
+  { label: "اسم الموقع هنا ", url: "https://عنوان الموفع" },
+  { label: "اسم الموقع هنا ", url: "https://عنوان الموفع" },  
+  { label: "اسم الموقع هنا ", url: "https://عنوان الموفع" }, 
+  { label: "اسم الموقع هنا ", url: "https://عنوان الموفع" },  
+  { label: "اسم الموقع هنا ", url: "https://عنوان الموفع" }, 
+  { label: "اسم الموقع هنا ", url: "https://عنوان الموفع" }
+
 ];
 
 export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCardProps) {
