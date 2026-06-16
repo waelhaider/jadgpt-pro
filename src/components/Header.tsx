@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { auth, googleProvider } from '../lib/firebase';
-import { googleSignIn, emailSignIn, logout as authLogout } from '../lib/auth';
+import { googleSignIn, emailSignIn, logout as authLogout, saveUserKeyToFirestore } from '../lib/auth';
 import { safeStorage } from '../lib/safe-storage';
 import { User } from 'firebase/auth';
-import { LogIn, LogOut, ShieldCheck, User as UserIcon, Menu, X, PlusCircle, Edit, LayoutGrid } from 'lucide-react';
+import { LogIn, LogOut, ShieldCheck, User as UserIcon, Menu, X, PlusCircle, Edit, LayoutGrid, Key } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Board } from '../types';
 import BoardModals from './BoardModals';
@@ -126,6 +126,81 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
       console.error('Logout failed:', error);
     }
   };
+
+  const handleSaveGeminiKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanKey = sidebarKey.trim();
+    safeStorage.setItem('user_gemini_api_key', cleanKey);
+    
+    if (user && user.email) {
+      try {
+        await saveUserKeyToFirestore(user.email, cleanKey);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    alert(cleanKey ? 'تم حفظ مفتاح Gemini API بنجاح! 🎉' : 'تم تفريغ وحذف مفتاح Gemini API بنجاح.');
+    setIsEditingKey(false);
+  };
+
+  const renderApiKeySection = () => (
+    <div className="pt-4 border-t border-natural-border/60 text-right space-y-3">
+      <div className="flex items-center gap-1.5 justify-between">
+        <span className="text-xs font-black text-[#4A4A35]">إعدادات الذكاء الاصطناعي</span>
+        <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded-md">مفتاح Gemini</span>
+      </div>
+      <p className="text-[10px] text-natural-muted leading-relaxed">
+        أدخل مفتاح Gemini API الخاص بك بالأسفل لتفعيل ميزة "تحسين البرومبت" والحصول على ترجمة ومستويات تحسين عالية الدقة والاستمتاع بكامل الميزات من أي متصفح أو بيئة استضافة خارجية.
+      </p>
+      <form onSubmit={handleSaveGeminiKey} className="space-y-2">
+        <div className="relative flex items-center">
+          <input
+            type="password"
+            value={sidebarKey}
+            onChange={(e) => setSidebarKey(e.target.value)}
+            placeholder="AIzaSy..."
+            className="w-full text-xs rounded-xl border border-natural-border pl-10 pr-3 py-2.5 bg-white font-mono text-left focus:outline-none focus:ring-1 focus:ring-natural-primary"
+          />
+          <Key size={14} className="absolute left-3 text-natural-muted/60" />
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            className="flex-1 rounded-xl bg-natural-primary text-white text-[11px] font-bold py-2 transition-all hover:bg-[#4A4A35] active:scale-95 cursor-pointer"
+          >
+            حفظ المفتاح 💾
+          </button>
+          {sidebarKey && (
+            <button
+              type="button"
+              onClick={async () => {
+                setSidebarKey('');
+                safeStorage.removeItem('user_gemini_api_key');
+                if (user && user.email) {
+                  const { deleteUserKeyFromFirestore } = await import('../lib/auth');
+                  await deleteUserKeyFromFirestore(user.email);
+                }
+                alert('تم حذف المفتاح وتصفير الحقل بنجاح.');
+              }}
+              className="px-2.5 rounded-xl border border-red-200 bg-red-50 text-red-700 text-[11px] font-bold hover:bg-red-100 transition-colors"
+            >
+              حذف 🗑️
+            </button>
+          )}
+        </div>
+      </form>
+      <div className="text-[9px] text-left">
+        <a 
+          href="https://aistudio.google.com/app/apikey" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-amber-700 font-bold hover:underline"
+        >
+          الحصول على مفتاح API مجاني من Google AI Studio ↗
+        </a>
+      </div>
+    </div>
+  );
 
   const handleBoardSubmit = async (data: any) => {
     console.log('Attempting board submit:', modalState.type, data);
@@ -320,6 +395,8 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
                           </div>
                         )}
                         
+                        {renderApiKeySection()}
+
                         <button
                           onClick={handleLogout}
                           className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-100 bg-red-50 p-4 text-sm font-bold text-red-600 transition-all hover:bg-red-100 active:scale-95"
@@ -397,6 +474,8 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
 
 
                       </div>
+
+                      {renderApiKeySection()}
                     </div>
                   )}
                 </div>
