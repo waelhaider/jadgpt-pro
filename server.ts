@@ -65,6 +65,17 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  // Custom CORS middleware for static site access (e.g. Netlify)
+  app.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
+    res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Authorization, x-gemini-api-key, x-api-key');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
   // Logger and secure error-bound JSON parser
   app.use('/api', (req, res, next) => {
     console.log(`[API Request] Method: ${req.method} | Path: ${req.originalUrl}`);

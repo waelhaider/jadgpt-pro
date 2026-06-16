@@ -322,25 +322,114 @@ ${outfitPrefix} :${displayOutfit}
       const originalPrompt = promptText.trim() || getStructuredPrompt();
       const userApiKey = safeStorage.getItem('user_gemini_api_key') || '';
       
-      const headersKey: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (userApiKey) {
-        headersKey['x-gemini-api-key'] = userApiKey;
-      }
-      
-      const response = await fetch('/api/enhance-prompt', {
-        method: 'POST',
-        headers: headersKey,
-        body: JSON.stringify({ prompt: originalPrompt, apiKey: userApiKey }),
-      });
+      let success = false;
+      let enhancedTextResult = '';
 
-      const data = await response.json();
-      if (!response.ok || data.error) {
-        throw new Error(data.error || 'فشل الاتصال بخادم الذكاء الاصطناعي.');
+      const systemInstruction = `أنت خبير ذكاء اصطناعي محترف ومتميز في كتابة وتحسين برومبتات (prompts) توليد الصور لمولدات الصور الرائدة مثل Midjourney و Stable Diffusion و Leonardo AI و Imagen.
+مهمتك هي إعادة صياغة وترقية وتطوير البرومبت التالي لتجعله فائق الجاذبية والاحترافية والسينمائية.
+
+المعايير المطلوبة:
+1. حافظ على كافة تفاصيل وهيكل المعطيات التي حددها المستخدم بدقة تامة (مثل الجنس والكل، العمر، المظهر، الوضعية، النمط، مقاس الصورة، الزي، التعبير، الإضاءة، وإعدادات الكاميرا). لا تغير أو تلغي أي عنصر أساسي حدده المستخدم.
+2. قم بإعادة صياغة النص بصورة وصفية سينمائية فائقة الجمال وغنية بالتفاصيل البصرية الفنية (مثل التفاصيل الدقيقة للوجه، الملمس الواقعي للبشرة والأقمشة، والجو العام).
+3. اكتب البرومبت المحسن بالكامل إما باللغة العربية بأسلوب راق للغاية وإما كبرومبت احترافي يمزج الكلمات المفتاحية بالإنجليزية لضمان وصول المولد لأفضل جودة جمالية (يفضل كتابة الأجزاء الوصفية بالإنجليزية في قالب منظم لتناسب محركات التوليد).
+4. لا تضف أي مقدمات أو شروحات أو عبارات مثل "تفضل البرومبت" أو علامات اقتباس إضافية. قم بإرجاع النص البرومبت النهائي مباشرة وبشكل فوري وجاهز للاستخدام.
+
+البرومبت الأصلي المراد تحسينه:
+"""
+${originalPrompt}
+"""`;
+
+      // 1. First, attempt to call the backend endpoint (relative path /api/enhance-prompt)
+      try {
+        const headersKey: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (userApiKey) {
+          headersKey['x-gemini-api-key'] = userApiKey;
+        }
+        
+        const response = await fetch('/api/enhance-prompt', {
+          method: 'POST',
+          headers: headersKey,
+          body: JSON.stringify({ prompt: originalPrompt, apiKey: userApiKey }),
+        });
+
+        const contentType = response.headers.get('content-type') || '';
+        if (response.ok && contentType.includes('application/json')) {
+          const data = await response.json();
+          if (data && data.enhancedText) {
+            enhancedTextResult = data.enhancedText;
+            success = true;
+          } else if (data && data.error) {
+            throw new Error(data.error);
+          }
+        } else {
+          console.warn('[PromptBuilder] Local backend `/api/enhance-prompt` not available or returned HTML (e.g. static site). Trying fallback options...');
+        }
+      } catch (backendErr: any) {
+        console.warn('[PromptBuilder] Local backend request failed:', backendErr);
       }
 
-      if (data.enhancedText) {
-        setEnhancedPrompt(data.enhancedText);
-        setPromptText(data.enhancedText);
+      // 2. Fallback A: If we have a user custom API key, execute direct client-side Gemini generation!
+      if (!success && userApiKey) {
+        console.log('[PromptBuilder] Fallback A: Executing direct client-side Gemini call with user key...');
+        const modelsToTry = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+        
+        for (const modelName of modelsToTry) {
+          try {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${userApiKey}`;
+            const directRes = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: systemInstruction }] }]
+              })
+            });
+
+            if (directRes.ok) {
+              const resData = await directRes.json();
+              const fetchedText = resData?.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (fetchedText) {
+                enhancedTextResult = fetchedText.trim();
+                success = true;
+                console.log(`[PromptBuilder] Success generating client-side with ${modelName}`);
+                break;
+              }
+            }
+          } catch (directErr) {
+            console.warn(`[PromptBuilder] Client-side direct call to ${modelName} failed:`, directErr);
+          }
+        }
+      }
+
+      // 3. Fallback B: Cross-Origin CORS request to the actual Cloud Run live host if local endpoint is not found
+      if (!success) {
+        const cloudRunBaseUrl = 'https://ais-pre-73b5ktfwj7jc3r2bxn3pj5-351201511869.europe-west3.run.app';
+        console.log('[PromptBuilder] Fallback B: Querying secure Cloud Run deployment CORS API...');
+        try {
+          const response = await fetch(`${cloudRunBaseUrl}/api/enhance-prompt`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: originalPrompt }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data && data.enhancedText) {
+              enhancedTextResult = data.enhancedText;
+              success = true;
+              console.log('[PromptBuilder] Cloud Run Fallback B succeeded!');
+            }
+          }
+        } catch (crErr) {
+          console.warn('[PromptBuilder] Cloud Run Fallback B request failed:', crErr);
+        }
+      }
+
+      // 4. Set prompt or throw error
+      if (success && enhancedTextResult) {
+        setEnhancedPrompt(enhancedTextResult);
+        setPromptText(enhancedTextResult);
+      } else {
+        throw new Error('لم ينجح خادم الذكاء الاصطناعي في الاستجابة. يرجى التأكد من إضافة مفتاح Gemini API في خيارات القائمة الجانبية (أعلى الشاشة) للتشغيل في البيئات السحابية.');
       }
     } catch (err: any) {
       console.error('Enhance API error:', err);
