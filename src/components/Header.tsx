@@ -287,16 +287,16 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
                           <p className="text-xs text-natural-muted">{user.email}</p>
                         </div>
                         {isAdmin && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-natural-primary/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-natural-primary">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-natural-primary/10 px-1 py-1 text-[10px] font-bold uppercase tracking-wider text-natural-primary">
                             <ShieldCheck size={12} /> المسؤول
                           </span>
                         )}
                       </div>
 
-                      <div className="border-t border-natural-border pt-6 space-y-4">
+                      <div className="space-y-2">
                         {/* Always available tool for all logged-in users */}
                         <div className="space-y-2 w-full">
-                          <h4 className="text-[10px] text-natural-muted font-bold uppercase tracking-widest text-right mb-2">الأدوات العامة</h4>
+                          <h4 className="text-[10px] text-natural-muted font-bold uppercase tracking-widest text-right mb-1">الأدوات العامة</h4>
                           <button
                             onClick={() => {
                               setIsSidebarOpen(false);
