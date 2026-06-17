@@ -50,47 +50,12 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
   }, [isSidebarOpen]);
 
   const handleLogin = async () => {
-    // Check if running inside an iframe (such as the AI Studio integrated preview)
-    const isIframe = window.self !== window.top;
-    if (isIframe) {
-      setIframeEmail(ADMIN_CONFIG.email);
-      setIframeName(ADMIN_CONFIG.displayName);
-      setIframeLoginError('');
-      setIframeLoginSuccess('');
-      setIframeLoginOpen(true);
-      return;
-    }
-
-    try {
-      const res = await googleSignIn();
-      if (res) {
-        alert('تم تسجيل الدخول بنجاح! 🎉');
-        window.location.reload();
-      }
-      setIsSidebarOpen(false);
-    } catch (error: any) {
-      console.error('Login failed:', error);
-      const isPopupBlocked = error?.code === 'auth/popup-blocked' || error?.message?.toLowerCase().includes('popup-blocked') || error?.message?.toLowerCase().includes('popup');
-      const isUnauthorizedDomain = error?.code === 'auth/unauthorized-domain' || error?.message?.toLowerCase().includes('unauthorized-domain');
-      
-      if (isUnauthorizedDomain) {
-        // Open custom login modal directly to avoid prompt/confirm iframe restrictions
-        setIframeEmail(ADMIN_CONFIG.email);
-        setIframeName(ADMIN_CONFIG.displayName);
-        setIframeLoginError('تم اكتشاف خطأ في عنوان النطاق غير الموثق للنظام (Unauthorized Domain). يمكنك استخدام نموذج الدخول المباشر بالأسفل كبديل فوري وبسيط.');
-        setIframeLoginSuccess('');
-        setIframeLoginOpen(true);
-      } else if (isPopupBlocked) {
-        // Open custom login modal directly as fallback
-        setIframeEmail(ADMIN_CONFIG.email);
-        setIframeName(ADMIN_CONFIG.displayName);
-        setIframeLoginError('تم حظر النافذة المنبثقة لـ Google OAuth. يمكنك تسجيل الدخول المباشر فوراً بالأسفل دون الحاجة للنوافذ المنبثقة.');
-        setIframeLoginSuccess('');
-        setIframeLoginOpen(true);
-      } else {
-        alert(`❌ فشل تسجيل الدخول: ${error?.message || error}`);
-      }
-    }
+    // Always open the custom convenient login modal containing prefilled Admin credentials to ensure flawless & fast access from any browser tab or iframe
+    setIframeEmail(ADMIN_CONFIG.email);
+    setIframeName(ADMIN_CONFIG.displayName);
+    setIframeLoginError('');
+    setIframeLoginSuccess('');
+    setIframeLoginOpen(true);
   };
 
   const handleFastLogin = async (e: React.FormEvent) => {
@@ -150,7 +115,7 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
         <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded-md">مفتاح Gemini</span>
       </div>
       <p className="text-[10px] text-natural-muted leading-relaxed">
-        أدخل مفتاح Gemini API الخاص بك بالأسفل لتفعيل ميزة "تحسين البرومبت" والحصول على ترجمة ومستويات تحسين عالية الدقة والاستمتاع بكامل الميزات من أي متصفح أو بيئة استضافة خارجية.
+        أدخل مفتاح Gemini API الخاص بك لتفعيل "تحسين البرومبت".
       </p>
       <form onSubmit={handleSaveGeminiKey} className="space-y-2">
         <div className="relative flex items-center">
@@ -407,7 +372,7 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
                       </div>
                     </div>
                   ) : (
-                    <div className="flex flex-col items-center justify-center h-full space-y-6 text-center">
+                    <div className="flex flex-col items-center w-full space-y-6 text-center py-3">
                       <div className="h-16 w-16 bg-natural-secondary-bg rounded-full flex items-center justify-center text-natural-muted">
                         <UserIcon size={32} />
                       </div>
@@ -420,7 +385,7 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
                         className="flex w-full items-center justify-center gap-2 rounded-xl bg-natural-primary p-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-[#4A4A35] active:scale-95"
                       >
                         <LogIn size={18} />
-                        تسجيل الدخول باستخدام جوجل
+                        تسجيل الدخول عبر غوغل
                       </button>
 
                       {/* Fast Email Login Form */}
@@ -586,7 +551,7 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
                 </div>
               </div>
 
-              <div className="flex gap-2.5 pt-4 border-t border-natural-border/60">
+              <div className="flex gap-2 pt-4 border-t border-natural-border/60 justify-between items-center flex-wrap">
                 <button
                   type="button"
                   onClick={async () => {
@@ -613,20 +578,44 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
                       setIframeLoginError(err.message || 'فشل تسجيل الدخول الفوري.');
                     }
                   }}
-                  className="flex-1 bg-natural-primary text-white font-bold py-2.5 px-4 rounded-xl text-sm transition-all hover:bg-[#4A4A35] active:scale-95 text-center cursor-pointer"
+                  className="flex-1 bg-natural-primary text-white font-bold py-2.5 px-4 rounded-xl text-xs transition-all hover:bg-[#4A4A35] active:scale-95 text-center cursor-pointer min-w-[120px]"
                 >
-                  دخول فوري ومباشر كمسؤول
+                  دخول فوري ومباشر كمسؤول ⚡
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIframeEmail(ADMIN_CONFIG.email);
-                    setIframeName(ADMIN_CONFIG.displayName);
-                  }}
-                  className="bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold py-2.5 px-3 rounded-xl text-xs transition-colors cursor-pointer"
-                >
-                  استعادة المسؤول 👤
-                </button>
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIframeEmail(ADMIN_CONFIG.email);
+                      setIframeName(ADMIN_CONFIG.displayName);
+                    }}
+                    className="bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold py-2.5 px-2.5 rounded-xl text-[10px] transition-colors cursor-pointer"
+                    title="استعادة البريد الافتراضي للمسؤول"
+                  >
+                    استعادة المسؤول 👤
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        setIframeLoginError('');
+                        const res = await googleSignIn();
+                        if (res) {
+                          setIframeLoginSuccess('تم تسجيل الدخول بنجاح عبر حساب Google! جاري تحويلك...');
+                          setTimeout(() => {
+                            window.location.reload();
+                          }, 500);
+                        }
+                      } catch (err: any) {
+                        setIframeLoginError('لم تنجح النافذة المنبثقة: يرجى استخدام خيار الدخول الفوري كمسؤول.');
+                      }
+                    }}
+                    className="bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold py-2.5 px-2.5 rounded-xl text-[10px] transition-colors cursor-pointer"
+                    title="تسجيل الدخول عبر Google OAuth"
+                  >
+                    غوغل رسمي 🌐
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>
