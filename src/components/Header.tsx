@@ -361,13 +361,8 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
                     </div>
                   ) : (
                     <div className="flex flex-col items-center w-full space-y-6 text-center py-3">
-                      <div className="h-16 w-16 bg-natural-secondary-bg rounded-full flex items-center justify-center text-natural-muted">
-                        <UserIcon size={32} />
-                      </div>
-                      <div className="space-y-2">
-                        <h3 className="font-bold text-natural-text">مرحباً بك</h3>
-                    
-                      </div>
+          
+                      
                       <button
                         onClick={handleLogin}
                         className="flex w-full items-center justify-center gap-2 rounded-xl bg-natural-primary p-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-[#4A4A35] active:scale-95"
