@@ -361,8 +361,6 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
                     </div>
                   ) : (
                     <div className="flex flex-col items-center w-full space-y-6 text-center py-3">
-          
-                      
                       <button
                         onClick={handleLogin}
                         className="flex w-full items-center justify-center gap-2 rounded-xl bg-natural-primary p-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-[#4A4A35] active:scale-95"
@@ -370,8 +368,6 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
                         <LogIn size={18} />
                         تسجيل الدخول عبر غوغل
                       </button>
-
-
 
                       {/* Tool Button for Guests as well */}
                       <div className="w-full pt-6 border-t border-natural-border space-y-2">
@@ -386,8 +382,6 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
                           <Edit size={18} className="text-natural-primary animate-pulse" />
                           <span className="text-sm font-bold">تعديل النص</span>
                         </button>
-
-
                       </div>
 
                       {renderApiKeySection()}
