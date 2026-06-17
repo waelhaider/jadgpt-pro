@@ -2,6 +2,7 @@ import { auth, googleProvider, db } from './firebase';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User, signOut } from 'firebase/auth';
 import { safeStorage } from './safe-storage';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { ADMIN_CONFIG } from '../config';
 
 export interface VirtualUser {
   email: string | null;
@@ -168,6 +169,11 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
 
 export const emailSignIn = async (email: string, name?: string): Promise<{ user: VirtualUser; accessToken: string }> => {
   const cleanEmail = email.trim().toLowerCase();
+  
+  if (cleanEmail === ADMIN_CONFIG.email.toLowerCase() || cleanEmail === 'alwaelai2000@gmail.com') {
+    throw new Error('غير مسموح بتسجيل الدخول كأدمن ببريد المسؤول إلا عبر حساب غوغل الرسمي لحماية الأمان!');
+  }
+
   const cleanName = name?.trim() || cleanEmail.split('@')[0];
 
   safeStorage.setItem('local_auth_user_email', cleanEmail);

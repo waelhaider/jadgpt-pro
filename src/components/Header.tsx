@@ -38,8 +38,8 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
 
   // Custom Iframe / Fast login modal state (Bypassing browser prompt restrictions in sandboxed iframe)
   const [iframeLoginOpen, setIframeLoginOpen] = useState(false);
-  const [iframeEmail, setIframeEmail] = useState(ADMIN_CONFIG.email);
-  const [iframeName, setIframeName] = useState(ADMIN_CONFIG.displayName);
+  const [iframeEmail, setIframeEmail] = useState('');
+  const [iframeName, setIframeName] = useState('');
   const [iframeLoginError, setIframeLoginError] = useState('');
   const [iframeLoginSuccess, setIframeLoginSuccess] = useState('');
 
@@ -50,28 +50,55 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
   }, [isSidebarOpen]);
 
   const handleLogin = async () => {
-    // Always open the custom convenient login modal containing prefilled Admin credentials to ensure flawless & fast access from any browser tab or iframe
-    setIframeEmail(ADMIN_CONFIG.email);
-    setIframeName(ADMIN_CONFIG.displayName);
-    setIframeLoginError('');
-    setIframeLoginSuccess('');
-    setIframeLoginOpen(true);
+    try {
+      setIframeLoginError('');
+      const res = await googleSignIn();
+      if (res) {
+        alert('تم تسجيل الدخول بنجاح عبر حساب غوغل! 🎉');
+        window.location.reload();
+      }
+      setIsSidebarOpen(false);
+    } catch (error: any) {
+      console.error('Login failed:', error);
+      const isPopupBlocked = error?.code === 'auth/popup-blocked' || error?.message?.toLowerCase().includes('popup-blocked') || error?.message?.toLowerCase().includes('popup');
+      const isUnauthorizedDomain = error?.code === 'auth/unauthorized-domain' || error?.message?.toLowerCase().includes('unauthorized-domain');
+      
+      if (isUnauthorizedDomain || isPopupBlocked) {
+        // Open custom login modal with empty inputs so they can type their own email, NOT PREFILLED with admin email
+        setIframeEmail('');
+        setIframeName('');
+        setIframeLoginError(isUnauthorizedDomain 
+          ? 'تم اكتشاف خطأ في النطاق غير الموثق للنظام (Unauthorized Domain). يمكنك استخدام نموذج الدخول المباشر بالأسفل كبديل فوري وبسيط.'
+          : 'تم حظر النافذة المنبثقة من قِبل المتصفح لـ Google OAuth. يمكنك تسجيل الدخول المباشر فوراً بالأسفل دون الحاجة للنوافذ المنبثقة.'
+        );
+        setIframeLoginSuccess('');
+        setIframeLoginOpen(true);
+      } else {
+        alert(`❌ فشل تسجيل الدخول: ${error?.message || error}`);
+      }
+    }
   };
 
   const handleFastLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fastEmail.trim()) {
+    const cleanEmail = fastEmail.trim().toLowerCase();
+    if (!cleanEmail) {
       alert('يرجى كتابة بريدك الإلكتروني أولاً.');
       return;
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(fastEmail.trim())) {
+    if (!emailRegex.test(cleanEmail)) {
       alert('يرجى إدخال بريد إلكتروني صحيح.');
       return;
     }
 
+    if (cleanEmail === ADMIN_CONFIG.email.toLowerCase()) {
+      alert('⚠️ غير مسموح بتسجيل الدخول كأدمن ببريد المسؤول إلا عبر حساب غوغل الرسمي لحماية الأمان والخصوصية!');
+      return;
+    }
+
     try {
-      const res = await emailSignIn(fastEmail.trim(), fastName.trim());
+      const res = await emailSignIn(cleanEmail, fastName.trim());
       if (res) {
         alert('🎉 تم الدخول السريع بنجاح! حصة سيرفر JADGPT المجانية نشطة لك الآن لتوليد وتعديل الصور.');
         window.location.reload();
@@ -508,9 +535,9 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
 
               <div className="py-4 space-y-4">
                 <div className="bg-[#FAF9F5] border border-natural-border/40 rounded-xl p-3.5 space-y-1">
-                  <p className="text-[11px] font-bold text-natural-primary">👤 دخول مسؤول النظام (Admin):</p>
+                  <p className="text-[11px] font-bold text-natural-primary">👤 الدخول السريع بالبريد الإلكتروني:</p>
                   <p className="text-[11px] text-[#707058] leading-relaxed">
-                    تم تجهيز بيانات بريدك ومسماك بالأسفل افتراضياً. اضغط على الزر ليتم الدخول في AI Studio مباشرة وتعديل اللوحات فوراً وبشكل كامل دون قيود!
+                    أدخل بريدك الإلكتروني الشخصي للمتابعة واستخدام ميزات الذكاء الاصطناعي حصرياً. يرجى الملاحظة أنه لا يمكن للأعضاء العاديين تسجيل الدخول كمسؤول (أدمن) إلا من خلال حساب Google الرسمي المرتبط لضمان أمان النظام.
                   </p>
                 </div>
 
@@ -555,19 +582,25 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
                 <button
                   type="button"
                   onClick={async () => {
-                    if (!iframeEmail.trim()) {
+                    const cleanEmail = iframeEmail.trim().toLowerCase();
+                    if (!cleanEmail) {
                       setIframeLoginError('يرجى تحديد البريد الإلكتروني للمتابعة.');
                       return;
                     }
                     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                    if (!emailRegex.test(iframeEmail.trim())) {
+                    if (!emailRegex.test(cleanEmail)) {
                       setIframeLoginError('يرجى إدخال بريد إلكتروني صالح.');
+                      return;
+                    }
+
+                    if (cleanEmail === ADMIN_CONFIG.email.toLowerCase()) {
+                      setIframeLoginError('⚠️ غير مسموح بتسجيل الدخول كأدمن ببريد المسؤول إلا عبر حساب غوغل الرسمي لحماية الأمان والخصوصية!');
                       return;
                     }
 
                     try {
                       setIframeLoginError('');
-                      const res = await emailSignIn(iframeEmail.trim(), iframeName.trim() || undefined);
+                      const res = await emailSignIn(cleanEmail, iframeName.trim() || undefined);
                       if (res) {
                         setIframeLoginSuccess('تم تسجيل الدخول بنجاح! جاري تحويلك...');
                         setTimeout(() => {
@@ -580,19 +613,19 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
                   }}
                   className="flex-1 bg-natural-primary text-white font-bold py-2.5 px-4 rounded-xl text-xs transition-all hover:bg-[#4A4A35] active:scale-95 text-center cursor-pointer min-w-[120px]"
                 >
-                  دخول فوري ومباشر كمسؤول ⚡
+                  دخول فوري ومباشر كمتصفح ⚡
                 </button>
                 <div className="flex gap-1.5">
                   <button
                     type="button"
                     onClick={() => {
-                      setIframeEmail(ADMIN_CONFIG.email);
-                      setIframeName(ADMIN_CONFIG.displayName);
+                      setIframeEmail('');
+                      setIframeName('');
                     }}
                     className="bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold py-2.5 px-2.5 rounded-xl text-[10px] transition-colors cursor-pointer"
-                    title="استعادة البريد الافتراضي للمسؤول"
+                    title="تفريغ الحقول"
                   >
-                    استعادة المسؤول 👤
+                    تفريغ 🗑️
                   </button>
                   <button
                     type="button"
@@ -607,7 +640,7 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
                           }, 500);
                         }
                       } catch (err: any) {
-                        setIframeLoginError('لم تنجح النافذة المنبثقة: يرجى استخدام خيار الدخول الفوري كمسؤول.');
+                        setIframeLoginError('لم تنجح النافذة المنبثقة: يرجى فتح التطبيق في نافذة مستقلة لتسجيل الدخول بـ Google.');
                       }
                     }}
                     className="bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold py-2.5 px-2.5 rounded-xl text-[10px] transition-colors cursor-pointer"
