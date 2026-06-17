@@ -32,9 +32,7 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
   const [sidebarKey, setSidebarKey] = useState(safeStorage.getItem('user_gemini_api_key') || '');
   const [isEditingKey, setIsEditingKey] = useState(false);
   
-  // Fast email login state
-  const [fastEmail, setFastEmail] = useState('');
-  const [fastName, setFastName] = useState('');
+
 
   // Custom Iframe / Fast login modal state (Bypassing browser prompt restrictions in sandboxed iframe)
   const [iframeLoginOpen, setIframeLoginOpen] = useState(false);
@@ -79,35 +77,7 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
     }
   };
 
-  const handleFastLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanEmail = fastEmail.trim().toLowerCase();
-    if (!cleanEmail) {
-      alert('يرجى كتابة بريدك الإلكتروني أولاً.');
-      return;
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(cleanEmail)) {
-      alert('يرجى إدخال بريد إلكتروني صحيح.');
-      return;
-    }
 
-    if (cleanEmail === ADMIN_CONFIG.email.toLowerCase()) {
-      alert('⚠️ غير مسموح بتسجيل الدخول كأدمن ببريد المسؤول إلا عبر حساب غوغل الرسمي لحماية الأمان والخصوصية!');
-      return;
-    }
-
-    try {
-      const res = await emailSignIn(cleanEmail, fastName.trim());
-      if (res) {
-        alert('🎉 تم الدخول السريع بنجاح! حصة سيرفر JADGPT المجانية نشطة لك الآن لتوليد وتعديل الصور.');
-        window.location.reload();
-      }
-      setIsSidebarOpen(false);
-    } catch (err: any) {
-      alert(`خطأ أثناء الدخول السريع: ${err.message || err}`);
-    }
-  };
 
   const handleLogout = async () => {
     try {
@@ -296,31 +266,22 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
             >
               <div className="flex flex-col h-full">
                 {/* Sidebar Header */}
-                <div className="flex items-center justify-between p-6 border-b border-natural-border">
-                  <h2 className="text-lg font-bold text-natural-text">القائمة</h2>
+                <div className="relative flex items-center justify-center py-2.5 px-3 border-b border-natural-border/40 bg-neutral-50/50">
+                  <h2 className="text-sm font-black text-[#3A3A28] text-center">القائمة</h2>
                   <button 
                     onClick={() => setIsSidebarOpen(false)}
-                    className="p-2 text-natural-muted hover:bg-natural-secondary-bg rounded-md transition-colors"
+                    className="absolute left-2.5 p-1.5 text-natural-muted hover:bg-neutral-100 rounded-lg transition-colors cursor-pointer"
                   >
-                    <X size={20} />
+                    <X size={16} />
                   </button>
                 </div>
 
                 {/* Sidebar Content */}
-                <div className="flex-1 overflow-y-auto p-6">
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
                   {user ? (
                     <div className="space-y-8">
                       {/* User Info */}
-                      <div className="flex flex-col items-center text-center space-y-3">
-                        <div className="h-20 w-20 overflow-hidden rounded-full border-4 border-natural-secondary-bg shadow-sm">
-                          {user.photoURL ? (
-                            <img src={user.photoURL} alt={user.displayName || 'User'} referrerPolicy="no-referrer" className="h-full w-full object-cover" />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center bg-natural-bg text-natural-muted">
-                              <UserIcon size={32} />
-                            </div>
-                          )}
-                        </div>
+                      <div className="flex flex-col items-center text-center space-y-2">
                         <div>
                           <p className="text-lg font-bold text-natural-text">{user.displayName}</p>
                           <p className="text-xs text-natural-muted">{user.email}</p>
@@ -415,40 +376,7 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
                         تسجيل الدخول عبر غوغل
                       </button>
 
-                      {/* Fast Email Login Form */}
-                      <form onSubmit={handleFastLogin} className="w-full pt-4 border-t border-natural-border/60 text-right space-y-3">
-                        <div className="flex items-center gap-1.5 justify-between">
-                          <span className="text-xs font-black text-[#4A4A35]">أو الدخول ببريدك الإلكتروني مباشرة</span>
-                          <span className="text-[10px] bg-green-100 text-green-700 font-bold px-1.5 py-0.5 rounded-md">جديد وسريع</span>
-                        </div>
-                        <p className="text-[10px] text-natural-muted leading-relaxed">
-                          إذا واجهت مشكلة في تسجيل الدخول العادي أو كنت داخل نافذة المعاينة، أدخل بريدك الإلكتروني هنا للدخول الفوري واستخدام حصة السيرفر المجانية مباشرة لرسم الصور وحفظها.
-                        </p>
-                        <div className="space-y-2">
-                          <input
-                            type="email"
-                            value={fastEmail}
-                            onChange={(e) => setFastEmail(e.target.value)}
-                            placeholder="بريدك الإلكتروني الشخصي"
-                            className="w-full text-xs rounded-xl border border-natural-border px-3 py-2.5 bg-white font-bold text-natural-text focus:outline-none text-right focus:ring-1 focus:ring-natural-primary"
-                            required
-                          />
-                          <input
-                            type="text"
-                            value={fastName}
-                            onChange={(e) => setFastName(e.target.value)}
-                            placeholder="اسمك الكريم (اختياري)"
-                            className="w-full text-xs rounded-xl border border-natural-border px-3 py-2.5 bg-white font-bold text-natural-text focus:outline-none text-right focus:ring-1 focus:ring-natural-primary"
-                          />
-                        </div>
-                        <button
-                          type="submit"
-                          className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-natural-primary bg-natural-primary/5 p-3 text-xs font-bold text-natural-primary transition-all hover:bg-natural-primary hover:text-white active:scale-95"
-                        >
-                          <LogIn size={14} />
-                          دخول فوري ومباشر بحصة السيرفر
-                        </button>
-                      </form>
+
 
                       {/* Tool Button for Guests as well */}
                       <div className="w-full pt-6 border-t border-natural-border space-y-2">
