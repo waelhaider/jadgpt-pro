@@ -33,17 +33,11 @@ html, body, button, input, select, textarea, span, p, h1, h2, h3, h4, h5, h6, di
 }
 
 .yarl__slide {
-  padding: 0px !important;
+  padding: 10px 10px 110px 10px !important; /* دفع الصورة للأعلى بشكل متناسق وثابت عبر تضخيم الهامش السفلي للمحتوى داخل الـ Lightbox */
 }
 
 .yarl__slide_image {
   padding: 0px !important;
-}
-
-/* رفع الصورة للأعلى بمقدار 55 بكسل فقط عندما لا تكون الصورة في وضع التكبير التفاعلي لتجنب اقتصاصها أو التأثير على السحب */
-.yarl__slide_wrapper:not(.yarl__slide_wrapper_interactive) .yarl__slide_image {
-  position: relative !important;
-  top: -55px !important;
 }
 
 /* تقريب أدوات الصورة (التكبير والتصغير والإلغاء) من الزاوية لتقليص الفراغ العلوي والجانبي */
