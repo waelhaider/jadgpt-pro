@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, Copy, RefreshCw, Check, ArrowRight, UserPlus, Sliders, Eye, ChevronDown, Trash2, ArrowLeftRight } from 'lucide-react';
+import { Sparkles, Copy, RefreshCw, Check, ArrowRight, UserPlus, Sliders, Eye, ChevronDown, Trash2, ArrowLeftRight, Plus, ExternalLink, Globe } from 'lucide-react';
 import { safeStorage } from '../lib/safe-storage';
 
 interface CustomSelectorProps {
@@ -73,15 +73,99 @@ function CustomSelector({ label, options, value, onChange, zIndex = 11, labelCom
 }
 
 export default function PromptBuilder() {
-  // Main open state for the builder options
-  const [isOpen, setIsOpen] = useState(true);
-  const [isAnimationDone, setIsAnimationDone] = useState(true);
+  // Visited sites state (resets on page load)
+  const [visitedSiteIds, setVisitedSiteIds] = useState<string[]>([]);
+  
+  // Is the "مواقع برومبت جاهزة" directory open?
+  const [isSitesOpen, setIsSitesOpen] = useState(false);
+  
+  // Custom states for adding new site
+  const [newSiteUrl, setNewSiteUrl] = useState('');
+  const [newSiteName, setNewSiteName] = useState('');
 
-  useEffect(() => {
-    if (!isOpen) {
-      setIsAnimationDone(false);
+  // Prompt Sites state (hydrates from localStorage if exists)
+  const [sites, setSites] = useState<{ id: string; url: string; name: string; isDefault: boolean; }[]>(() => {
+    const saved = safeStorage.getItem('prompt_builder_sites');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      } catch (e) {
+        console.error('Failed to parse prompt builder sites', e);
+      }
     }
-  }, [isOpen]);
+    return [
+      { id: '1', url: 'https://youmind.com/gpt-image-2-prompts', name: 'YouMind - برومبت gpt-image-2', isDefault: true },
+      { id: '2', url: 'https://youmind.com/nano-banana-pro-prompts', name: 'Banana Pro - برومبت nanobanana-pro', isDefault: true },
+      { id: '3', url: 'https://youmind.com/prompts', name: 'YouMind Prompts - لاختيار الموديلات', isDefault: true },
+      { id: '4', url: 'https://generateprompt.ai', name: 'GeneratePrompt - يحول الصورة إلى برومبت', isDefault: true },
+      { id: '5', url: 'https://www.origastock.com/ai/prompt-builder', name: 'Origastock - إعدادات بشكل صور', isDefault: true },
+      { id: '6', url: 'https://yesand.ai/portrait', name: 'YesAnd AI - تبويبات البورتريه', isDefault: true },
+      { id: '7', url: 'https://www.promptifex.com/ar/home', name: 'Promptifex - برومبتيفكس العربي', isDefault: true },
+      { id: '8', url: 'https://aitoolsbot.com', name: 'AIToolsBot - جميع أدوات الذكاء الاصطناعي', isDefault: true },
+      { id: '9', url: 'https://songgenerator.io/ar/app', name: 'SongGenerator - صانع موسيقى', isDefault: true },
+      { id: '10', url: 'https://cinematicpromptgenerator.lovable.app/', name: 'Lovable Cinematic - أداة برومبتات سينمائية', isDefault: true },
+      { id: '11', url: 'https://luvvoice.com/en/language/arabic', name: 'LuvVoice - يحول النص إلى صوت عربي', isDefault: true },
+      { id: '12', url: 'https://easy-peasy.ai/ai-images', name: 'Easy-Peasy - مع توليد الصورة', isDefault: true },
+      { id: '13', url: 'https://www.bananaprompts.xyz/explore', name: 'Banana Prompts - استكشاف برومبتات', isDefault: true },
+    ];
+  });
+
+  // Sync sites with localStorage whenever updated
+  useEffect(() => {
+    safeStorage.setItem('prompt_builder_sites', JSON.stringify(sites));
+  }, [sites]);
+
+  // Handle changing site name inline
+  const handleEditSiteName = (id: string, newName: string) => {
+    setSites(prev => prev.map(s => s.id === id ? { ...s, name: newName } : s));
+  };
+
+  // Handle adding custom site
+  const handleAddSite = () => {
+    if (!newSiteUrl.trim()) return;
+    
+    let formattedUrl = newSiteUrl.trim();
+    if (!/^https?:\/\//i.test(formattedUrl)) {
+      formattedUrl = `https://${formattedUrl}`;
+    }
+
+    const newSite = {
+      id: Date.now().toString(),
+      url: formattedUrl,
+      name: newSiteName.trim(),
+      isDefault: false
+    };
+
+    setSites(prev => [...prev, newSite]);
+    setNewSiteUrl('');
+    setNewSiteName('');
+  };
+
+  // Handle deleting custom site matching URL
+  const handleDeleteCustomSite_byUrl = () => {
+    if (!newSiteUrl.trim()) {
+      setNewSiteUrl('');
+      setNewSiteName('');
+      return;
+    }
+    
+    let formattedUrl = newSiteUrl.trim();
+    if (!/^https?:\/\//i.test(formattedUrl)) {
+      formattedUrl = `https://${formattedUrl}`;
+    }
+
+    setSites(prev => prev.filter(s => s.isDefault || s.url.toLowerCase() !== formattedUrl.toLowerCase()));
+    setNewSiteUrl('');
+    setNewSiteName('');
+  };
+
+  // Delete directly by ID
+  const handleDeleteSiteById = (id: string) => {
+    setSites(prev => prev.filter(s => s.id !== id));
+  };
 
   // Form selections states
   const [aspectRatio, setAspectRatio] = useState('حجم تلقائي');
@@ -729,38 +813,158 @@ ${originalPrompt}
 
   return (
     <div className="mx-auto w-full max-w-xl pb-12 text-right" dir="rtl">
-      {/* Top flashing glowing icon block */}
-      <div className="my-6 flex flex-col items-center justify-center">
+      {/* Ready Prompt Sites Block */}
+      <div className="mt-1 mb-2">
         <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="relative group flex items-center justify-center h-16 w-16 rounded-full bg-natural-primary/10 border border-natural-primary/30 shadow-[0_0_15px_rgba(74,74,53,0.1)] transition-transform active:scale-95 duration-200"
-          title="افتح / أغلق إعدادات صانع البرومبت"
+          type="button"
+          onClick={() => setIsSitesOpen(!isSitesOpen)}
+          className="w-full flex items-center justify-between bg-gradient-to-r from-natural-primary to-[#4A4A35] text-white px-4 py-1.5 rounded-2xl font-black text-sm shadow-sm hover:shadow transition-all active:scale-[0.98] outline-none cursor-pointer"
         >
-          {/* Animated pulsing outer rings */}
-          <span className="absolute inline-flex h-full w-full rounded-full bg-natural-primary/20 opacity-75 animate-ping duration-1000" />
-          <span className="absolute inline-flex h-4/5 w-4/5 rounded-full bg-natural-primary/10 opacity-50 animate-pulse duration-700" />
-          
-          <Sparkles className="relative text-natural-primary h-7 w-7 animate-pulse drop-shadow-[0_0_8px_rgba(74,74,53,0.5)]" />
+          <div className="flex items-center gap-2">
+            <Globe className="h-4 w-4 text-amber-200 animate-spin-slow" />
+            <span> مواقع برومبت جاهزة </span>
+          </div>
+          <ChevronDown
+            size={18}
+            className={`transition-transform duration-300 ${isSitesOpen ? 'rotate-180' : ''}`}
+          />
         </button>
-      
-      
+
+        {/* Collapsible Directory of Sites */}
+        <AnimatePresence>
+          {isSitesOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -10, height: 0 }}
+              animate={{ opacity: 1, y: 0, height: 'auto' }}
+              exit={{ opacity: 0, y: -10, height: 0 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              className="mt-3 bg-white border border-natural-border p-4 rounded-2xl shadow-lg space-y-4 overflow-hidden relative z-50 text-right"
+            >
+
+
+              <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1 no-scrollbar">
+                {sites.map((site, index) => {
+                  const isVisited = visitedSiteIds.includes(site.id);
+                  // Clean URL to display only the domain and path without protocols to look cleaner
+                  const cleanDisplayUrl = site.url.replace(/^https?:\/\/(www\.)?/i, '');
+                  
+                  return (
+                    <div
+                      key={site.id}
+                      className={`flex items-start justify-between gap-2.5 p-3 rounded-xl border transition-all ${
+                        isVisited
+                          ? 'bg-neutral-50/50 border-natural-border/80 opacity-90'
+                          : 'bg-green-50/5 border-natural-border/90 hover:bg-green-50/10'
+                      }`}
+                    >
+                      {/* Left side: Numbering + Clickable Site Name + Rename field */}
+                      <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                        <span className="text-xs font-black text-[#4A4A35] min-w-[20px] mt-1 text-center select-none bg-natural-primary/10 rounded-md py-0.5 px-1">
+                          {index + 1}
+                        </span>
+                        
+                        <div className="flex-1 min-w-0 space-y-1.5">
+                          {/* Site Name Link (Enlarged, Green by default, Red if visited) */}
+                          <a
+                            href={site.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={() => {
+                              if (!visitedSiteIds.includes(site.id)) {
+                                setVisitedSiteIds(prev => [...prev, site.id]);
+                              }
+                            }}
+                            className={`inline-block text-sm sm:text-base font-black hover:underline break-all transition-colors leading-snug cursor-pointer font-mono ${
+                              isVisited
+                                ? 'text-red-600 hover:text-red-700'
+                                : 'text-green-700 hover:text-green-800'
+                            }`}
+                            title={`اضغط لزيارة: ${site.url}`}
+                            dir="ltr"
+                          >
+                            {cleanDisplayUrl}
+                          </a>
+
+                          {/* Editable rename and feature field */}
+                          <div className="flex items-center gap-1.5 opacity-90 max-w-xs bg-[#4A4A35]/5 border border-natural-border/50 rounded-lg px-2 py-1">
+                            <span className="text-[10px] text-[#4A4A35] font-black shrink-0 select-none">الاسم والميزة:</span>
+                            <input
+                              type="text"
+                              value={site.name}
+                              onChange={(e) => handleEditSiteName(site.id, e.target.value)}
+                              placeholder="اضغط لتسمية الموقع..."
+                              className="w-full bg-transparent text-xs font-extrabold text-[#3A3A28] focus:outline-none py-0 text-right font-sans border-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right side: Delete button for Custom Sites only */}
+                      {!site.isDefault && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSiteById(site.id)}
+                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-red-200 shrink-0 cursor-pointer self-start mt-0.5"
+                          title="حذف هذا الموقع المخصص"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* End of list: custom fields */}
+              <div className="border-t border-natural-border/50 pt-4 space-y-3">
+                <div className="text-[11px] font-black text-natural-primary">
+                  ➕ إضافة موقع مخصص إلى قائمتك:
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-right">
+                  <input
+                    type="text"
+                    value={newSiteUrl}
+                    onChange={(e) => setNewSiteUrl(e.target.value)}
+                    placeholder="رابط الموقع (مثال: example.com)"
+                    className="w-full text-right rounded-xl border border-natural-border bg-natural-bg/30 px-3 py-2 text-xs font-bold focus:ring-1 focus:ring-natural-primary focus:outline-none transition-all placeholder:text-natural-muted/50"
+                  />
+                  <input
+                    type="text"
+                    value={newSiteName}
+                    onChange={(e) => setNewSiteName(e.target.value)}
+                    placeholder="اسم الموقع المخصص (اختياري)"
+                    className="w-full text-right rounded-xl border border-natural-border bg-natural-bg/30 px-3 py-2 text-xs font-bold focus:ring-1 focus:ring-natural-primary focus:outline-none transition-all placeholder:text-natural-muted/50"
+                  />
+                </div>
+                <div className="flex items-center gap-2 justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={handleAddSite}
+                    className="flex items-center gap-1 bg-natural-primary text-white px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:bg-[#4A4A35] transition-all cursor-pointer"
+                  >
+                    <Plus size={13} />
+                    <span>حفظ الموقع</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeleteCustomSite_byUrl}
+                    className="flex items-center gap-1 bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:bg-red-100 transition-all cursor-pointer"
+                  >
+                    <Trash2 size={13} />
+                    <span>حذف الموقع</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      <AnimatePresence initial={false} mode="wait">
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            onAnimationComplete={() => setIsAnimationDone(isOpen)}
-            transition={{ duration: 0.3, ease: 'easeInOut' }}
-            className={isOpen && isAnimationDone ? "relative z-30 overflow-visible" : "relative z-30 overflow-hidden"}
-          >
-            {/* Options configuration Panel */}
-            <div className="bg-white rounded-3xl border border-natural-border p-5 shadow-sm space-y-5 mb-6">
-              
-              {/* Option 1: Gender & Age (Custom Layout) - Now at the absolute top */}
-              <div className="grid grid-cols-2 gap-3 relative z-[110]">
+      {/* Options configuration Panel */}
+      <div className="bg-white rounded-3xl border border-natural-border p-5 shadow-sm space-y-5 mb-6">
+        
+        {/* Option 1: Gender & Age (Custom Layout) - Now at the absolute top */}
+        <div className="grid grid-cols-2 gap-3 relative z-[110]">
                 <CustomSelector
                   label="تحديد الجنس"
                   options={['رجل', 'امرأة', 'طفل', 'طفلة']}
@@ -894,9 +1098,6 @@ ${originalPrompt}
               />
 
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Generated output box frame */}
       <div className="bg-[#4A4A35]/5 rounded-3xl border border-natural-border/60 p-5 mt-4 text-right flex flex-col space-y-4">

@@ -15,3 +15,52 @@
 html, body, button, input, select, textarea, span, p, h1, h2, h3, h4, h5, h6, div, label {
   font-family: "Cairo", "Inter", ui-sans-serif, system-ui, sans-serif !important;
 }
+
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+/* تقليل الفراغ حول الصورة المكبرة في Lightbox وزيادة مساحة العرض للجوال والكمبيوتر */
+.yarl__container {
+  --yarl__carousel_slides_padding: 0px !important;
+  --yarl__slide_image_padding: 0px !important;
+  --yarl__controller_padding: 0px !important;
+}
+
+.yarl__slide {
+  padding: 0px !important;
+}
+
+.yarl__slide_image {
+  padding: 0px !important;
+}
+
+/* رفع الصورة للأعلى بمقدار 55 بكسل فقط عندما لا تكون الصورة في وضع التكبير التفاعلي لتجنب اقتصاصها أو التأثير على السحب */
+.yarl__slide_wrapper:not(.yarl__slide_wrapper_interactive) .yarl__slide_image {
+  position: relative !important;
+  top: -55px !important;
+}
+
+/* تقريب أدوات الصورة (التكبير والتصغير والإلغاء) من الزاوية لتقليص الفراغ العلوي والجانبي */
+.yarl__toolbar {
+  padding: 2px 4px !important;
+  gap: 2px !important;
+}
+
+.yarl__button {
+  padding: 2px !important;
+  width: 36px !important;
+  height: 36px !important;
+}
+
+/* التأكد من عدم وجود هوامش مفرطة لأزرار التنقل */
+.yarl__navigation_prev, .yarl__navigation_next {
+  padding: 4px !important;
+}
+
+

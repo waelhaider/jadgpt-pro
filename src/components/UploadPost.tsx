@@ -19,6 +19,7 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
   const [text, setText] = useState('');
   const [images, setImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+  const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -33,9 +34,11 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
 
     const newImages = [...images];
     const newPreviews = [...previews];
+    const newModels = [...selectedModels];
 
     files.forEach(file => {
       newImages.push(file);
+      newModels.push(''); // No model selected initially
       const reader = new FileReader();
       reader.onloadend = () => {
         setPreviews(prev => [...prev, reader.result as string]);
@@ -44,14 +47,17 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
     });
 
     setImages(newImages);
+    setSelectedModels(newModels);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const removeImage = (index: number) => {
     const newImages = images.filter((_, i) => i !== index);
     const newPreviews = previews.filter((_, i) => i !== index);
+    const newModels = selectedModels.filter((_, i) => i !== index);
     setImages(newImages);
     setPreviews(newPreviews);
+    setSelectedModels(newModels);
   };
 
   const [status, setStatus] = useState<string>('');
@@ -152,6 +158,7 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
         text: text.trim(),
         imageUrl: imageUrls.length > 0 ? imageUrls[0] : null,
         imageUrls: imageUrls,
+        imageModels: selectedModels,
         boardId: activeBoardId || null, // Explicitly null for main feed
         authorId: currentUser.uid,
         authorEmail: currentUser.email,
@@ -172,6 +179,7 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
       setText('');
       setImages([]);
       setPreviews([]);
+      setSelectedModels([]);
       setStatus('');
       alert('تم النشر ورفع الصور بكامل جودتها وابعادها الاصلية إلى Google Drive وحفظها بنجاح! 🎉');
     } catch (error) {
@@ -193,7 +201,7 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
   };
 
   return (
-    <div className="mx-auto mt-4 w-full max-w-xl">
+    <div className="mx-auto mt-1 w-full max-w-xl">
       <div className="overflow-hidden rounded-2xl border border-natural-border bg-white shadow-[0_4px_12px_rgba(90,90,64,0.05)]">
         <form onSubmit={handleSubmit} className="p-4 sm:p-6 text-right">
           {uploadError && (
@@ -241,19 +249,53 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
                 exit={{ height: 0, opacity: 0 }}
                 className="mt-4 grid grid-cols-2 gap-2"
               >
-                {previews.map((prev, index) => (
-                  <div key={index} className="relative aspect-video overflow-hidden rounded-xl border border-natural-border bg-natural-bg">
-                    <img src={prev} alt={`Preview ${index + 1}`} className="h-full w-full object-cover" />
-                    <button
-                      type="button"
-                      disabled={loading}
-                      onClick={() => removeImage(index)}
-                      className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur shadow-sm transition-transform hover:scale-110 active:scale-95 disabled:opacity-50"
-                    >
-                      <X size={12} />
-                    </button>
-                  </div>
-                ))}
+                {previews.map((prev, index) => {
+                  const models = ['gpt-image-2', 'nano-banana2', 'wan 2.7', 'grok'];
+                  return (
+                    <div key={index} className="flex flex-col gap-1.5 p-1.5 rounded-xl border border-natural-border/60 bg-natural-bg/30 relative">
+                      <div className="relative aspect-video overflow-hidden rounded-lg border border-natural-border/30 bg-natural-bg">
+                        <img src={prev} alt={`Preview ${index + 1}`} className="h-full w-full object-cover" />
+                        <button
+                          type="button"
+                          disabled={loading}
+                          onClick={() => removeImage(index)}
+                          className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur shadow-sm transition-transform hover:scale-110 active:scale-95 disabled:opacity-50 cursor-pointer z-10"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+
+                      {/* Model Selector Pills */}
+                      <div className="flex flex-col gap-1 text-right" dir="rtl">
+                        <span className="text-[10px] font-black text-[#4A4A35] select-none">موديل توليد الصورة:</span>
+                        <div className="flex flex-wrap gap-1">
+                          {models.map((model) => {
+                            const isSelected = selectedModels[index] === model;
+                            return (
+                              <button
+                                key={model}
+                                type="button"
+                                disabled={loading}
+                                onClick={() => {
+                                  const updated = [...selectedModels];
+                                  updated[index] = isSelected ? '' : model;
+                                  setSelectedModels(updated);
+                                }}
+                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-all border ${
+                                  isSelected
+                                    ? 'bg-[#4A4A35] text-white border-transparent shadow-sm'
+                                    : 'bg-white text-natural-muted border-natural-border/60 hover:bg-natural-bg/80'
+                                }`}
+                              >
+                                {model}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </motion.div>
             )}
           </AnimatePresence>

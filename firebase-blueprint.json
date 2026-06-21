@@ -19,6 +19,11 @@
           "items": { "type": "string" },
           "description": "Multiple image URLs."
         },
+        "imageModels": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "The AI model used to generate each image."
+        },
         "boardId": {
           "type": "string",
           "description": "The ID of the board this post belongs to."

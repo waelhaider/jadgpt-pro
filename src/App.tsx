@@ -97,7 +97,7 @@ export default function App() {
       />
       
       <main className="container mx-auto px-4 max-w-5xl">
-        <div className="pt-2">
+        <div className="sticky top-12 z-30 bg-natural-bg/95 backdrop-blur-sm pt-2 pb-1.5 border-b border-natural-border/20 mb-3">
           <BoardTabs 
             boards={boards} 
             activeBoardId={activeBoardId} 

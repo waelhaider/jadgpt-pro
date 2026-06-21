@@ -48,6 +48,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
   const [isEditing, setIsEditing] = useState(false);
   const [editedText, setEditedText] = useState(post.text);
   const [editedImageUrls, setEditedImageUrls] = useState<string[]>(post.imageUrls || (post.imageUrl ? [post.imageUrl] : []));
+  const [editedBoardId, setEditedBoardId] = useState<string | null>(post.boardId || null);
   const [newImages, setNewImages] = useState<File[]>([]);
   const [newPreviews, setNewPreviews] = useState<string[]>([]);
   const [removedImageUrls, setRemovedImageUrls] = useState<string[]>([]);
@@ -159,6 +160,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
     if (isEditing) {
       setEditedText(post.text);
       setEditedImageUrls(post.imageUrls || (post.imageUrl ? [post.imageUrl] : []));
+      setEditedBoardId(post.boardId || null);
       setNewImages([]);
       setNewPreviews([]);
       setRemovedImageUrls([]);
@@ -287,6 +289,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
         text: editedText.trim(),
         imageUrls: finalImageUrls,
         imageUrl: finalImageUrls.length > 0 ? finalImageUrls[0] : null,
+        boardId: editedBoardId,
         updatedAt: serverTimestamp(),
       });
 
@@ -480,6 +483,44 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                 onChange={handleImageAdd} 
               />
 
+              {/* خيار نقل المنشور لسبورة أخرى */}
+              <div className="flex flex-col gap-2 rounded-xl border border-natural-border/30 bg-natural-bg/50 p-3.5 text-right" dir="rtl">
+                <span className="text-xs font-black text-[#5C5C44] flex items-center gap-1.5">
+                  📁 نقل المنشور إلى لوحة أخرى:
+                </span>
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => setEditedBoardId(null)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all border cursor-pointer ${
+                      editedBoardId === null
+                        ? 'bg-[#4A4A35] text-[#F5F5EC] border-transparent shadow-sm'
+                        : 'bg-white text-natural-muted border-natural-border/40 hover:bg-natural-bg'
+                    }`}
+                  >
+                    اللوحة العامة (الرئيسية)
+                  </button>
+
+                  {boards && boards.map((board) => {
+                    const isSelected = editedBoardId === board.id;
+                    return (
+                      <button
+                        key={board.id}
+                        type="button"
+                        onClick={() => setEditedBoardId(board.id)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all border cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#4A4A35] text-[#F5F5EC] border-transparent shadow-sm'
+                            : 'bg-white text-natural-muted border-natural-border/40 hover:bg-natural-bg'
+                        }`}
+                      >
+                        {board.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="flex gap-2 justify-start pt-2 border-t border-natural-border">
                 <button 
                   type="button"
@@ -560,10 +601,18 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={() => setShowDropdown(false)}
-                              className="flex items-center justify-between rounded-lg p-2 text-xs font-medium text-[#4A4A35] bg-natural-bg/50 hover:bg-natural-primary/10 hover:text-natural-primary transition-all text-right"
+                              className="flex items-center justify-between gap-3 rounded-lg p-2 bg-natural-bg/50 hover:bg-natural-primary/10 hover:text-natural-primary transition-all text-right overflow-hidden"
                             >
-                              <span>{site.label}</span>
-                              <span className="text-[9px] text-natural-muted font-mono">{new URL(site.url).hostname}</span>
+                              <span className="text-[10px] sm:text-sm font-black text-[#2B2B1D] whitespace-nowrap">{site.label}</span>
+                              <span className="text-[13px] font-normal text-[red] truncate max-w-[120px]" dir="ltr">
+                                {(() => {
+                                  try {
+                                    return new URL(site.url).hostname;
+                                  } catch (e) {
+                                    return site.url.replace(/^https?:\/\/(www\.)?/i, '');
+                                  }
+                                })()}
+                              </span>
                             </a>
                           ))}
 
@@ -572,18 +621,18 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                             return (
                               <div
                                 key={`custom-${index}`}
-                                className="flex items-center justify-between rounded-lg p-2 text-xs font-medium text-[#4A4A35] bg-amber-50/50 hover:bg-amber-100/50 transition-all text-right"
+                                className="flex items-center justify-between gap-3 rounded-lg p-2 bg-amber-50/50 hover:bg-amber-100/50 transition-all text-right overflow-hidden"
                               >
                                 <a
                                   href={site.url}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   onClick={() => setShowDropdown(false)}
-                                  className="flex-1 truncate hover:text-natural-primary text-right pl-1 text-[11px]"
+                                  className="flex-1 hover:text-natural-primary text-right pl-1 min-w-0"
                                 >
-                                  <span className="font-bold">{displayLabel}</span>
+                                  <span className="text-[10px] sm:text-sm font-black text-[#2B2B1D] whitespace-nowrap block">{displayLabel}</span>
                                   {site.label && (
-                                    <span className="text-[9px] text-natural-muted font-mono block" dir="ltr">
+                                    <span className="text-[13px] font-normal text-[red] truncate max-w-[150px]" dir="ltr">
                                       {site.url.replace(/^https?:\/\/(www\.)?/i, '')}
                                     </span>
                                   )}
@@ -661,6 +710,11 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                 loading="lazy"
                 referrerPolicy="no-referrer"
               />
+              {post.imageModels && post.imageModels[0] && (
+                <div className="absolute bottom-2 right-2 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-2 py-0.5 text-[9px] font-black backdrop-blur-xs select-none pointer-events-none z-10 font-sans tracking-wide">
+                  ✨ {post.imageModels[0]}
+                </div>
+              )}
             </div>
           )}
           
@@ -673,6 +727,11 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                   onClick={() => { setLightboxIndex(i); setLightboxOpen(true); }}
                 >
                   <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                  {post.imageModels && post.imageModels[i] && (
+                    <div className="absolute bottom-2 right-2 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-2 py-0.5 text-[9px] font-black backdrop-blur-xs select-none pointer-events-none z-10 font-sans tracking-wide">
+                      ✨ {post.imageModels[i]}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -685,17 +744,30 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                 onClick={() => { setLightboxIndex(0); setLightboxOpen(true); }}
               >
                 <img src={imageUrls[0]} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                {post.imageModels && post.imageModels[0] && (
+                  <div className="absolute bottom-2 right-2 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-2 py-0.5 text-[9px] font-black backdrop-blur-xs select-none pointer-events-none z-10 font-sans tracking-wide">
+                    ✨ {post.imageModels[0]}
+                  </div>
+                )}
               </div>
               <div className="grid grid-rows-2 gap-0.5">
-                {imageUrls.slice(1).map((url, i) => (
-                  <div 
-                    key={i} 
-                    className="relative aspect-square bg-natural-secondary-bg overflow-hidden cursor-pointer"
-                    onClick={() => { setLightboxIndex(i + 1); setLightboxOpen(true); }}
-                  >
-                    <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-                  </div>
-                ))}
+                {imageUrls.slice(1).map((url, i) => {
+                  const actualIndex = i + 1;
+                  return (
+                    <div 
+                      key={i} 
+                      className="relative aspect-square bg-natural-secondary-bg overflow-hidden cursor-pointer"
+                      onClick={() => { setLightboxIndex(actualIndex); setLightboxOpen(true); }}
+                    >
+                      <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                      {post.imageModels && post.imageModels[actualIndex] && (
+                        <div className="absolute bottom-2 right-2 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-2 py-0.5 text-[9px] font-black backdrop-blur-xs select-none pointer-events-none z-10 font-sans tracking-wide">
+                          ✨ {post.imageModels[actualIndex]}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -709,6 +781,11 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                   onClick={() => { setLightboxIndex(i); setLightboxOpen(true); }}
                 >
                   <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                  {post.imageModels && post.imageModels[i] && (
+                    <div className="absolute bottom-2 right-2 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-2 py-0.5 text-[9px] font-black backdrop-blur-xs select-none pointer-events-none z-10 font-sans tracking-wide">
+                      ✨ {post.imageModels[i]}
+                    </div>
+                  )}
                   {i === 3 && imageUrls.length > 4 && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-white font-bold text-xl pointer-events-none z-10">
                       +{imageUrls.length - 4}
@@ -725,8 +802,13 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
         open={lightboxOpen}
         close={() => setLightboxOpen(false)}
         index={lightboxIndex}
+        on={{ view: ({ index }) => setLightboxIndex(index) }}
         slides={slides}
         plugins={[Zoom]}
+        carousel={{
+          spacing: "0px",
+          padding: "0px"
+        }}
         controller={{ 
           closeOnBackdropClick: true,
           closeOnPullDown: true,
@@ -737,7 +819,8 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
           scrollToZoom: true,
           doubleTapDelay: 300,
           doubleClickDelay: 300,
-          doubleClickMaxStops: 2,
+          doubleClickMaxStops: 4,
+          zoomInMultiplier: 1.25,
           keyboardMoveDistance: 50,
           wheelZoomDistanceFactor: 100,
           pinchZoomDistanceFactor: 100,
@@ -745,6 +828,16 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
         render={{
           buttonPrev: slides.length <= 1 ? () => null : undefined,
           buttonNext: slides.length <= 1 ? () => null : undefined,
+          controls: () => {
+            const currentModel = post.imageModels?.[lightboxIndex];
+            if (!currentModel) return null;
+            return (
+              <div className="absolute bottom-30 right-3 bg-black/75 text-[#F5F5EC] border border-white/50 rounded-full px-3.5 py-1.5 text-xs font-black backdrop-blur-md select-none pointer-events-none z-50 font-sans tracking-wide shadow-lg flex items-center gap-1.5 animate-fade-in" dir="rtl">
+                <span>موديل التوليد :</span>
+                <span className="text-amber-200">{currentModel}</span>
+              </div>
+            );
+          }
         }}
       />
     </>

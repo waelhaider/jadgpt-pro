@@ -210,7 +210,7 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
   return (
     <>
       <header className="sticky top-0 z-40 w-full border-b border-natural-border bg-white/80 backdrop-blur-md shadow-sm shrink-0">
-        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-6">
+        <div className="mx-auto flex h-12 max-w-5xl items-center justify-between px-6">
           {/* Menu Button (Right side for RTL feel, or Left side) */}
           {/* User expects mobile style, usually top-left or top-right. Let's put it on the left since logo is on the right for Arabic? 
               Actually line 43 in previous version had logo on the left of its container. 
