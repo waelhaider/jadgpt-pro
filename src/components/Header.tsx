@@ -254,14 +254,14 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsSidebarOpen(false)}
-              className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
+              className="fixed inset-0 z-[1000] bg-black/40 backdrop-blur-sm"
             />
             <motion.div
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed inset-y-0 left-0 z-50 w-72 bg-white shadow-2xl"
+              className="fixed inset-y-0 left-0 z-[1001] w-72 bg-white shadow-2xl"
               dir="rtl"
             >
               <div className="flex flex-col h-full">
@@ -418,7 +418,7 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
       {/* Iframe Safe Custom Login Modal */}
       <AnimatePresence>
         {iframeLoginOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
             {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}

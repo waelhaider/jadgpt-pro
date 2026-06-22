@@ -36,7 +36,7 @@ export default function BoardModals({ isOpen, type, board, boards, onClose, onSu
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

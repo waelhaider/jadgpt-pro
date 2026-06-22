@@ -21,7 +21,7 @@ interface PostCardProps {
 import { ADMIN_CONFIG } from '../config';
 
 const DEFAULT_SITES = [
-  { label: "بدون تسجيل دخول", url: "https://duck.ai" },
+  { label: "بدون تسجيل دخول (انقر بالزر الأيمن وافتحه بالمتصفح الخفي 🕶️)", url: "https://duck.ai" },
   { label: "وان (10 نقاط يومية)", url: "https://create.wan.video/generate/image/draft?model=wan2.7" },
   { label: "أرينا", url: "https://arena.ai/image/side-by-side" },
   { label: "كل ايميل له عدد نقاط", url: "https://promptsref.com/tool/AI-Image-Generator" },
@@ -78,6 +78,25 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
       return [];
     }
   });
+
+  const [visitedTrialUrls, setVisitedTrialUrls] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('user_trial_visited_sites_v2');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('user_trial_visited_sites_v2', JSON.stringify(visitedTrialUrls));
+  }, [visitedTrialUrls]);
+
+  const handleEditCustomSiteLabel = (url: string, newLabel: string) => {
+    const updated = customSites.map(s => s.url === url ? { ...s, label: newLabel } : s);
+    setCustomSites(updated);
+    localStorage.setItem('user_custom_generator_sites', JSON.stringify(updated));
+  };
 
   const handleTestPromptClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -571,81 +590,138 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                         initial={{ opacity: 0, y: 10, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                        className="absolute top-full mt-2 left-0 sm:left-auto sm:right-0 z-[100] w-72 rounded-2xl border border-natural-border bg-white p-4 shadow-2xl text-right animate-in fade-in zoom-in-95 duration-150"
+                        className="absolute top-full mt-2 left-0 sm:left-auto sm:right-0 z-[100] w-80 rounded-2xl border border-natural-border bg-white p-3 shadow-2xl text-right overflow-hidden"
                         dir="rtl"
                       >
                         <div className="flex items-center justify-between border-b border-natural-border/50 pb-2 mb-2">
-                          <p className="text-[11px] font-black text-natural-primary flex items-center gap-1">
-                            <Sparkles size={12} />
-                            اختر موقعاً لتوليد الصورة
+                          <p className="text-[11px] font-black text-[#4A4A35] flex items-center gap-1">
+                            <Sparkles size={12} className="text-amber-500 animate-pulse" />
+                            <span>اختر موقعاً لتوليد الصورة</span>
                           </p>
                           <button
                             onClick={() => setShowDropdown(false)}
-                            className="p-1 rounded-md hover:bg-natural-bg text-natural-muted transition-colors"
+                            className="p-1 rounded-md hover:bg-natural-bg text-natural-muted transition-colors cursor-pointer"
                           >
                             <X size={12} />
                           </button>
                         </div>
 
                         {/* Copied feedback banner */}
-                        <div className="mb-3 rounded-lg bg-green-50 border border-green-200/50 p-2 text-center text-[10px] text-green-700 font-bold">
-                          📋 تم نسخ البرومبت بنجاح إلى الحافظة!
+                        <div className="mb-2.5 rounded-lg bg-green-50 border border-green-200/50 p-1.5 text-center text-[10px] text-green-700 font-bold select-none">
+                          📋 تم نسخ البرومبت بنجاح وجاهز للصق!
                         </div>
 
-                        {/* Websites list */}
-                        <div className="space-y-1.5 max-h-48 overflow-y-auto no-scrollbar pr-0.5">
-                          {DEFAULT_SITES.map((site, index) => (
-                            <a
-                              key={`default-${index}`}
-                              href={site.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={() => setShowDropdown(false)}
-                              className="flex items-center justify-between gap-3 rounded-lg p-2 bg-natural-bg/50 hover:bg-natural-primary/10 hover:text-natural-primary transition-all text-right overflow-hidden"
-                            >
-                              <span className="text-[10px] sm:text-sm font-black text-[#2B2B1D] whitespace-nowrap">{site.label}</span>
-                              <span className="text-[13px] font-normal text-[red] truncate max-w-[120px]" dir="ltr">
-                                {(() => {
-                                  try {
-                                    return new URL(site.url).hostname;
-                                  } catch (e) {
-                                    return site.url.replace(/^https?:\/\/(www\.)?/i, '');
-                                  }
-                                })()}
-                              </span>
-                            </a>
-                          ))}
+                        {/* Websites list - identical styling to PromptBuilder sites directory */}
+                        <div className="space-y-1.5 max-h-64 overflow-y-auto no-scrollbar pr-0.5">
+                          {/* Render Default Sites first */}
+                          {DEFAULT_SITES.map((site, index) => {
+                            const isVisited = visitedTrialUrls.includes(site.url);
+                            const cleanDisplayUrl = site.url.replace(/^https?:\/\/(www\.)?/i, '');
+                            return (
+                              <div
+                                key={`default-${index}`}
+                                className={`flex items-start justify-between gap-1.5 p-2 rounded-xl border transition-all ${
+                                  isVisited
+                                    ? 'bg-neutral-50/50 border-natural-border/80 opacity-90'
+                                    : 'bg-green-50/5 border-natural-border/90 hover:bg-green-50/10'
+                                }`}
+                              >
+                                <div className="flex items-start gap-2 flex-1 min-w-0">
+                                  <span className="text-[10px] font-black text-[#4A4A35] min-w-[16px] mt-0.5 text-center select-none bg-natural-primary/10 rounded-md py-0.5 px-0.5">
+                                    {index + 1}
+                                  </span>
+                                  <div className="flex-1 min-w-0 space-y-1">
+                                    <a
+                                      href={site.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={() => {
+                                        if (!visitedTrialUrls.includes(site.url)) {
+                                          setVisitedTrialUrls(prev => [...prev, site.url]);
+                                        }
+                                        setShowDropdown(false);
+                                      }}
+                                      className={`inline-block text-xs font-black hover:underline break-all transition-colors leading-tight cursor-pointer font-mono ${
+                                        isVisited
+                                          ? 'text-red-700 hover:text-red-800'
+                                          : 'text-emerald-900 hover:text-emerald-950 font-black'
+                                      }`}
+                                      title={`اضغط لزيارة: ${site.url}`}
+                                      dir="ltr"
+                                    >
+                                      {cleanDisplayUrl}
+                                    </a>
+                                    <div className="flex items-center gap-1.5 opacity-95 max-w-xs bg-[#4A4A35]/5 border border-natural-border/50 rounded-lg px-2 py-0.5">
+                                      <span className="text-[9px] text-[#4A4A35] font-black shrink-0 select-none font-sans">الاسم والميزة:</span>
+                                      <span className="text-[10px] font-extrabold text-[#3A3A28] py-0 text-right font-sans truncate select-all">{site.label}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
 
+                          {/* Render Custom Sites next */}
                           {customSites.map((site, index) => {
-                            const displayLabel = site.label || site.url.replace(/^https?:\/\/(www\.)?/i, '');
+                            const isVisited = visitedTrialUrls.includes(site.url);
+                            const cleanDisplayUrl = site.url.replace(/^https?:\/\/(www\.)?/i, '');
+                            const offsetIndex = DEFAULT_SITES.length + index;
                             return (
                               <div
                                 key={`custom-${index}`}
-                                className="flex items-center justify-between gap-3 rounded-lg p-2 bg-amber-50/50 hover:bg-amber-100/50 transition-all text-right overflow-hidden"
+                                className={`flex items-start justify-between gap-1.5 p-2 rounded-xl border transition-all ${
+                                  isVisited
+                                    ? 'bg-neutral-50/50 border-natural-border/80 opacity-90'
+                                    : 'bg-green-50/5 border-natural-border/90 hover:bg-green-50/10'
+                                }`}
                               >
-                                <a
-                                  href={site.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={() => setShowDropdown(false)}
-                                  className="flex-1 hover:text-natural-primary text-right pl-1 min-w-0"
-                                >
-                                  <span className="text-[10px] sm:text-sm font-black text-[#2B2B1D] whitespace-nowrap block">{displayLabel}</span>
-                                  {site.label && (
-                                    <span className="text-[13px] font-normal text-[red] truncate max-w-[150px]" dir="ltr">
-                                      {site.url.replace(/^https?:\/\/(www\.)?/i, '')}
-                                    </span>
-                                  )}
-                                </a>
+                                <div className="flex items-start gap-2 flex-1 min-w-0">
+                                  <span className="text-[10px] font-black text-[#4A4A35] min-w-[16px] mt-0.5 text-center select-none bg-natural-primary/10 rounded-md py-0.5 px-0.5">
+                                    {offsetIndex + 1}
+                                  </span>
+                                  <div className="flex-1 min-w-0 space-y-1">
+                                    <a
+                                      href={site.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={() => {
+                                        if (!visitedTrialUrls.includes(site.url)) {
+                                          setVisitedTrialUrls(prev => [...prev, site.url]);
+                                        }
+                                        setShowDropdown(false);
+                                      }}
+                                      className={`inline-block text-xs font-black hover:underline break-all transition-colors leading-tight cursor-pointer font-mono ${
+                                        isVisited
+                                          ? 'text-red-700 hover:text-red-800'
+                                          : 'text-emerald-900 hover:text-emerald-950 font-black'
+                                      }`}
+                                      title={`اضغط لزيارة: ${site.url}`}
+                                      dir="ltr"
+                                    >
+                                      {cleanDisplayUrl}
+                                    </a>
+                                    <div className="flex items-center gap-1.5 opacity-90 max-w-xs bg-[#4A4A35]/5 border border-natural-border/50 rounded-lg px-2 py-0.5">
+                                      <span className="text-[9px] text-[#4A4A35] font-black shrink-0 select-none font-sans font-black">الاسم والميزة:</span>
+                                      <input
+                                        type="text"
+                                        value={site.label || ''}
+                                        onChange={(e) => handleEditCustomSiteLabel(site.url, e.target.value)}
+                                        placeholder="اضغط لتسمية الموقع..."
+                                        className="w-full bg-transparent text-[10px] font-extrabold text-[#3A3A28] focus:outline-none py-0 text-right font-sans border-none"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
                                 <button
+                                  type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleDeleteCustomSite(site.url);
                                   }}
-                                  className="p-1 rounded-md hover:bg-red-100 text-red-500 transition-colors shrink-0"
-                                  title="حذف"
+                                  className="p-1 text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-red-200 shrink-0 cursor-pointer self-start mt-0.5"
+                                  title="حذف هذا الموقع المخصص"
                                 >
-                                  <Trash2 size={12} />
+                                  <Trash2 size={11} />
                                 </button>
                               </div>
                             );
@@ -653,17 +729,17 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                         </div>
 
                         {/* Add custom site form */}
-                        <div className="mt-3 border-t border-natural-border/50 pt-3 space-y-2">
-                          <label className="block text-[10px] font-bold text-natural-muted mb-1">
-                            أضف موقعك المفضل:
-                          </label>
-                          <div className="space-y-1.5 text-right">
+                        <div className="mt-3 border-t border-natural-border/50 pt-2.5 space-y-2">
+                          <div className="text-[10px] font-black text-natural-primary">
+                            ➕ إضافة موقع تجريبي مخصص لملفك:
+                          </div>
+                          <div className="grid grid-cols-1 gap-1.5 text-right">
                             <input
                               type="text"
                               value={newSiteName}
                               onChange={(e) => setNewSiteName(e.target.value)}
-                              placeholder="اسم الموقع (مثال: ميدجورني)"
-                              className="w-full text-right rounded-lg border border-natural-border bg-natural-bg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-natural-primary focus:outline-none"
+                              placeholder="اسم الموقع المخصص (اختياري)"
+                              className="w-full text-right rounded-xl border border-natural-border bg-natural-bg/30 px-3 py-1.5 text-xs font-bold focus:ring-1 focus:ring-natural-primary focus:outline-none"
                             />
                             <div className="flex gap-1.5">
                               <input
@@ -671,14 +747,14 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                                 value={newSiteUrl}
                                 onChange={(e) => setNewSiteUrl(e.target.value)}
                                 placeholder="رابط الموقع (example.com)"
-                                className="flex-1 text-right rounded-lg border border-natural-border bg-natural-bg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-natural-primary focus:outline-none"
+                                className="flex-1 text-right rounded-xl border border-natural-border bg-natural-bg/30 px-3 py-1.5 text-xs font-bold focus:ring-1 focus:ring-natural-primary focus:outline-none"
                                 dir="ltr"
                               />
                               <button
                                 onClick={handleSaveCustomSite}
-                                className="rounded-lg bg-natural-primary text-white px-3 py-1.5 text-xs font-bold hover:bg-[#4A4A35] transition-colors shrink-0"
+                                className="rounded-xl bg-natural-primary text-white px-3 py-1.5 text-xs font-black hover:bg-[#4A4A35] transition-all cursor-pointer whitespace-nowrap shadow-sm hover:shadow active:scale-95"
                               >
-                                حفظ
+                                حفظ الموقع
                               </button>
                             </div>
                           </div>

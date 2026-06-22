@@ -78,6 +78,9 @@ export default function PromptBuilder() {
   
   // Is the "مواقع برومبت جاهزة" directory open?
   const [isSitesOpen, setIsSitesOpen] = useState(false);
+
+  // Is the custom prompt builder options & tools container open?
+  const [isBuilderOpen, setIsBuilderOpen] = useState(false);
   
   // Custom states for adding new site
   const [newSiteUrl, setNewSiteUrl] = useState('');
@@ -812,7 +815,7 @@ ${originalPrompt}
   ];
 
   return (
-    <div className="mx-auto w-full max-w-xl pb-12 text-right" dir="rtl">
+    <div className="mx-auto w-full max-w-xl pb-12 text-right relative z-10" dir="rtl">
       {/* Ready Prompt Sites Block */}
       <div className="mt-1 mb-2">
         <button
@@ -838,11 +841,11 @@ ${originalPrompt}
               animate={{ opacity: 1, y: 0, height: 'auto' }}
               exit={{ opacity: 0, y: -10, height: 0 }}
               transition={{ duration: 0.25, ease: 'easeOut' }}
-              className="mt-3 bg-white border border-natural-border p-4 rounded-2xl shadow-lg space-y-4 overflow-hidden relative z-50 text-right"
+              className="mt-1.5 bg-white border border-natural-border p-3 rounded-2xl shadow-md space-y-2.5 overflow-hidden relative z-50 text-right"
             >
 
 
-              <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1 no-scrollbar">
+              <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1 no-scrollbar">
                 {sites.map((site, index) => {
                   const isVisited = visitedSiteIds.includes(site.id);
                   // Clean URL to display only the domain and path without protocols to look cleaner
@@ -851,19 +854,19 @@ ${originalPrompt}
                   return (
                     <div
                       key={site.id}
-                      className={`flex items-start justify-between gap-2.5 p-3 rounded-xl border transition-all ${
+                      className={`flex items-start justify-between gap-1.5 p-2 rounded-xl border transition-all ${
                         isVisited
                           ? 'bg-neutral-50/50 border-natural-border/80 opacity-90'
                           : 'bg-green-50/5 border-natural-border/90 hover:bg-green-50/10'
                       }`}
                     >
                       {/* Left side: Numbering + Clickable Site Name + Rename field */}
-                      <div className="flex items-start gap-2.5 flex-1 min-w-0">
-                        <span className="text-xs font-black text-[#4A4A35] min-w-[20px] mt-1 text-center select-none bg-natural-primary/10 rounded-md py-0.5 px-1">
+                      <div className="flex items-start gap-2 flex-1 min-w-0">
+                        <span className="text-[10px] font-black text-[#4A4A35] min-w-[16px] mt-0.5 text-center select-none bg-natural-primary/10 rounded-md py-0.5 px-0.5">
                           {index + 1}
                         </span>
                         
-                        <div className="flex-1 min-w-0 space-y-1.5">
+                        <div className="flex-1 min-w-0 space-y-1">
                           {/* Site Name Link (Enlarged, Green by default, Red if visited) */}
                           <a
                             href={site.url}
@@ -874,10 +877,10 @@ ${originalPrompt}
                                 setVisitedSiteIds(prev => [...prev, site.id]);
                               }
                             }}
-                            className={`inline-block text-sm sm:text-base font-black hover:underline break-all transition-colors leading-snug cursor-pointer font-mono ${
+                            className={`inline-block text-xs sm:text-sm font-black hover:underline break-all transition-colors leading-tight cursor-pointer font-mono ${
                               isVisited
-                                ? 'text-red-600 hover:text-red-700'
-                                : 'text-green-700 hover:text-green-800'
+                                ? 'text-red-700 hover:text-red-800'
+                                : 'text-emerald-900 hover:text-emerald-950 font-black'
                             }`}
                             title={`اضغط لزيارة: ${site.url}`}
                             dir="ltr"
@@ -886,14 +889,14 @@ ${originalPrompt}
                           </a>
 
                           {/* Editable rename and feature field */}
-                          <div className="flex items-center gap-1.5 opacity-90 max-w-xs bg-[#4A4A35]/5 border border-natural-border/50 rounded-lg px-2 py-1">
-                            <span className="text-[10px] text-[#4A4A35] font-black shrink-0 select-none">الاسم والميزة:</span>
+                          <div className="flex items-center gap-1.5 opacity-90 max-w-xs bg-[#4A4A35]/5 border border-natural-border/50 rounded-lg px-2 py-0.5">
+                            <span className="text-[9px] text-[#4A4A35] font-black shrink-0 select-none font-sans">الاسم والميزة:</span>
                             <input
                               type="text"
                               value={site.name}
                               onChange={(e) => handleEditSiteName(site.id, e.target.value)}
                               placeholder="اضغط لتسمية الموقع..."
-                              className="w-full bg-transparent text-xs font-extrabold text-[#3A3A28] focus:outline-none py-0 text-right font-sans border-none"
+                              className="w-full bg-transparent text-[10px] font-extrabold text-[#3A3A28] focus:outline-none py-0 text-right font-sans border-none"
                             />
                           </div>
                         </div>
@@ -904,10 +907,10 @@ ${originalPrompt}
                         <button
                           type="button"
                           onClick={() => handleDeleteSiteById(site.id)}
-                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-red-200 shrink-0 cursor-pointer self-start mt-0.5"
+                          className="p-1 text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-red-200 shrink-0 cursor-pointer self-start mt-0.5"
                           title="حذف هذا الموقع المخصص"
                         >
-                          <Trash2 size={13} />
+                          <Trash2 size={11} />
                         </button>
                       )}
                     </div>
@@ -916,41 +919,41 @@ ${originalPrompt}
               </div>
 
               {/* End of list: custom fields */}
-              <div className="border-t border-natural-border/50 pt-4 space-y-3">
-                <div className="text-[11px] font-black text-natural-primary">
+              <div className="border-t border-natural-border/50 pt-3 space-y-2">
+                <div className="text-[10px] font-black text-natural-primary">
                   ➕ إضافة موقع مخصص إلى قائمتك:
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-right">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-right">
                   <input
                     type="text"
                     value={newSiteUrl}
                     onChange={(e) => setNewSiteUrl(e.target.value)}
                     placeholder="رابط الموقع (مثال: example.com)"
-                    className="w-full text-right rounded-xl border border-natural-border bg-natural-bg/30 px-3 py-2 text-xs font-bold focus:ring-1 focus:ring-natural-primary focus:outline-none transition-all placeholder:text-natural-muted/50"
+                    className="w-full text-right rounded-xl border border-natural-border bg-natural-bg/30 px-3 py-1.5 text-xs font-bold focus:ring-1 focus:ring-natural-primary focus:outline-none transition-all placeholder:text-natural-muted/50"
                   />
                   <input
                     type="text"
                     value={newSiteName}
                     onChange={(e) => setNewSiteName(e.target.value)}
                     placeholder="اسم الموقع المخصص (اختياري)"
-                    className="w-full text-right rounded-xl border border-natural-border bg-natural-bg/30 px-3 py-2 text-xs font-bold focus:ring-1 focus:ring-natural-primary focus:outline-none transition-all placeholder:text-natural-muted/50"
+                    className="w-full text-right rounded-xl border border-natural-border bg-natural-bg/30 px-3 py-1.5 text-xs font-bold focus:ring-1 focus:ring-natural-primary focus:outline-none transition-all placeholder:text-natural-muted/50"
                   />
                 </div>
-                <div className="flex items-center gap-2 justify-end pt-1">
+                <div className="flex items-center gap-1.5 justify-end pt-0.5">
                   <button
                     type="button"
                     onClick={handleAddSite}
-                    className="flex items-center gap-1 bg-natural-primary text-white px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:bg-[#4A4A35] transition-all cursor-pointer"
+                    className="flex items-center gap-1 bg-natural-primary text-white px-3 py-1.5 rounded-xl text-xs font-black shadow-sm hover:bg-[#4A4A35] transition-all cursor-pointer"
                   >
-                    <Plus size={13} />
+                    <Plus size={11} />
                     <span>حفظ الموقع</span>
                   </button>
                   <button
                     type="button"
                     onClick={handleDeleteCustomSite_byUrl}
-                    className="flex items-center gap-1 bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:bg-red-100 transition-all cursor-pointer"
+                    className="flex items-center gap-1 bg-red-50 border border-red-200 text-red-700 px-3 py-1.5 rounded-xl text-xs font-black shadow-sm hover:bg-red-100 transition-all cursor-pointer"
                   >
-                    <Trash2 size={13} />
+                    <Trash2 size={11} />
                     <span>حذف الموقع</span>
                   </button>
                 </div>
@@ -960,8 +963,36 @@ ${originalPrompt}
         </AnimatePresence>
       </div>
 
-      {/* Options configuration Panel */}
-      <div className="bg-white rounded-3xl border border-natural-border p-5 shadow-sm space-y-5 mb-6">
+      {/* Prompt Builder Controller / Toggle Button */}
+      <div className="mt-1 mb-4">
+        <button
+          type="button"
+          onClick={() => setIsBuilderOpen(!isBuilderOpen)}
+          className="w-full flex items-center justify-between bg-gradient-to-r from-[#4A4A35] to-[#7C7C5A] text-white px-3 py-2 rounded-2xl font-black text-sm shadow-sm hover:shadow transition-all active:scale-[0.98] outline-none cursor-pointer"
+        >
+          <div className="flex items-center gap-2">
+            <Sliders className="h-3 w-3 text-amber-200" />
+            <span>أدوات صانع البرومبت والتحسين والترجمة</span>
+          </div>
+          <ChevronDown
+            size={18}
+            className={`transition-transform duration-300 ${isBuilderOpen ? 'rotate-180' : ''}`}
+          />
+        </button>
+      </div>
+
+      {/* Collapsible Options and Generated Outputs */}
+      <AnimatePresence>
+        {isBuilderOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+            className="space-y-4 overflow-visible"
+          >
+            {/* Options configuration Panel */}
+            <div className="bg-white rounded-3xl border border-natural-border p-5 shadow-sm space-y-5 mb-6">
         
         {/* Option 1: Gender & Age (Custom Layout) - Now at the absolute top */}
         <div className="grid grid-cols-2 gap-3 relative z-[110]">
@@ -1315,6 +1346,9 @@ ${originalPrompt}
           </button>
         </div>
       </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
