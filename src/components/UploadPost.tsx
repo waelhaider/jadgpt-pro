@@ -17,6 +17,29 @@ interface UploadPostProps {
 
 export default function UploadPost({ activeBoardId, activeBoardName }: UploadPostProps) {
   const [text, setText] = useState('');
+
+  // Auto-detect direction helper: returns true if Arabic/RTL is matched
+  const isRtl = (val: string): boolean => {
+    if (!val) return true; // Default to natural Arabic direction
+    let arabicCount = 0;
+    let englishCount = 0;
+    for (let i = 0; i < val.length; i++) {
+      const charCode = val.charCodeAt(i);
+      if ((charCode >= 0x0600 && charCode <= 0x06FF) || 
+          (charCode >= 0x0750 && charCode <= 0x077F) || 
+          (charCode >= 0x08A0 && charCode <= 0x08FF) || 
+          (charCode >= 0xFB50 && charCode <= 0xFDFF) || 
+          (charCode >= 0xFE70 && charCode <= 0xFEFF)) {
+        arabicCount++;
+      } else if ((charCode >= 65 && charCode <= 90) || (charCode >= 97 && charCode <= 122)) { // A-Z, a-z
+        englishCount++;
+      }
+    }
+    if (arabicCount > englishCount) return true;
+    if (englishCount > arabicCount) return false;
+    const rtlChar = /[\u0600-\u06FF\u0750-\u077F\u0590-\u05FF\uFE70-\uFEFC]/;
+    return rtlChar.test(val);
+  };
   const [images, setImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
@@ -235,7 +258,8 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
                 placeholder={activeBoardName ? `النشر في لوحة: ${activeBoardName}...` : "النشر في اللوحة الرئيسية..."}
                 className="w-full resize-none rounded-xl border-none bg-natural-bg p-3 text-sm font-medium text-natural-text placeholder-[#A1A18E] focus:ring-1 focus:ring-natural-primary"
                 rows={3}
-                dir="rtl"
+                dir={isRtl(text) ? 'rtl' : 'ltr'}
+                style={{ textAlign: isRtl(text) ? 'right' : 'left' }}
                 disabled={loading}
               />
             </div>

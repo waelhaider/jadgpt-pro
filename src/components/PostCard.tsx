@@ -35,6 +35,28 @@ const DEFAULT_SITES = [
 ];
 
 export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCardProps) {
+  const isRtl = (val: string): boolean => {
+    if (!val) return true; // Default to natural Arabic direction
+    let arabicCount = 0;
+    let englishCount = 0;
+    for (let i = 0; i < val.length; i++) {
+      const charCode = val.charCodeAt(i);
+      if ((charCode >= 0x0600 && charCode <= 0x06FF) || 
+          (charCode >= 0x0750 && charCode <= 0x077F) || 
+          (charCode >= 0x08A0 && charCode <= 0x08FF) || 
+          (charCode >= 0xFB50 && charCode <= 0xFDFF) || 
+          (charCode >= 0xFE70 && charCode <= 0xFEFF)) {
+        arabicCount++;
+      } else if ((charCode >= 65 && charCode <= 90) || (charCode >= 97 && charCode <= 122)) { // A-Z, a-z
+        englishCount++;
+      }
+    }
+    if (arabicCount > englishCount) return true;
+    if (englishCount > arabicCount) return false;
+    const rtlChar = /[\u0600-\u06FF\u0750-\u077F\u0590-\u05FF\uFE70-\uFEFC]/;
+    return rtlChar.test(val);
+  };
+
   const isPostFromAdmin = post.authorEmail === ADMIN_CONFIG.email;
   const displayName = isPostFromAdmin ? ADMIN_CONFIG.displayName : post.authorEmail.split('@')[0];
 
@@ -49,6 +71,8 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
   const [newImages, setNewImages] = useState<File[]>([]);
   const [newPreviews, setNewPreviews] = useState<string[]>([]);
   const [removedImageUrls, setRemovedImageUrls] = useState<string[]>([]);
+  const [editedImageModels, setEditedImageModels] = useState<string[]>([]);
+  const [newImageModels, setNewImageModels] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [status, setStatus] = useState('');
   
@@ -195,11 +219,16 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
   useEffect(() => {
     if (isEditing) {
       setEditedText(post.text);
-      setEditedImageUrls(post.imageUrls || (post.imageUrl ? [post.imageUrl] : []));
+      const originalUrls = post.imageUrls || (post.imageUrl ? [post.imageUrl] : []);
+      setEditedImageUrls(originalUrls);
       setEditedBoardId(post.boardId || null);
       setNewImages([]);
       setNewPreviews([]);
       setRemovedImageUrls([]);
+      
+      const originalModels = Array(originalUrls.length).fill('').map((_, i) => post.imageModels?.[i] || '');
+      setEditedImageModels(originalModels);
+      setNewImageModels([]);
     }
   }, [isEditing]); // Only reset when toggling isEditing
 
@@ -321,10 +350,12 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
 
       setStatus('جاري الحفظ في Firestore...');
       // 3. Update Firestore
+      const finalImageModels = [...editedImageModels, ...newImageModels];
       await updateDoc(doc(db, 'posts', post.id), {
         text: editedText.trim(),
         imageUrls: finalImageUrls,
         imageUrl: finalImageUrls.length > 0 ? finalImageUrls[0] : null,
+        imageModels: finalImageModels,
         boardId: editedBoardId,
         updatedAt: serverTimestamp(),
       });
@@ -356,9 +387,11 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
 
     const nextNewImages = [...newImages];
     const nextNewPreviews = [...newPreviews];
+    const nextNewModels = [...newImageModels];
 
     files.forEach(file => {
       nextNewImages.push(file);
+      nextNewModels.push(''); // No model selected initially
       const reader = new FileReader();
       reader.onloadend = () => {
         setNewPreviews(prev => [...prev, reader.result as string]);
@@ -367,17 +400,21 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
     });
 
     setNewImages(nextNewImages);
+    setNewImageModels(nextNewModels);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const removeExistingImage = (url: string) => {
-    setEditedImageUrls(editedImageUrls.filter(u => u !== url));
+  const removeExistingImage = (index: number) => {
+    const url = editedImageUrls[index];
+    setEditedImageUrls(editedImageUrls.filter((_, i) => i !== index));
+    setEditedImageModels(editedImageModels.filter((_, i) => i !== index));
     setRemovedImageUrls([...removedImageUrls, url]);
   };
 
   const removeNewImage = (index: number) => {
     setNewImages(newImages.filter((_, i) => i !== index));
     setNewPreviews(newPreviews.filter((_, i) => i !== index));
+    setNewImageModels(newImageModels.filter((_, i) => i !== index));
   };
 
   const imageUrls = post.imageUrls || (post.imageUrl ? [post.imageUrl] : []);
@@ -490,6 +527,8 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                 className="w-full resize-none rounded-xl border border-natural-border bg-natural-bg p-3 text-sm focus:ring-1 focus:ring-natural-primary"
                 rows={4}
                 autoFocus
+                dir={isRtl(editedText) ? 'rtl' : 'ltr'}
+                style={{ textAlign: isRtl(editedText) ? 'right' : 'left' }}
               />
               
               {/* Existing & New Images Preview in Edit Mode */}
@@ -499,7 +538,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                     <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                     <button 
                       type="button"
-                      onClick={() => removeExistingImage(url)}
+                      onClick={() => removeExistingImage(i)}
                       className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white shadow-sm hover:scale-110"
                     >
                       <X size={10} />
@@ -538,6 +577,93 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                 ref={fileInputRef} 
                 onChange={handleImageAdd} 
               />
+
+              {/* اختيار موديلات الصور عند التعديل */}
+              {(editedImageUrls.length > 0 || newPreviews.length > 0) && (
+                <div className="mt-4 border border-natural-border/30 rounded-xl bg-natural-bg/35 p-3 flex flex-col gap-3 text-right" dir="rtl">
+                  <span className="text-xs font-black text-[#4A4A35] flex items-center gap-1.5">
+                    ✨ اختيار موديل توليد كل صورة:
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* Pictures currently in the post */}
+                    {editedImageUrls.map((url, index) => {
+                      const models = ['gpt-image-2', 'nano-banana2', 'wan 2.7', 'grok'];
+                      return (
+                        <div key={`edit-model-exist-${index}`} className="flex flex-col gap-1.5 p-2 rounded-lg border border-natural-border/40 bg-zinc-50">
+                          <div className="relative aspect-video overflow-hidden rounded-md border border-natural-border/20 bg-natural-bg">
+                            <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[9px] font-bold text-[#4A4A35]">موديل توليد الصورة:</span>
+                            <div className="flex flex-wrap gap-1">
+                              {models.map((model) => {
+                                const isSelected = editedImageModels[index] === model;
+                                return (
+                                  <button
+                                    key={model}
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = [...editedImageModels];
+                                      updated[index] = isSelected ? '' : model;
+                                      setEditedImageModels(updated);
+                                    }}
+                                    className={`px-1.5 py-0.5 rounded text-[8px] font-black cursor-pointer transition-all border ${
+                                      isSelected
+                                        ? 'bg-[#4A4A35] text-white border-transparent'
+                                        : 'bg-white text-natural-muted border-natural-border/60 hover:bg-natural-bg/80'
+                                    }`}
+                                  >
+                                    {model}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Newly added images */}
+                    {newPreviews.map((prev, index) => {
+                      const models = ['gpt-image-2', 'nano-banana2', 'wan 2.7', 'grok'];
+                      return (
+                        <div key={`edit-model-new-${index}`} className="flex flex-col gap-1.5 p-2 rounded-lg border border-green-200 bg-green-50/20">
+                          <div className="relative aspect-video overflow-hidden rounded-md border border-green-200/55 bg-white">
+                            <img src={prev} alt="" className="h-full w-full object-cover" />
+                            <div className="absolute bottom-1 left-1 bg-green-600 text-[8px] text-white px-1 rounded font-black">جديدة</div>
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[9px] font-bold text-green-700">الموديل للصورة الجديدة:</span>
+                            <div className="flex flex-wrap gap-1">
+                              {models.map((model) => {
+                                const isSelected = newImageModels[index] === model;
+                                return (
+                                  <button
+                                    key={model}
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = [...newImageModels];
+                                      updated[index] = isSelected ? '' : model;
+                                      setNewImageModels(updated);
+                                    }}
+                                    className={`px-1.5 py-0.5 rounded text-[8px] font-black cursor-pointer transition-all border ${
+                                      isSelected
+                                        ? 'bg-green-700 text-white border-transparent'
+                                        : 'bg-white text-[#4A4A35] border-green-200 hover:bg-green-100/50'
+                                    }`}
+                                  >
+                                    {model}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* خيار نقل المنشور لسبورة أخرى */}
               <div className="flex flex-col gap-2 rounded-xl border border-natural-border/30 bg-natural-bg/50 p-3.5 text-right" dir="rtl">
@@ -604,7 +730,13 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
           ) : (
             <div className="group relative">
               <div className={`cursor-pointer transition-all duration-300 ${!isTextExpanded ? 'line-clamp-3' : ''}`} onClick={() => setIsTextExpanded(!isTextExpanded)}>
-                <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#4A4A35]">{post.text}</p>
+                <p 
+                  className="whitespace-pre-wrap text-sm leading-relaxed text-[#4A4A35]"
+                  dir={isRtl(post.text) ? 'rtl' : 'ltr'}
+                  style={{ textAlign: isRtl(post.text) ? 'right' : 'left' }}
+                >
+                  {post.text}
+                </p>
               </div>
               <div className="mt-2 flex items-center justify-between">
                 {post.text.split('\n').length > 3 || post.text.length > 200 ? (
