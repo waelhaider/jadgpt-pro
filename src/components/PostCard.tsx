@@ -21,18 +21,15 @@ interface PostCardProps {
 import { ADMIN_CONFIG } from '../config';
 
 const DEFAULT_SITES = [
-  { label: "بدون تسجيل دخول (انقر بالزر الأيمن وافتحه بالمتصفح الخفي 🕶️)", url: "https://duck.ai" },
+  { label: "بدون تسجيل دخول (انقر بالزر الأيمن  للتصفح الخفي )", url: "https://duck.ai" },
   { label: "وان (10 نقاط يومية)", url: "https://create.wan.video/generate/image/draft?model=wan2.7" },
   { label: "أرينا", url: "https://arena.ai/image/side-by-side" },
   { label: "كل ايميل له عدد نقاط", url: "https://promptsref.com/tool/AI-Image-Generator" },
   { label: "كل ايميل له عدد نقاط", url: "https://chataibot.pro" },
   { label: " جيميناي", url: "https://gemini.google.com/app?hl=ar" },
   { label: " notegpt.io ", url: "https://notegpt.io " },
+  { label: " موقع أدوبي ( انقر بالزر الأيمن للتصفح الخفي) ", url: "https://firefly.adobe.com/generate/image?view=edit" },
   { label: "اسم الموقع هنا ", url: "https://عنوان الموفع" },
-  { label: "اسم الموقع هنا ", url: "https://عنوان الموفع" },  
-  { label: "اسم الموقع هنا ", url: "https://عنوان الموفع" }, 
-  { label: "اسم الموقع هنا ", url: "https://عنوان الموفع" },  
-  { label: "اسم الموقع هنا ", url: "https://عنوان الموفع" }, 
   { label: "اسم الموقع هنا ", url: "https://عنوان الموفع" }
 
 ];

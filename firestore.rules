@@ -53,7 +53,7 @@ service cloud.firestore {
              (data.get('imageUrls', []) is list && data.get('imageUrls', []).size() <= 6) &&
              (data.get('imageModels', []) is list && data.get('imageModels', []).size() <= 6) &&
              (data.get('boardId', null) == null || data.get('boardId', null) is string) &&
-             (!isSignedIn() || (data.authorId == request.auth.uid && data.authorEmail == request.auth.token.email)) &&
+             (data.get('isPinned', null) == null || data.get('isPinned', null) is bool) &&
              data.keys().hasAll(['text', 'boardId', 'authorId', 'authorEmail', 'createdAt']);
     }
 
@@ -74,6 +74,7 @@ service cloud.firestore {
       allow create: if isAdmin() && 
                       isValidId(postId) &&
                       isValidPost(incoming()) &&
+                      (!isSignedIn() || (incoming().authorId == request.auth.uid && incoming().authorEmail == request.auth.token.email)) &&
                       incoming().createdAt == request.time;
 
       allow update: if isAdmin() && 

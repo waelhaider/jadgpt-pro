@@ -100,19 +100,19 @@ export default function PromptBuilder() {
       }
     }
     return [
-      { id: '1', url: 'https://youmind.com/gpt-image-2-prompts', name: 'YouMind - برومبت gpt-image-2', isDefault: true },
-      { id: '2', url: 'https://youmind.com/nano-banana-pro-prompts', name: 'Banana Pro - برومبت nanobanana-pro', isDefault: true },
-      { id: '3', url: 'https://youmind.com/prompts', name: 'YouMind Prompts - لاختيار الموديلات', isDefault: true },
-      { id: '4', url: 'https://generateprompt.ai', name: 'GeneratePrompt - يحول الصورة إلى برومبت', isDefault: true },
-      { id: '5', url: 'https://www.origastock.com/ai/prompt-builder', name: 'Origastock - إعدادات بشكل صور', isDefault: true },
-      { id: '6', url: 'https://yesand.ai/portrait', name: 'YesAnd AI - تبويبات البورتريه', isDefault: true },
-      { id: '7', url: 'https://www.promptifex.com/ar/home', name: 'Promptifex - برومبتيفكس العربي', isDefault: true },
-      { id: '8', url: 'https://aitoolsbot.com', name: 'AIToolsBot - جميع أدوات الذكاء الاصطناعي', isDefault: true },
-      { id: '9', url: 'https://songgenerator.io/ar/app', name: 'SongGenerator - صانع موسيقى', isDefault: true },
-      { id: '10', url: 'https://cinematicpromptgenerator.lovable.app/', name: 'Lovable Cinematic - أداة برومبتات سينمائية', isDefault: true },
-      { id: '11', url: 'https://luvvoice.com/en/language/arabic', name: 'LuvVoice - يحول النص إلى صوت عربي', isDefault: true },
-      { id: '12', url: 'https://easy-peasy.ai/ai-images', name: 'Easy-Peasy - مع توليد الصورة', isDefault: true },
-      { id: '13', url: 'https://www.bananaprompts.xyz/explore', name: 'Banana Prompts - استكشاف برومبتات', isDefault: true },
+      { id: '1', url: 'https://youmind.com/gpt-image-2-prompts', name: ' برومبت gpt-image-2', isDefault: true },
+      { id: '2', url: 'https://youmind.com/nano-banana-pro-prompts', name: ' برومبت nanobanana-pro', isDefault: true },
+      { id: '3', url: 'https://youmind.com/prompts', name: ' لاختيار الموديلات', isDefault: true },
+      { id: '4', url: 'https://generateprompt.ai', name: ' يحول الصورة إلى برومبت', isDefault: true },
+      { id: '5', url: 'https://www.origastock.com/ai/prompt-builder', name: ' إعدادات بشكل صور', isDefault: true },
+      { id: '6', url: 'https://yesand.ai/portrait', name: ' تبويبات البورتريه', isDefault: true },
+      { id: '7', url: 'https://www.promptifex.com/ar/home', name: '- برومبتيفكس العربي', isDefault: true },
+      { id: '8', url: 'https://aitoolsbot.com', name: ' جميع أدوات الذكاء الاصطناعي', isDefault: true },
+      { id: '9', url: 'https://songgenerator.io/ar/app', name: ' صانع موسيقى', isDefault: true },
+      { id: '10', url: 'https://cinematicpromptgenerator.lovable.app/', name: ' أداة برومبتات سينمائية', isDefault: true },
+      { id: '11', url: 'https://luvvoice.com/en/language/arabic', name: ' يحول النص إلى صوت عربي', isDefault: true },
+      { id: '12', url: 'https://easy-peasy.ai/ai-images', name: ' مع توليد الصورة', isDefault: true },
+      { id: '13', url: 'https://www.bananaprompts.xyz/explore', name: ' استكشاف برومبتات', isDefault: true },
     ];
   });
 
@@ -220,25 +220,25 @@ export default function PromptBuilder() {
     const displayShotRaw = shotType === 'بدون نوع (يتبع البرومبت)' ? 'صورة' : shotType;
     const displayShot = displayShotRaw.replace(/\.*$/, '').trim();
     
-    const displayPoseRaw = pose === 'بدون نوع (يتبع البرومبت)' ? 'تلقائي (يتبع البرومبت الأصلي)' : pose;
+    const displayPoseRaw = pose === 'بدون نوع (يتبع البرومبت)' ? 'تلقائي (نفس الصورة المرجعية)' : pose;
     const displayPose = displayPoseRaw.replace(/\.*$/, '').trim();
     
-    const displayStyleRaw = styleMode === 'بدون نوع (يتبع البرومبت)' ? 'تلقائي (يتبع البرومبت الأصلي)' : styleMode;
+    const displayStyleRaw = styleMode === 'بدون نوع (يتبع البرومبت)' ? 'تلقائي (نفس الصورة المرجعية)' : styleMode;
     const displayStyle = displayStyleRaw.replace(/\.*$/, '').trim();
     
-    const displayOutfitRaw = outfit === 'بدون نوع (يتبع البرومبت)' ? 'تلقائي (يتبع البرومبت الأصلي)' : outfit;
+    const displayOutfitRaw = outfit === 'بدون نوع (يتبع البرومبت)' ? 'تلقائي (نفس الصورة المرجعية)' : outfit;
     const displayOutfit = displayOutfitRaw.replace(/\.*$/, '').trim();
     
-    const displayExpressionRaw = expression === 'بدون نوع (يتبع البرومبت)' ? 'تلقائي (يتبع البرومبت الأصلي)' : expression;
+    const displayExpressionRaw = expression === 'بدون نوع (يتبع البرومبت)' ? 'تلقائي (نفس الصورة المرجعية)' : expression;
     const displayExpression = displayExpressionRaw.replace(/\.*$/, '').trim();
     
-    const displayLightingRaw = lighting === 'بدون نوع (يتبع البرومبت)' ? 'تلقائي (يتبع البرومبت الأصلي)' : lighting;
+    const displayLightingRaw = lighting === 'بدون نوع (يتبع البرومبت)' ? 'تلقائي (نفس الصورة المرجعية)' : lighting;
     const displayLighting = displayLightingRaw.replace(/\.*$/, '').trim();
     
-    const displayCameraRaw = camera === 'بدون نوع (يتبع البرومبت)' ? 'تلقائي (يتبع البرومبت الأصلي)' : camera;
+    const displayCameraRaw = camera === 'بدون نوع (يتبع البرومبت)' ? 'تلقائي (نفس الصورة المرجعية)' : camera;
     const displayCamera = displayCameraRaw.replace(/\.*$/, '').trim();
     
-    const displayAngleRaw = shotAngle === 'بدون نوع (يتبع البرومبت)' ? 'تلقائي (يتبع البرومبت الأصلي)' : shotAngle;
+    const displayAngleRaw = shotAngle === 'بدون نوع (يتبع البرومبت)' ? 'تلقائي (نفس الصورة المرجعية)' : shotAngle;
     const displayAngle = displayAngleRaw.replace(/\.*$/, '').trim();
 
     let outfitPrefix = 'يرتدي الرجل';
