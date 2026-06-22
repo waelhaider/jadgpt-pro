@@ -11,6 +11,7 @@ export interface Post {
   updatedAt?: Timestamp;
   authorId: string;
   authorEmail: string;
+  isPinned?: boolean;
 }
 
 export interface Board {

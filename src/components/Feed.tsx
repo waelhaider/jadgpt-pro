@@ -33,6 +33,19 @@ export default function Feed({ isAdmin, boardId, boards, onTestPrompt }: FeedPro
         id: doc.id,
         ...doc.data(),
       } as Post));
+      
+      // Sort pinned posts first, then sort by createdAt desc
+      postsData.sort((a, b) => {
+        const pinA = a.isPinned ? 1 : 0;
+        const pinB = b.isPinned ? 1 : 0;
+        if (pinA !== pinB) {
+          return pinB - pinA; // Pinned goes first
+        }
+        const timeA = a.createdAt?.toMillis() || 0;
+        const timeB = b.createdAt?.toMillis() || 0;
+        return timeB - timeA; // Newest first
+      });
+
       setPosts(postsData);
       setLoading(false);
     }, (error) => {

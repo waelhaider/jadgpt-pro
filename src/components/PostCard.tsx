@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Post, OperationType, Board } from '../types';
 import { db } from '../lib/firebase';
 import { doc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { MoreHorizontal, Trash2, Edit3, Check, X, Clock, Copy, Loader2, Image as ImageIcon, Plus, Sparkles } from 'lucide-react';
+import { MoreHorizontal, Trash2, Edit3, Check, X, Clock, Copy, Loader2, Image as ImageIcon, Plus, Sparkles, Pin } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError } from '../lib/error-handler';
@@ -60,6 +60,26 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
   const [isDeleting, setIsDeleting] = useState(false);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isPinning, setIsPinning] = useState(false);
+
+  const handleTogglePin = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isAdmin) return;
+    try {
+      setIsPinning(true);
+      const isPinnedNewValue = !post.isPinned;
+      await updateDoc(doc(db, 'posts', post.id), {
+        isPinned: isPinnedNewValue,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error('[PostCard] Error updating pin status:', err);
+      handleFirestoreError(err, OperationType.UPDATE, `posts/${post.id}`);
+    } finally {
+      setIsPinning(false);
+    }
+  };
+
   const [isTextExpanded, setIsTextExpanded] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
 
@@ -373,10 +393,10 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className={`mx-auto mb-4 w-full max-w-xl rounded-2xl border border-natural-border bg-white transition-shadow hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] ${isDeleting ? 'opacity-50 grayscale pointer-events-none' : ''}`}
+        className={`mx-auto mb-2.5 w-full max-w-xl rounded-2xl border border-[#C1C3B8] bg-white transition-shadow hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] ${isDeleting ? 'opacity-50 grayscale pointer-events-none' : ''}`}
       >
         {/* Post Header */}
-        <div className="flex items-center justify-between p-4" dir="rtl">
+        <div className="flex items-center justify-between px-4 pt-4 pb-1" dir="rtl">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-natural-primary to-natural-muted border border-natural-border shadow-md">
               {isPostFromAdmin ? (
@@ -386,9 +406,13 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
               )}
             </div>
             <div className="text-right">
-              <p className="text-sm font-bold text-natural-text">
-                {displayName} {isPostFromAdmin && <span className="text-[10px] font-normal text-natural-muted leading-none block opacity-70">(المسؤول)</span>}
-              </p>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-sm font-bold text-natural-text">{displayName}</span>
+                {isPostFromAdmin && <span className="text-[10px] font-normal text-natural-muted leading-none opacity-70 relative -top-[1px]">(المسؤول)</span>}
+                {post.isPinned && (
+                  <Pin size={11} className="fill-red-500 text-red-600 shrink-0 select-none relative -top-[1px]" title="منشور مثبت" />
+                )}
+              </div>
               <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-natural-muted">
                 {(() => {
                   if (!post.createdAt) return 'الآن';
@@ -431,6 +455,22 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                 </div>
               ) : (
                 <>
+                  <button
+                    onClick={handleTogglePin}
+                    disabled={isPinning}
+                    className={`p-2 rounded-lg transition-colors cursor-pointer ${
+                      post.isPinned 
+                        ? 'bg-red-50 hover:bg-red-100/80 text-red-600' 
+                        : 'hover:bg-natural-secondary-bg text-natural-muted'
+                    }`}
+                    title={post.isPinned ? "إلغاء التثبيت" : "تثبيت المنشور في الأعلى"}
+                  >
+                    {isPinning ? (
+                      <Loader2 size={16} className="animate-spin text-red-500" />
+                    ) : (
+                      <Pin size={16} className={post.isPinned ? 'fill-red-500 text-red-600' : ''} />
+                    )}
+                  </button>
                   <button onClick={() => setIsEditing(true)} className="p-2 hover:bg-natural-secondary-bg rounded-lg text-natural-muted transition-colors">
                     <Edit3 size={16} />
                   </button>
@@ -444,7 +484,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
         </div>
 
         {/* Post Content */}
-        <div className="relative p-4 sm:p-5 text-right" dir="rtl">
+        <div className="relative px-4 pb-4 pt-1 sm:px-5 sm:pb-5 sm:pt-1 text-right" dir="rtl">
           {isEditing ? (
             <div className="space-y-4">
               <textarea
@@ -652,7 +692,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                                       {cleanDisplayUrl}
                                     </a>
                                     <div className="flex items-center gap-1.5 opacity-95 max-w-xs bg-[#4A4A35]/5 border border-natural-border/50 rounded-lg px-2 py-0.5">
-                                      <span className="text-[9px] text-[#4A4A35] font-black shrink-0 select-none font-sans">الاسم والميزة:</span>
+                                      <span className="text-[9px] text-[#4A4A35] font-black shrink-0 select-none font-sans"> الميزة  : </span>
                                       <span className="text-[10px] font-extrabold text-[#3A3A28] py-0 text-right font-sans truncate select-all">{site.label}</span>
                                     </div>
                                   </div>
@@ -701,7 +741,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                                       {cleanDisplayUrl}
                                     </a>
                                     <div className="flex items-center gap-1.5 opacity-90 max-w-xs bg-[#4A4A35]/5 border border-natural-border/50 rounded-lg px-2 py-0.5">
-                                      <span className="text-[9px] text-[#4A4A35] font-black shrink-0 select-none font-sans font-black">الاسم والميزة:</span>
+                                      <span className="text-[9px] text-[#4A4A35] font-black shrink-0 select-none font-sans font-black"> الميزة  : </span>
                                       <input
                                         type="text"
                                         value={site.label || ''}

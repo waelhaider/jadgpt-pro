@@ -821,11 +821,11 @@ ${originalPrompt}
         <button
           type="button"
           onClick={() => setIsSitesOpen(!isSitesOpen)}
-          className="w-full flex items-center justify-between bg-gradient-to-r from-natural-primary to-[#4A4A35] text-white px-4 py-1.5 rounded-2xl font-black text-sm shadow-sm hover:shadow transition-all active:scale-[0.98] outline-none cursor-pointer"
+          className="w-full flex items-center justify-between bg-gradient-to-r from-[#7C7C5A] to-[#4A4A35] text-white px-4 py-1.5 rounded-2xl font-normal text-sm shadow-sm hover:shadow transition-all active:scale-[0.98] outline-none cursor-pointer"
         >
           <div className="flex items-center gap-2">
             <Globe className="h-4 w-4 text-amber-200 animate-spin-slow" />
-            <span> مواقع برومبت جاهزة </span>
+            <span className="text-[14px]"> مواقع برومبت جاهزة </span>
           </div>
           <ChevronDown
             size={18}
@@ -968,11 +968,11 @@ ${originalPrompt}
         <button
           type="button"
           onClick={() => setIsBuilderOpen(!isBuilderOpen)}
-          className="w-full flex items-center justify-between bg-gradient-to-r from-[#4A4A35] to-[#7C7C5A] text-white px-3 py-2 rounded-2xl font-black text-sm shadow-sm hover:shadow transition-all active:scale-[0.98] outline-none cursor-pointer"
+          className="w-full flex items-center justify-between bg-gradient-to-r from-[#4A4A35] to-[#7C7C5A] text-white px-3 py-2 rounded-2xl font-normal text-sm shadow-sm hover:shadow transition-all active:scale-[0.98] outline-none cursor-pointer"
         >
           <div className="flex items-center gap-2">
             <Sliders className="h-3 w-3 text-amber-200" />
-            <span>أدوات صانع البرومبت والتحسين والترجمة</span>
+            <span className="text-[14px]">أدوات صانع البرومبت والتحسين والترجمة</span>
           </div>
           <ChevronDown
             size={18}
