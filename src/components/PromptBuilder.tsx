@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, Copy, RefreshCw, Check, ArrowRight, UserPlus, Sliders, Eye, ChevronDown, Trash2, ArrowLeftRight, Plus, ExternalLink, Globe } from 'lucide-react';
+import { Sparkles, Copy, RefreshCw, Check, ArrowRight, UserPlus, Sliders, Eye, ChevronDown, Trash2, ArrowLeftRight, Plus, ExternalLink, Globe, X } from 'lucide-react';
 import { safeStorage } from '../lib/safe-storage';
 
 interface CustomSelectorProps {
@@ -72,9 +72,149 @@ function CustomSelector({ label, options, value, onChange, zIndex = 11, labelCom
   );
 }
 
+const DEFAULT_EXECUTION_SITES = [
+  { label: "بدون تسجيل دخول (انقر بالزر الأيمن  للتصفح الخفي )", url: "https://duck.ai" },
+  { label: "وان (10 نقاط يومية)", url: "https://create.wan.video/generate/image/draft?model=wan2.7" },
+  { label: "أرينا", url: "https://arena.ai/image/side-by-side" },
+  { label: "كل ايميل له عدد نقاط", url: "https://promptsref.com/tool/AI-Image-Generator" },
+  { label: "كل ايميل له عدد نقاط", url: "https://chataibot.pro" },
+  { label: " جيميناي", url: "https://gemini.google.com/app?hl=ar" },
+  { label: " notegpt.io ", url: "https://notegpt.io " },
+  { label: " موقع أدوبي ( انقر بالزر الأيمن للتصفح الخفي) ", url: "https://firefly.adobe.com/generate/image?view=edit" },
+  { label: "اسم الموقع هنا ", url: "https://عنوان الموفع" },
+  { label: "اسم الموقع هنا ", url: "https://عنوان الموفع" }
+];
+
 export default function PromptBuilder() {
   // Visited sites state (resets on page load)
   const [visitedSiteIds, setVisitedSiteIds] = useState<string[]>([]);
+  
+  // States for executing prompt on websites (cloned from PostCard.tsx)
+  const [showExecutionDropdown, setShowExecutionDropdown] = useState(false);
+  const [executionPromptText, setExecutionPromptText] = useState('');
+  const [executionPromptType, setExecutionPromptType] = useState<'original' | 'translated'>('original');
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  const [visitedTrialUrls, setVisitedTrialUrls] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('user_trial_visited_sites_v2');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [customSites, setCustomSites] = useState<{ label?: string; url: string }[]>(() => {
+    try {
+      const saved = localStorage.getItem('user_custom_generator_sites');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [newExecSiteUrl, setNewExecSiteUrl] = useState('');
+  const [newExecSiteName, setNewExecSiteName] = useState('');
+
+  // Keep visited urls synced to localStorage
+  useEffect(() => {
+    localStorage.setItem('user_trial_visited_sites_v2', JSON.stringify(visitedTrialUrls));
+  }, [visitedTrialUrls]);
+
+  // Lock body scroll when execution dropdown is open to prevent background scrolling/jitter
+  useEffect(() => {
+    if (showExecutionDropdown) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showExecutionDropdown]);
+
+  const loadCustomSitesAndVisited = () => {
+    try {
+      const savedCustom = localStorage.getItem('user_custom_generator_sites');
+      if (savedCustom) setCustomSites(JSON.parse(savedCustom));
+      
+      const savedVisited = localStorage.getItem('user_trial_visited_sites_v2');
+      if (savedVisited) setVisitedTrialUrls(JSON.parse(savedVisited));
+    } catch (e) {
+      console.error('Error refreshing custom sites', e);
+    }
+  };
+
+  const handleEditCustomSiteLabelInBuilder = (url: string, newLabel: string) => {
+    const updated = customSites.map(s => s.url === url ? { ...s, label: newLabel } : s);
+    setCustomSites(updated);
+    localStorage.setItem('user_custom_generator_sites', JSON.stringify(updated));
+  };
+
+  const handleSaveCustomSiteInBuilder = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!newExecSiteUrl.trim()) return;
+    
+    let url = newExecSiteUrl.trim();
+    if (!/^https?:\/\//i.test(url)) {
+      url = 'https://' + url;
+    }
+
+    const label = newExecSiteName.trim();
+    const updated = [...customSites, { label: label || undefined, url }];
+    setCustomSites(updated);
+    setNewExecSiteUrl('');
+    setNewExecSiteName('');
+    localStorage.setItem('user_custom_generator_sites', JSON.stringify(updated));
+  };
+
+  const handleDeleteCustomSiteInBuilder = (urlToDelete: string) => {
+    const updated = customSites.filter(site => site.url !== urlToDelete);
+    setCustomSites(updated);
+    localStorage.setItem('user_custom_generator_sites', JSON.stringify(updated));
+  };
+
+  const handleMarkUrlVisitedInBuilder = (url: string) => {
+    if (!visitedTrialUrls.includes(url)) {
+      const updated = [...visitedTrialUrls, url];
+      setVisitedTrialUrls(updated);
+      localStorage.setItem('user_trial_visited_sites_v2', JSON.stringify(updated));
+    }
+  };
+
+  const handleExecutePrompt = async (type: 'original' | 'translated') => {
+    const textToCopy = type === 'original' ? promptText : translatedPromptText;
+    if (!textToCopy.trim()) return;
+
+    // Load custom sites so it's always up-to-date
+    loadCustomSitesAndVisited();
+
+    // Copy to clipboard
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+      // Fallback
+      try {
+        const textArea = document.createElement('textarea');
+        textArea.value = textToCopy;
+        textArea.style.position = 'fixed';
+        textArea.style.top = '0';
+        textArea.style.left = '0';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      } catch (fallbackErr) {
+        console.warn('Fallback copy failed:', fallbackErr);
+      }
+    }
+
+    setExecutionPromptText(textToCopy);
+    setExecutionPromptType(type);
+    setShowExecutionDropdown(true);
+  };
   
   // Is the "مواقع برومبت جاهزة" directory open?
   const [isSitesOpen, setIsSitesOpen] = useState(false);
@@ -572,6 +712,7 @@ ${originalPrompt}
     setOutfitType('men');
     setMenOutfitSubCategory('modern');
     setWomenOutfitSubCategory('casual');
+    setShowExecutionDropdown(false);
   };
 
   // Selection Arrays
@@ -1381,7 +1522,7 @@ ${originalPrompt}
               className="rounded-xl bg-green-50 border border-green-200 p-2.5 text-center text-xs font-bold text-green-700 flex items-center justify-center gap-1.5"
             >
               <Check size={14} className="text-green-600" />
-              تم نسخ {copiedLabel} بنجاح إلى الحافظة! جاهز الآن للصق وتوليد الصورة.
+              تم نسخ {copiedLabel} الحافظة إلى بنجاح
             </motion.div>
           )}
         </AnimatePresence>
@@ -1401,57 +1542,244 @@ ${originalPrompt}
         </AnimatePresence>
 
         {/* Action button bar: Copy, AI Enhance, and Clear */}
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex flex-col gap-2.5">
           {/* AI Enhance Button */}
           <button
             onClick={handleEnhancePrompt}
             disabled={isEnhancing}
-            className={`flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-700 text-white font-bold text-xs px-4 py-3.5 shadow-md active:scale-95 transition-all outline-none ${
+            className={`w-full flex items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-700 text-white font-bold text-xs px-4 py-3.5 shadow-md active:scale-95 transition-all outline-none ${
               isEnhancing ? 'opacity-80 cursor-not-allowed' : 'hover:from-amber-700 hover:to-amber-800'
             }`}
           >
             {isEnhancing ? (
               <>
                 <RefreshCw size={13} className="animate-spin text-white shrink-0" />
-                <span className="truncate">جاري تحسين البرومبت...</span>
+                <span className="truncate flex-1">جاري تحسين البرومبت...</span>
               </>
             ) : (
               <>
                 <Sparkles size={13} className="text-amber-200 shrink-0" />
-                <span className="truncate">تحسين البرومبت</span>
+                <span className="truncate flex-1">تحسين البرومبت</span>
               </>
             )}
           </button>
 
-          {/* Copy Original Button */}
-          <button
-            onClick={() => handleCopyCustom(promptText, 'النص الفعلي')}
-            disabled={!promptText.trim()}
-            className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-natural-primary text-white font-bold text-xs px-4 py-3.5 shadow-md hover:bg-[#4A4A35] active:scale-95 transition-all outline-none disabled:opacity-50"
-          >
-            <Copy size={13} />
-            <span className="truncate">نسخ النص الفعلي</span>
-          </button>
+          {/* Execution & Delete Buttons Row */}
+          <div className="flex flex-col sm:flex-row gap-2 items-stretch w-full relative">
+            {/* Execute Original Button */}
+            <button
+              onClick={() => handleExecutePrompt('original')}
+              disabled={!promptText.trim()}
+              className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-natural-primary text-white font-bold text-xs px-4 py-3.5 shadow-md hover:bg-[#4A4A35] active:scale-95 transition-all outline-none disabled:opacity-50"
+            >
+              <Sparkles size={13} className="text-white shrink-0" />
+              <span className="truncate">تنفيذ البرومبت الأصلي</span>
+            </button>
 
-          {/* Copy Translated Button */}
-          <button
-            onClick={() => handleCopyCustom(translatedPromptText, 'الترجمة')}
-            disabled={!translatedPromptText.trim()}
-            className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-amber-50 text-amber-900 border border-amber-200 font-bold text-xs px-4 py-3.5 shadow-sm hover:bg-amber-100 active:scale-95 transition-all outline-none disabled:opacity-50"
-          >
-            <Copy size={13} />
-            <span className="truncate">نسخ الترجمة اللحظية</span>
-          </button>
+            {/* Clear Button with Warning/Confirm */}
+            {showClearConfirm ? (
+              <div className="flex-1 sm:flex-none flex items-center justify-between sm:justify-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-2xl animate-in fade-in slide-in-from-bottom-2 shrink-0">
+                <span className="text-[10px] font-black text-red-700 leading-none">
+                  سيتم حذف النص ومسح جميع الاختيارات
+                </span>
+                <div className="flex gap-1.5 shrink-0">
+                  <button
+                    onClick={() => {
+                      handleClearAll();
+                      setShowClearConfirm(false);
+                    }}
+                    className="bg-red-600 text-white font-black text-[9px] px-2.5 py-1 rounded-lg hover:bg-red-700 transition"
+                  >
+                    تأكيد
+                  </button>
+                  <button
+                    onClick={() => setShowClearConfirm(false)}
+                    className="bg-zinc-200 text-zinc-700 font-black text-[9px] px-2.5 py-1 rounded-lg hover:bg-zinc-300 transition"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                className="flex-none flex items-center justify-center gap-1.5 rounded-2xl border border-red-200 bg-red-50 text-red-700 font-bold text-xs px-5 py-3.5 shadow-sm hover:bg-red-100 active:scale-95 transition-all outline-none shrink-0"
+                title="مسح النص والخيارات"
+              >
+                <Trash2 size={13} className="text-red-600 shrink-0" />
+                <span className="truncate">مسح النص</span>
+              </button>
+            )}
 
-          {/* Clear Button */}
-          <button
-            onClick={handleClearAll}
-            className="flex-none flex items-center justify-center gap-1.5 rounded-2xl border border-red-200 bg-red-50 text-red-700 font-bold text-xs px-4 py-3.5 shadow-sm hover:bg-red-100 active:scale-95 transition-all outline-none shrink-0"
-            title="مسح النص والخيارات"
-          >
-            <span className="truncate">مسح النص</span>
-          </button>
+            {/* Execute Translated Button */}
+            <button
+              onClick={() => handleExecutePrompt('translated')}
+              disabled={!translatedPromptText.trim()}
+              className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-amber-50 text-amber-900 border border-amber-200 font-bold text-xs px-4 py-3.5 shadow-sm hover:bg-amber-100 active:scale-95 transition-all outline-none disabled:opacity-50"
+            >
+              <Sparkles size={13} className="text-amber-700 animate-pulse shrink-0" />
+              <span className="truncate">تنفيذ البرومبت المترجم </span>
+            </button>
+          </div>
         </div>
+
+        {/* Execution Site Selector Dropdown Dialog (Cloned from PostCard.tsx "تجربة البرومبت") */}
+        <AnimatePresence>
+          {showExecutionDropdown && (
+            <div className="fixed inset-x-0 bottom-0 top-[115px] z-50 flex items-start justify-center p-4 overflow-y-auto">
+              {/* Backdrop */}
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-x-0 bottom-0 top-[115px] bg-black/40 backdrop-blur-xs" 
+                onClick={() => setShowExecutionDropdown(false)} 
+              />
+              
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                transition={{ duration: 0.2 }}
+                className="relative w-full max-w-[500px] rounded-3xl border border-natural-border bg-white p-6 shadow-2xl text-right z-50 overflow-hidden my-2 flex flex-col max-h-[80vh]"
+                dir="rtl"
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between border-b border-natural-border/40 pb-3 mb-3 shrink-0">
+                  <div className="flex items-center gap-3">
+                    <div className="h-7 w-7 rounded-lg bg-green-500/10 flex items-center justify-center text-green-600 shrink-0">
+                      <Check size={16} className="animate-bounce" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-normal text-natural-text text-right leading-tight">
+                        البرومبت {executionPromptType === 'original' ? 'الأصلي' : 'المترجم'} جاهز لتوليد الصورة
+                      </h4>
+                      <p className="text-xs text-green-600 font-bold text-center mt-0.5 leading-normal">
+                        تم نسخ النص للحافظة بنجاح
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowExecutionDropdown(false)}
+                    className="p-1.5 px-2 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-500 transition-colors cursor-pointer shrink-0"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+
+                {/* Copied text display frame (Read Only, Small) */}
+                <div className="mb-3 bg-neutral-50 rounded-xl p-3 border border-natural-border/50 text-xs text-[#4A4A35] font-mono whitespace-pre-wrap break-words max-h-24 overflow-y-auto shrink-0 leading-relaxed text-left" dir="ltr">
+                  {executionPromptText}
+                </div>
+
+                {/* Combined list of default and custom sites */}
+                <div className="space-y-1.5 overflow-y-auto pr-1 text-right flex-1 scrollbar-thin my-1">
+                  {[...DEFAULT_EXECUTION_SITES, ...customSites].map((site, index) => {
+                    const isVisited = visitedTrialUrls.includes(site.url);
+                    const cleanDisplayUrl = site.url.replace(/^https?:\/\/(www\.)?/i, '');
+                    
+                    return (
+                      <div
+                        key={index}
+                        className={`flex items-start justify-between gap-2.5 p-2 md:p-2.5 rounded-xl border transition-all ${
+                          isVisited
+                            ? 'bg-neutral-50/50 border-natural-border/80 opacity-90'
+                            : 'bg-green-50/5 border-natural-border/90 hover:bg-green-50/10'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2.5 flex-1 min-w-0 text-right">
+                          <span className="text-xs font-black text-[#4A4A35] w-5 h-5 flex items-center justify-center shrink-0 select-none bg-natural-primary/10 rounded-md">
+                            {index + 1}
+                          </span>
+                          
+                          <div className="flex-1 min-w-0 space-y-1.5 text-right overflow-hidden">
+                            <a
+                              href={site.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={() => {
+                                handleMarkUrlVisitedInBuilder(site.url);
+                                setShowExecutionDropdown(false);
+                              }}
+                              className={`block text-[13px] md:text-sm font-black hover:underline whitespace-nowrap overflow-hidden text-ellipsis text-left w-full transition-colors leading-normal cursor-pointer font-mono ${
+                                isVisited
+                                  ? 'text-red-700 hover:text-red-800'
+                                  : 'text-emerald-950 hover:text-emerald-950'
+                              }`}
+                              title={`اضغط لزيارة: ${site.url}`}
+                              dir="ltr"
+                            >
+                              {cleanDisplayUrl}
+                            </a>
+                            
+                            <div className="flex items-center gap-2 opacity-90 w-full bg-[#4A4A35]/5 border border-natural-border/50 rounded-lg px-2.5 py-1 text-right">
+                              <span className="text-[10px] text-[#4A4A35] font-black shrink-0 select-none">الميزة:</span>
+                              <input
+                                type="text"
+                                value={site.label || ''}
+                                onChange={(e) => handleEditCustomSiteLabelInBuilder(site.url, e.target.value)}
+                                placeholder="اضغط لتسمية الموقع..."
+                                className="w-full bg-transparent text-[11px] font-bold text-[#3A3A28] focus:outline-none text-right border-none p-0 flex-1 min-w-0"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Delete button only for custom sites (i.e. those not in default list) */}
+                        {!DEFAULT_EXECUTION_SITES.some(ds => ds.url === site.url) && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteCustomSiteInBuilder(site.url);
+                            }}
+                            className="p-1 px-1.5 text-red-600 hover:bg-red-50 rounded-md transition-colors border border-red-200/60 shrink-0 self-start mt-0.5 cursor-pointer"
+                            title="حذف الموقع المخصص"
+                          >
+                            <Trash2 size={11} />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Form to add custom image generation site */}
+                <div className="mt-3 border-t border-natural-border/50 pt-3 space-y-2 text-right shrink-0">
+                  <div className="text-xs font-black text-natural-primary text-right">
+                    ➕ إضافة موقع تجريبي أو توليد مخصص لملفك:
+                  </div>
+                  <div className="grid grid-cols-1 gap-1.5 text-right">
+                    <input
+                      type="text"
+                      value={newExecSiteName}
+                      onChange={(e) => setNewExecSiteName(e.target.value)}
+                      placeholder="اسم الموقع المخصص (اختياري)"
+                      className="w-full text-right rounded-xl border border-natural-border bg-natural-bg/30 px-3 py-2 text-xs font-bold focus:ring-1 focus:ring-natural-primary focus:outline-none"
+                    />
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={newExecSiteUrl}
+                        onChange={(e) => setNewExecSiteUrl(e.target.value)}
+                        placeholder="رابط الموقع (example.com)"
+                        className="flex-1 text-right rounded-xl border border-natural-border bg-natural-bg/30 px-3 py-2 text-xs font-bold focus:ring-1 focus:ring-natural-primary focus:outline-none"
+                        dir="ltr"
+                      />
+                      <button
+                        onClick={handleSaveCustomSiteInBuilder}
+                        className="rounded-xl bg-natural-primary text-white px-4 py-2 text-xs font-black hover:bg-[#4A4A35] transition-all whitespace-nowrap shadow-sm hover:shadow active:scale-95 cursor-pointer"
+                      >
+                        حفظ الموقع
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </div>
           </motion.div>
         )}

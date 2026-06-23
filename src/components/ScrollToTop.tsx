@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 export default function ScrollToTop() {
   const [isVisible, setIsVisible] = useState(false);
+  const [isPopupOpen, setIsPopupOpen] = useState(false);
 
   // Show button when page is scrolled down
   const toggleVisibility = () => {
@@ -28,9 +29,27 @@ export default function ScrollToTop() {
     };
   }, []);
 
+  useEffect(() => {
+    const checkPopup = () => {
+      const hasHiddenBody = document.body.style.overflow === 'hidden';
+      setIsPopupOpen(hasHiddenBody);
+    };
+
+    const observer = new MutationObserver(() => {
+      checkPopup();
+    });
+
+    observer.observe(document.body, { attributes: true, attributeFilter: ['style', 'class'] });
+    checkPopup();
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
   return (
     <AnimatePresence>
-      {isVisible && (
+      {isVisible && !isPopupOpen && (
         <motion.button
           initial={{ opacity: 0, scale: 0.5, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
