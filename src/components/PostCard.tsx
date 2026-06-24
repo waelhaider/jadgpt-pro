@@ -4,6 +4,7 @@ import { db } from '../lib/firebase';
 import { doc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { MoreHorizontal, Trash2, Edit3, Check, X, Clock, Copy, Loader2, Image as ImageIcon, Plus, Sparkles, Pin } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { ar } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError } from '../lib/error-handler';
 import { uploadPostImage, deletePostImage } from '../lib/upload-helper';
@@ -18,24 +19,28 @@ function ImageModelBadge({ modelName, slideSrc }: { modelName: string; slideSrc:
   useEffect(() => {
     let rafId: number;
     const updatePosition = () => {
-      const imgElements = document.querySelectorAll('.yarl__slide_image');
-      let activeImg: HTMLImageElement | null = null;
-      for (let i = 0; i < imgElements.length; i++) {
-        const img = imgElements[i] as HTMLImageElement;
-        const srcAttr = img.getAttribute('src');
-        if (img.src === slideSrc || img.currentSrc === slideSrc || srcAttr === slideSrc) {
-          activeImg = img;
-          break;
-        }
+      // 1. Try selecting the image within the current/active slide
+      let activeImg = document.querySelector('.yarl__slide_current img') as HTMLImageElement | null;
+      
+      // 2. Fallback: if not found, try any image within the Lightbox container
+      if (!activeImg) {
+        activeImg = document.querySelector('.yarl__container img') as HTMLImageElement | null;
+      }
+      
+      // 3. Last fallback: try any element with class .yarl__slide_image
+      if (!activeImg) {
+        activeImg = document.querySelector('.yarl__slide_image') as HTMLImageElement | null;
       }
 
       if (activeImg) {
         const rect = activeImg.getBoundingClientRect();
-        setImgRect({
-          bottom: rect.bottom,
-          left: rect.left,
-          width: rect.width
-        });
+        if (rect.width > 0 && rect.height > 0) {
+          setImgRect({
+            bottom: rect.bottom,
+            left: rect.left,
+            width: rect.width
+          });
+        }
       } else {
         setImgRect(null);
       }
@@ -331,8 +336,10 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
     }
   };
 
-  const handleAuthorize = async () => {
-    setIsSaving(true);
+  const handleAuthorize = async (shouldSetLoadingState = true) => {
+    if (shouldSetLoadingState) {
+      setIsSaving(true);
+    }
     setStatus('جاري طلب صلاحية الوصول...');
     try {
       await googleSignIn();
@@ -340,8 +347,10 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
       console.error('[PostCard] Authorization failed:', err);
       alert('فشل الحصول على صلاحية الوصول. يرجى التأكد من السماح بالنوافذ المنبثقة.');
     } finally {
-      setIsSaving(false);
-      setStatus('');
+      if (shouldSetLoadingState) {
+        setIsSaving(false);
+        setStatus('');
+      }
     }
   };
 
@@ -366,7 +375,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
         const activeToken = getAccessToken();
         if (!activeToken || activeToken === 'local-dummy-token') {
           alert('يتطلب رفع صور جديدة تسجيل الدخول إلى Google Drive.');
-          await handleAuthorize();
+          await handleAuthorize(false);
           const freshToken = getAccessToken();
           if (!freshToken || freshToken === 'local-dummy-token') {
             setIsSaving(false);
@@ -383,7 +392,13 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
           } catch (uploadErr: any) {
             console.warn('[PostCard] Image upload error:', uploadErr);
             if (uploadErr.message === 'AUTH_REQUIRED' || uploadErr.message === 'AUTH_EXPIRED') {
-              await handleAuthorize();
+              await handleAuthorize(false);
+              const freshToken = getAccessToken();
+              if (!freshToken || freshToken === 'local-dummy-token') {
+                setIsSaving(false);
+                setStatus('');
+                return;
+              }
               const url = await uploadPostImage(newImages[i], post.authorId);
               finalImageUrls.push(url);
               continue;
@@ -523,7 +538,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                     return `${day}/${month}/${year}`;
                   }
                   
-                  return formatDistanceToNow(dateObj, { addSuffix: true });
+                  return formatDistanceToNow(dateObj, { addSuffix: true, locale: ar });
                 })()} • {boardName}
               </div>
             </div>

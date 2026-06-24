@@ -131,7 +131,7 @@ export default function OwnerLicensePanel({ currentSettings, onUpdateSettings, c
       return (
         <span className="inline-flex items-center gap-0.5 bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-md text-[9px] font-black border border-amber-100 shadow-sm animate-pulse shrink-0">
           <Clock size={9} />
-          <span>تجريبي ({daysLeft} ي) ⏳</span>
+          <span>تجريبي ({daysLeft} يوم ) ⏳</span>
         </span>
       );
     }

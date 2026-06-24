@@ -108,8 +108,8 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
   const [status, setStatus] = useState<string>('');
   const [uploadError, setUploadError] = useState<{message: string, showRefresh?: boolean} | null>(null);
 
-  const handleAuthorize = async (): Promise<boolean> => {
-    setLoading(true);
+  const handleAuthorize = async (shouldSetLoadingState = true): Promise<boolean> => {
+    if (shouldSetLoadingState) setLoading(true);
     setStatus('جاري طلب صلاحيات Google Drive للرفع والحفظ ');
     try {
       await googleSignIn();
@@ -124,8 +124,10 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
       alert('فشل الحصول على صلاحية الوصول. يرجى التأكد من السماح بالنوافذ المنبثقة.');
       return false;
     } finally {
-      setLoading(false);
-      setStatus('');
+      if (shouldSetLoadingState) {
+        setLoading(false);
+        setStatus('');
+      }
     }
   };
 
@@ -149,9 +151,10 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
     if (hasImages) {
       const activeToken = getAccessToken();
       if (!activeToken || activeToken === 'local-dummy-token') {
-        const authorized = await handleAuthorize();
+        const authorized = await handleAuthorize(false);
         if (!authorized) {
           setLoading(false);
+          setStatus('');
           return;
         }
         // Refresh session after Google login completes
@@ -177,12 +180,16 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
           } catch (uploadErr: any) {
             console.warn('[UploadPost] File upload error:', uploadErr);
             if (uploadErr.message === 'AUTH_REQUIRED' || uploadErr.message === 'AUTH_EXPIRED') {
-              const authorized = await handleAuthorize();
+              const authorized = await handleAuthorize(false);
               if (authorized) {
                 currentUser = getCurrentUser(); // Refresh user after re-auth popup
                 const retryUrl = await uploadPostImage(file, currentUser.uid);
                 imageUrls.push(retryUrl);
                 continue;
+              } else {
+                setLoading(false);
+                setStatus('');
+                return;
               }
             }
             throw uploadErr;

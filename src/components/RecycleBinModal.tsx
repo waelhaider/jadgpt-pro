@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Trash2, RotateCcw, FileText, Image as ImageIcon, LayoutGrid, AlertTriangle, Sparkles, Folder } from 'lucide-react';
 import { restoreRecycleBinItem, deleteRecycleBinItemPermanently, emptyRecycleBin } from '../lib/recycle-bin';
 import { getAccessToken } from '../lib/auth';
+import { formatDistanceToNow } from 'date-fns';
+import { ar } from 'date-fns/locale';
 
 interface RecycleBinModalProps {
   isOpen: boolean;
@@ -83,16 +85,21 @@ export default function RecycleBinModal({ isOpen, onClose }: RecycleBinModalProp
   };
 
   const formatDeletedAt = (timestamp: any) => {
-    if (!timestamp) return 'جاري المعالجة...';
+    if (!timestamp) return 'الآن';
     try {
-      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-      return date.toLocaleString('ar-EG', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
+      const dateObj = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+      const now = new Date();
+      const diffTime = Math.abs(now.getTime() - dateObj.getTime());
+      const diffDays = diffTime / (1000 * 60 * 60 * 24);
+      
+      if (diffDays > 3) {
+        const day = String(dateObj.getDate()).padStart(2, '0');
+        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const year = dateObj.getFullYear();
+        return `${day}/${month}/${year}`;
+      }
+      
+      return formatDistanceToNow(dateObj, { addSuffix: true, locale: ar });
     } catch {
       return 'تاريخ غير صالح';
     }
@@ -119,28 +126,28 @@ export default function RecycleBinModal({ isOpen, onClose }: RecycleBinModalProp
           dir="rtl"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-natural-border/60 bg-neutral-50/50">
-            <div className="flex items-center gap-2 text-natural-primary">
-              <Trash2 className="text-red-500 animate-bounce" size={24} />
-              <h3 className="text-lg font-black text-[#4A4A35]">لوحة الإدارة 🗑️</h3>
+          <div className="flex items-center justify-between px-2 py-2 border-b border-natural-border/60 bg-neutral-50/50">
+            <div className="flex items-center gap-1 text-natural-primary">
+              <Trash2 className="text-red-500 animate-bounce" size={20} />
+              <h3 className="text-lg font-black text-[#4A4A35]">لوحة الإدارة</h3>
             </div>
             
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-0">
               {items.length > 0 && (
                 <button
                   type="button"
                   disabled={actionLoading !== null}
                   onClick={() => setConfirmEmptyOpen(true)}
-                  className="bg-red-50 text-red-700 hover:bg-red-100 font-bold text-xs px-3.5 py-2 rounded-xl border border-red-200/60 flex items-center gap-1.5 transition-colors cursor-pointer"
+                  className="bg-red-50 text-red-700 hover:bg-red-100 font-bold text-xs px-2.5 py-1.5 rounded-xl border border-red-200/60 flex items-center gap-1 transition-colors cursor-pointer"
                 >
-                  <Trash2 size={14} />
-                  <span>إفراغ السلة بالكامل</span>
+                  <Trash2 size={13} />
+                  <span>إفراغ السلة</span>
                 </button>
               )}
               <button
                 type="button"
                 onClick={onClose}
-                className="p-1.5 text-natural-muted hover:bg-natural-secondary-bg rounded-lg transition-colors"
+                className="p-1 text-natural-muted hover:bg-natural-secondary-bg rounded-lg transition-colors"
               >
                 <X size={20} />
               </button>
