@@ -172,7 +172,10 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
                   : 'bg-white text-natural-text hover:bg-natural-secondary-bg'
               }`}
             >
-              {board.name}
+              <span className="flex items-center gap-1">
+                {board.locked && <span className="text-xs shrink-0 select-none">🔒</span>}
+                <span>{board.name}</span>
+              </span>
               {postCounts[board.id] > 0 && (
                 <span className="absolute -top-1 -left-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-black text-white border-2 border-white shadow-sm transition-transform active:scale-110">
                   {postCounts[board.id]}

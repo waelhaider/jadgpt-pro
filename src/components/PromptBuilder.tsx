@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, Copy, RefreshCw, Check, ArrowRight, UserPlus, Sliders, Eye, ChevronDown, Trash2, ArrowLeftRight, Plus, ExternalLink, Globe, X } from 'lucide-react';
 import { safeStorage } from '../lib/safe-storage';
+import { movePromptToRecycleBin } from '../lib/recycle-bin';
 
 interface CustomSelectorProps {
   label?: string;
@@ -132,6 +133,101 @@ export default function PromptBuilder() {
       document.body.style.overflow = '';
     };
   }, [showExecutionDropdown]);
+
+  // Restored prompt listener from recycle bin
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'restored_prompt_text' && e.newValue) {
+        setPromptText(e.newValue);
+        try {
+          const restoredOpts = localStorage.getItem('restored_prompt_options');
+          if (restoredOpts) {
+            const opts = JSON.parse(restoredOpts);
+            if (opts.aspectRatio) setAspectRatio(opts.aspectRatio);
+            if (opts.styleMode) setStyleMode(opts.styleMode);
+            if (opts.shotType) setShotType(opts.shotType);
+            if (opts.shotAngle) setShotAngle(opts.shotAngle);
+            if (opts.gender) setGender(opts.gender);
+            if (opts.age) setAge(opts.age);
+            if (opts.pose) setPose(opts.pose);
+            if (opts.outfit) setOutfit(opts.outfit);
+            if (opts.expression) setExpression(opts.expression);
+            if (opts.lighting) setLighting(opts.lighting);
+            if (opts.camera) setCamera(opts.camera);
+            if (opts.outfitType) setOutfitType(opts.outfitType);
+            if (opts.menOutfitSubCategory) setMenOutfitSubCategory(opts.menOutfitSubCategory);
+            if (opts.womenOutfitSubCategory) setWomenOutfitSubCategory(opts.womenOutfitSubCategory);
+          }
+        } catch (err) {
+          console.error('Error restoring options:', err);
+        }
+        
+        localStorage.removeItem('restored_prompt_text');
+        localStorage.removeItem('restored_prompt_options');
+        alert('تم استرجاع النص والخيارات بنجاح إلى صانع البرومبت! ✍️');
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Check immediately on mount
+    const immediateText = localStorage.getItem('restored_prompt_text');
+    if (immediateText) {
+      setPromptText(immediateText);
+      try {
+        const restoredOpts = localStorage.getItem('restored_prompt_options');
+        if (restoredOpts) {
+          const opts = JSON.parse(restoredOpts);
+          if (opts.aspectRatio) setAspectRatio(opts.aspectRatio);
+          if (opts.styleMode) setStyleMode(opts.styleMode);
+          if (opts.shotType) setShotType(opts.shotType);
+          if (opts.shotAngle) setShotAngle(opts.shotAngle);
+          if (opts.gender) setGender(opts.gender);
+          if (opts.age) setAge(opts.age);
+          if (opts.pose) setPose(opts.pose);
+          if (opts.outfit) setOutfit(opts.outfit);
+          if (opts.expression) setExpression(opts.expression);
+          if (opts.lighting) setLighting(opts.lighting);
+          if (opts.camera) setCamera(opts.camera);
+          if (opts.outfitType) setOutfitType(opts.outfitType);
+          if (opts.menOutfitSubCategory) setMenOutfitSubCategory(opts.menOutfitSubCategory);
+          if (opts.womenOutfitSubCategory) setWomenOutfitSubCategory(opts.womenOutfitSubCategory);
+        }
+      } catch (err) {
+        console.error('Immediate restore options error:', err);
+      }
+      localStorage.removeItem('restored_prompt_text');
+      localStorage.removeItem('restored_prompt_options');
+      alert('تم استرجاع النص والخيارات بنجاح إلى صانع البرومبت! ✍️');
+    }
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
+  // Incoming shared prompt listener (Web Share Target)
+  useEffect(() => {
+    const checkIncomingShare = () => {
+      const shared = localStorage.getItem('shared_incoming_prompt');
+      if (shared) {
+        setPromptText(shared);
+        localStorage.removeItem('shared_incoming_prompt');
+        alert('📥 تم جلب النص المشارك بنجاح إلى صانع البرومبت! ✍️');
+      }
+    };
+
+    window.addEventListener('storage', checkIncomingShare);
+    checkIncomingShare();
+
+    const handleCustomEvent = () => checkIncomingShare();
+    window.addEventListener('check_shared_prompt', handleCustomEvent);
+
+    return () => {
+      window.removeEventListener('storage', checkIncomingShare);
+      window.removeEventListener('check_shared_prompt', handleCustomEvent);
+    };
+  }, []);
 
   const loadCustomSitesAndVisited = () => {
     try {
@@ -1041,7 +1137,7 @@ ${originalPrompt}
                           </a>
 
                           {/* Editable rename and feature field */}
-                          <div className="flex items-center gap-1.5 opacity-90 max-w-xs bg-[#4A4A35]/5 border border-natural-border/50 rounded-lg px-2 py-0.5">
+                          <div className="flex items-center gap-11 opacity-90 max-w-xs bg-[#4A4A35]/5 border border-natural-border/50 rounded-lg px-1 py-1">
                             <span className="text-[9px] text-[#4A4A35] font-black shrink-0 select-none font-sans">الاسم والميزة:</span>
                             <input
                               type="text"
@@ -1584,7 +1680,32 @@ ${originalPrompt}
                 </span>
                 <div className="flex gap-1.5 shrink-0">
                   <button
-                    onClick={() => {
+                    onClick={async () => {
+                      if (promptText.trim()) {
+                        const options = {
+                          aspectRatio,
+                          styleMode,
+                          shotType,
+                          shotAngle,
+                          gender,
+                          age,
+                          pose,
+                          outfit,
+                          expression,
+                          lighting,
+                          camera,
+                          outfitType,
+                          menOutfitSubCategory,
+                          womenOutfitSubCategory
+                        };
+                        try {
+                          await movePromptToRecycleBin(promptText, options);
+                          alert('تم نقل البرومبت بنجاح إلى سلة المحذوفات! 🗑️');
+                        } catch (err: any) {
+                          console.error('Failed to move prompt to recycle bin:', err);
+                          alert('فشل في نقل البرومبت لسلة المحذوفات: ' + (err.message || err));
+                        }
+                      }
                       handleClearAll();
                       setShowClearConfirm(false);
                     }}
@@ -1682,18 +1803,18 @@ ${originalPrompt}
                     return (
                       <div
                         key={index}
-                        className={`flex items-start justify-between gap-2.5 p-2 md:p-2.5 rounded-xl border transition-all ${
+                        className={`flex items-start justify-between gap-2.5 p-1 md:p-2.5 rounded-xl border transition-all ${
                           isVisited
                             ? 'bg-neutral-50/50 border-natural-border/80 opacity-90'
                             : 'bg-green-50/5 border-natural-border/90 hover:bg-green-50/10'
                         }`}
                       >
-                        <div className="flex items-start gap-2.5 flex-1 min-w-0 text-right">
+                        <div className="flex items-start gap-0 flex-1 min-w-0 text-right">
                           <span className="text-xs font-black text-[#4A4A35] w-5 h-5 flex items-center justify-center shrink-0 select-none bg-natural-primary/10 rounded-md">
                             {index + 1}
                           </span>
                           
-                          <div className="flex-1 min-w-0 space-y-1.5 text-right overflow-hidden">
+                          <div className="flex-1 min-w-0 space-y-0 text-right overflow-hidden">
                             <a
                               href={site.url}
                               target="_blank"
@@ -1702,7 +1823,7 @@ ${originalPrompt}
                                 handleMarkUrlVisitedInBuilder(site.url);
                                 setShowExecutionDropdown(false);
                               }}
-                              className={`block text-[13px] md:text-sm font-black hover:underline whitespace-nowrap overflow-hidden text-ellipsis text-left w-full transition-colors leading-normal cursor-pointer font-mono ${
+                              className={`block text-[14px] md:text-[14px] font-black hover:underline whitespace-nowrap overflow-hidden text-ellipsis text-left w-full transition-colors leading-normal cursor-pointer font-mono ${
                                 isVisited
                                   ? 'text-red-700 hover:text-red-800'
                                   : 'text-emerald-950 hover:text-emerald-950'
@@ -1713,14 +1834,14 @@ ${originalPrompt}
                               {cleanDisplayUrl}
                             </a>
                             
-                            <div className="flex items-center gap-2 opacity-90 w-full bg-[#4A4A35]/5 border border-natural-border/50 rounded-lg px-2.5 py-1 text-right">
-                              <span className="text-[10px] text-[#4A4A35] font-black shrink-0 select-none">الميزة:</span>
+                            <div className="flex items-center gap-0 opacity-90 w-full bg-[#4A4A35]/5 border border-natural-border/50 rounded-lg px-1 py-1 text-right">
+                              <span className="text-[10px] text-[#4A4A35] font-black shrink-0 select-none"> الميزة : </span>
                               <input
                                 type="text"
                                 value={site.label || ''}
                                 onChange={(e) => handleEditCustomSiteLabelInBuilder(site.url, e.target.value)}
                                 placeholder="اضغط لتسمية الموقع..."
-                                className="w-full bg-transparent text-[11px] font-bold text-[#3A3A28] focus:outline-none text-right border-none p-0 flex-1 min-w-0"
+                                className="w-full bg-transparent text-[11px] font-bold text-[#3A3A28] focus:outline-none text-right border-none p-1 flex-1 min-w-0"
                               />
                             </div>
                           </div>

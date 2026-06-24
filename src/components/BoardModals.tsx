@@ -14,11 +14,13 @@ interface BoardModalsProps {
 
 export default function BoardModals({ isOpen, type, board, boards, onClose, onSubmit }: BoardModalsProps) {
   const [name, setName] = useState('');
+  const [locked, setLocked] = useState(false);
   const [orderedBoards, setOrderedBoards] = useState<Board[]>([]);
 
   useEffect(() => {
     if (isOpen) {
       setName(board?.name || '');
+      setLocked(board?.locked || false);
       setOrderedBoards(boards || []);
     }
   }, [isOpen, board, boards]);
@@ -36,7 +38,7 @@ export default function BoardModals({ isOpen, type, board, boards, onClose, onSu
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[2500] flex items-center justify-center p-4">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -75,9 +77,21 @@ export default function BoardModals({ isOpen, type, board, boards, onClose, onSu
                     placeholder="مثال: استوديو، أطفال..."
                   />
                 </div>
+                <div className="flex items-center gap-2 py-1">
+                  <input
+                    type="checkbox"
+                    id="board-locked"
+                    checked={locked}
+                    onChange={(e) => setLocked(e.target.checked)}
+                    className="h-4.5 w-4.5 rounded text-natural-primary focus:ring-natural-primary border-natural-border cursor-pointer"
+                  />
+                  <label htmlFor="board-locked" className="text-sm font-bold text-[#4A4A35] cursor-pointer select-none">
+                    لوحة مقفولة 🔒 (للمشتركين الحاصلين على ترخيص فقط)
+                  </label>
+                </div>
                 <button
-                  onClick={() => onSubmit({ name })}
-                  className="w-full rounded-xl bg-natural-primary py-3 font-bold text-white shadow-sm transition-all hover:bg-[#4A4A35] active:scale-95"
+                  onClick={() => onSubmit({ name, locked })}
+                  className="w-full rounded-xl bg-natural-primary py-3 font-bold text-white shadow-sm transition-all hover:bg-[#4A4A35] active:scale-95 cursor-pointer"
                 >
                   {type === 'create' ? 'إنشاء' : 'حفظ التعديلات'}
                 </button>

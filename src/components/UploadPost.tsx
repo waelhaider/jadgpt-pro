@@ -46,6 +46,28 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  React.useEffect(() => {
+    const checkIncomingShare = () => {
+      const shared = localStorage.getItem('shared_incoming_post');
+      if (shared) {
+        setText(shared);
+        localStorage.removeItem('shared_incoming_post');
+        alert('📥 تم جلب النص المشارك بنجاح إلى حقل كتابة المنشور! ✍️');
+      }
+    };
+
+    window.addEventListener('storage', checkIncomingShare);
+    checkIncomingShare();
+
+    const handleCustomEvent = () => checkIncomingShare();
+    window.addEventListener('check_shared_post', handleCustomEvent);
+
+    return () => {
+      window.removeEventListener('storage', checkIncomingShare);
+      window.removeEventListener('check_shared_post', handleCustomEvent);
+    };
+  }, []);
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []) as File[];
     if (files.length === 0) return;

@@ -19,6 +19,22 @@ export interface Board {
   name: string;
   order: number;
   createdAt: Timestamp;
+  locked?: boolean;
+}
+
+export interface GlobalSettings {
+  ownerEmail: string;
+  trialDays: number;
+  allFree: boolean;
+}
+
+export interface License {
+  email: string;
+  activationCode: string;
+  activated: boolean;
+  trialStartDate: number;
+  expiryDate?: number | null;
+  activatedAt?: number | null;
 }
 
 export enum OperationType {

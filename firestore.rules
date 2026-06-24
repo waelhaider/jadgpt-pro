@@ -17,10 +17,10 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return !isSignedIn() || (
-             request.auth.token.email == 'alwaelai2000@gmail.com' &&
-             request.auth.token.email_verified == true
-             );
+      return isSignedIn() && (
+             request.auth.token.email.lower() == 'alwaelai2000@gmail.com' ||
+             (exists(/databases/$(database)/documents/settings/global) && get(/databases/$(database)/documents/settings/global).data.ownerEmail.lower() == request.auth.token.email.lower())
+      );
     }
 
     function isValidId(id) {
@@ -39,12 +39,14 @@ service cloud.firestore {
     function isValidBoard(data) {
       return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
              data.order is number &&
+             (data.get('locked', false) is bool) &&
              data.keys().hasAll(['name', 'order', 'createdAt']);
     }
 
     function isValidBoardUpdate(data) {
       return (data.get('name', '') is string && data.get('name', '').size() > 0) ||
-             (data.get('order', 0) is number);
+             (data.get('order', 0) is number) ||
+             (data.get('locked', false) is bool);
     }
 
     function isValidPost(data) {
@@ -57,9 +59,44 @@ service cloud.firestore {
              data.keys().hasAll(['text', 'boardId', 'authorId', 'authorEmail', 'createdAt']);
     }
 
+    function isValidSettings(data) {
+      return data.ownerEmail is string &&
+             data.trialDays is number &&
+             data.allFree is bool &&
+             data.keys().hasAll(['ownerEmail', 'trialDays', 'allFree']) &&
+             data.keys().size() == 3;
+    }
+
+    function isValidLicense(data) {
+      return data.email is string &&
+             data.activationCode is string &&
+             data.activated is bool &&
+             (data.trialStartDate is number || data.trialStartDate is timestamp) &&
+             data.keys().hasAll(['email', 'activationCode', 'activated', 'trialStartDate']);
+    }
+
     // --- Collections ---
     match /user_keys/{email} {
       allow read, write: if true;
+    }
+
+    match /settings/{settingsId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /licenses/{licenseId} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.token.email.lower() == licenseId.lower());
+      allow write: if isAdmin() || (
+        isSignedIn() && 
+        request.auth.token.email.lower() == licenseId.lower() &&
+        (
+          // Allow creation of non-activated license document for self on first login
+          (request.method == "create" && incoming().activated == false && incoming().email.lower() == request.auth.token.email.lower()) ||
+          // Allow activation update if they entered the correct matching code
+          (request.method == "update" && incoming().activated == true && existing().activated == false && incoming().activationCode == existing().activationCode && incoming().trialStartDate == existing().trialStartDate && incoming().email.lower() == existing().email.lower())
+        )
+      );
     }
 
     match /boards/{boardId} {
@@ -74,7 +111,7 @@ service cloud.firestore {
       allow create: if isAdmin() && 
                       isValidId(postId) &&
                       isValidPost(incoming()) &&
-                      (!isSignedIn() || (incoming().authorId == request.auth.uid && incoming().authorEmail == request.auth.token.email)) &&
+                      (!isSignedIn() || (incoming().authorId == request.auth.uid && incoming().authorEmail.lower() == request.auth.token.email.lower())) &&
                       incoming().createdAt == request.time;
 
       allow update: if isAdmin() && 
@@ -85,6 +122,10 @@ service cloud.firestore {
                       incoming().authorId == existing().authorId;
 
       allow delete: if true;
+    }
+
+    match /recycle_bin/{itemId} {
+      allow read, write: if isAdmin();
     }
   }
 }

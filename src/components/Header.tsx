@@ -3,7 +3,7 @@ import { auth, googleProvider } from '../lib/firebase';
 import { googleSignIn, emailSignIn, logout as authLogout, saveUserKeyToFirestore } from '../lib/auth';
 import { safeStorage } from '../lib/safe-storage';
 import { User } from 'firebase/auth';
-import { LogIn, LogOut, ShieldCheck, User as UserIcon, Menu, X, PlusCircle, Edit, LayoutGrid, Key } from 'lucide-react';
+import { LogIn, LogOut, ShieldCheck, User as UserIcon, Menu, X, PlusCircle, Edit, LayoutGrid, Key, Trash2, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Board } from '../types';
 import BoardModals from './BoardModals';
@@ -12,7 +12,10 @@ import { collection, addDoc, updateDoc, doc, serverTimestamp, deleteDoc } from '
 import { handleFirestoreError } from '../lib/error-handler';
 import { OperationType } from '../types';
 import TextEditorModal from './TextEditorModal';
+import RecycleBinModal from './RecycleBinModal';
 import { ADMIN_CONFIG } from '../config';
+import { GlobalSettings } from '../types';
+import OwnerLicensePanel from './OwnerLicensePanel';
 
 interface HeaderProps {
   user: User | null;
@@ -20,17 +23,36 @@ interface HeaderProps {
   currentBoard?: Board;
   boards: Board[];
   onSelectBoard: (id: string | null) => void;
+  globalSettings?: GlobalSettings;
+  onUpdateSettings?: (newSettings: Partial<GlobalSettings>) => Promise<void>;
 }
 
-export default function Header({ user, isAdmin, currentBoard, boards, onSelectBoard }: HeaderProps) {
+export default function Header({ 
+  user, 
+  isAdmin, 
+  currentBoard, 
+  boards, 
+  onSelectBoard,
+  globalSettings,
+  onUpdateSettings
+}: HeaderProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isTranslatorOpen, setIsTranslatorOpen] = useState(false);
-  const [modalState, setModalState] = useState<{isOpen: boolean, type: 'create' | 'edit' | 'reorder'}>({
+  const [modalState, setModalState] = useState<{
+    isOpen: boolean;
+    type: 'create' | 'edit' | 'reorder';
+    targetBoard?: Board;
+  }>({
     isOpen: false,
-    type: 'create'
+    type: 'create',
+    targetBoard: undefined
   });
+  const [isBoardsManagerOpen, setIsBoardsManagerOpen] = useState(false);
+  const [boardToDelete, setBoardToDelete] = useState<Board | null>(null);
+  const [isDeletingBoard, setIsDeletingBoard] = useState(false);
   const [sidebarKey, setSidebarKey] = useState(safeStorage.getItem('user_gemini_api_key') || '');
   const [isEditingKey, setIsEditingKey] = useState(false);
+  const [isRecycleBinOpen, setIsRecycleBinOpen] = useState(false);
   
 
 
@@ -175,19 +197,23 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
         const boardData = {
           name: data.name.trim(),
           order: boards.length,
-          createdAt: serverTimestamp()
+          createdAt: serverTimestamp(),
+          locked: !!data.locked
         };
         console.log('Creating board with data:', boardData);
         const docRef = await addDoc(collection(db, 'boards'), boardData);
         onSelectBoard(docRef.id);
         alert('تم إنشاء اللوحة بنجاح! تم الانتقال إليها الآن.');
-      } else if (modalState.type === 'edit' && currentBoard) {
+      } else if (modalState.type === 'edit' && (modalState.targetBoard || currentBoard)) {
+        const boardToEdit = modalState.targetBoard || currentBoard;
+        if (!boardToEdit) return;
         if (!data.name?.trim()) {
           alert('يرجى إدخال اسم اللوحة');
           return;
         }
-        await updateDoc(doc(db, 'boards', currentBoard.id), {
-          name: data.name.trim()
+        await updateDoc(doc(db, 'boards', boardToEdit.id), {
+          name: data.name.trim(),
+          locked: !!data.locked
         });
         alert('تم تعديل اسم اللوحة بنجاح!');
       } else if (modalState.type === 'reorder') {
@@ -204,6 +230,29 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
       const msg = error instanceof Error ? error.message : String(error);
       alert(`فشل تنفيذ العملية: ${msg}`);
       handleFirestoreError(error, OperationType.WRITE, 'boards');
+    }
+  };
+
+  const handleDeleteBoard = async (board: Board) => {
+    try {
+      // 1. Fetch posts of the board
+      const { collection, query, where, getDocs } = await import('firebase/firestore');
+      const q = query(collection(db, 'posts'), where('boardId', '==', board.id));
+      const querySnapshot = await getDocs(q);
+      const postsList = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as any[];
+      
+      // 2. Import moveBoardToRecycleBin and call it
+      const { moveBoardToRecycleBin } = await import('../lib/recycle-bin');
+      await moveBoardToRecycleBin(board, postsList);
+      
+      onSelectBoard(null);
+      alert('تم نقل اللوحة وجميع منشوراتها بنجاح إلى سلة المحذوفات! 🗑️');
+    } catch (err: any) {
+      console.error('Failed to delete board:', err);
+      alert('حدث خطأ أثناء حذف اللوحة: ' + (err.message || err));
     }
   };
 
@@ -297,6 +346,17 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
                         {/* Always available tool for all logged-in users */}
                         <div className="space-y-2 w-full">
                           <h4 className="text-[10px] text-natural-muted font-bold uppercase tracking-widest text-right mb-1">الأدوات العامة</h4>
+                          
+                          {isAdmin && globalSettings && onUpdateSettings && (
+                            <div className="mb-2">
+                              <OwnerLicensePanel 
+                                currentSettings={globalSettings}
+                                onUpdateSettings={onUpdateSettings}
+                                compact={true}
+                              />
+                            </div>
+                          )}
+
                           <button
                             onClick={() => {
                               setIsSidebarOpen(false);
@@ -307,43 +367,115 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
                             <Edit size={18} className="text-natural-primary animate-pulse" />
                             <span className="text-sm font-bold col-span-1">تعديل النص</span>
                           </button>
-
-
                         </div>
 
                         {isAdmin && (
-                          <div className="space-y-2 w-full pt-4 border-t border-natural-border">
-                            <h4 className="text-[10px] text-natural-muted font-bold uppercase tracking-widest text-right mb-2">إدارة اللوحات</h4>
+                          <div className="space-y-2 w-full pt-2 border-t border-natural-border">
+                            {/* Toggle Button for Boards Management */}
                             <button
-                              onClick={() => {
-                                setIsSidebarOpen(false);
-                                setModalState({ isOpen: true, type: 'create' });
-                              }}
-                              className="flex w-full items-center gap-3 p-3 rounded-xl hover:bg-natural-secondary-bg text-natural-text transition-colors"
+                              type="button"
+                              onClick={() => setIsBoardsManagerOpen(!isBoardsManagerOpen)}
+                              className="flex w-full items-center justify-between p-2 rounded-xl hover:bg-natural-secondary-bg text-natural-text transition-colors cursor-pointer w-full text-right"
                             >
-                              <PlusCircle size={18} className="text-natural-primary" />
-                              <span className="text-sm font-bold">إنشاء لوحة جديدة</span>
+                              <div className="flex items-center gap-3">
+                                <LayoutGrid size={16} className="text-natural-primary animate-pulse" />
+                                <span className="text-sm font-black text-[#4A4A35]">إدارة اللوحات</span>
+                              </div>
+                              {isBoardsManagerOpen ? (
+                                <ChevronUp size={16} className="text-natural-muted" />
+                              ) : (
+                                <ChevronDown size={16} className="text-natural-muted" />
+                              )}
                             </button>
+
+                            {/* Collapsible Content */}
+                            <AnimatePresence>
+                              {isBoardsManagerOpen && (
+                                <motion.div
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: 'auto', opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  transition={{ duration: 0.2 }}
+                                  className="overflow-hidden space-y-2.5 pr-2 pl-1"
+                                >
+                                  {/* Quick Actions */}
+                                  <div className="flex gap-2 mb-2 pt-1">
+                                    <button
+                                      onClick={() => {
+                                        setModalState({ isOpen: true, type: 'create', targetBoard: undefined });
+                                      }}
+                                      className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg bg-[#FAF9F5] hover:bg-[#F4F4EB] text-natural-primary border border-natural-border/60 text-xs font-bold transition-colors cursor-pointer"
+                                    >
+                                      <PlusCircle size={14} />
+                                      <span>لوحة جديدة</span>
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setModalState({ isOpen: true, type: 'reorder', targetBoard: undefined });
+                                      }}
+                                      className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg bg-[#FAF9F5] hover:bg-[#F4F4EB] text-natural-primary border border-natural-border/60 text-xs font-bold transition-colors cursor-pointer"
+                                    >
+                                      <LayoutGrid size={14} />
+                                      <span>ترتيب اللوحات</span>
+                                    </button>
+                                  </div>
+
+                                  {/* Boards List */}
+                                  <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                                    {boards.map((b) => (
+                                      <div
+                                        key={b.id}
+                                        className="flex items-center justify-between p-2 rounded-xl border border-natural-border bg-[#FAF9F5]/60 hover:bg-[#FAF9F5] hover:border-natural-primary/30 transition-all gap-2"
+                                      >
+                                        <span className="text-[13px] font-bold text-[#4A4A35] truncate flex-1 text-right flex items-center gap-1">
+                                          {b.locked && <span className="text-xs shrink-0 select-none">🔒</span>}
+                                          <span>{b.name}</span>
+                                        </span>
+                                        
+                                        <div className="flex items-center gap-1 shrink-0">
+                                          {/* Edit Name Button */}
+                                          <button
+                                            onClick={() => {
+                                              setModalState({ isOpen: true, type: 'edit', targetBoard: b });
+                                            }}
+                                            className="p-1 text-natural-primary hover:bg-white hover:text-[#4A4A35] rounded-md border border-transparent hover:border-natural-border transition-all cursor-pointer"
+                                            title="تعديل الاسم"
+                                          >
+                                            <Edit size={14} />
+                                          </button>
+                                          
+                                          {/* Delete Button */}
+                                          <button
+                                            onClick={() => {
+                                              setBoardToDelete(b);
+                                            }}
+                                            className="p-1 text-red-500 hover:bg-red-50 hover:text-red-700 rounded-md border border-transparent hover:border-red-200 transition-all cursor-pointer"
+                                            title="حذف اللوحة"
+                                          >
+                                            <Trash2 size={14} />
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        )}
+
+                        {isAdmin && (
+                          <div className="space-y-2 w-full pt-1 border-t border-natural-border">
+                            
                             <button
-                              disabled={!currentBoard}
                               onClick={() => {
                                 setIsSidebarOpen(false);
-                                setModalState({ isOpen: true, type: 'edit' });
+                                setIsRecycleBinOpen(true);
                               }}
-                              className="flex w-full items-center gap-3 p-3 rounded-xl hover:bg-natural-secondary-bg text-natural-text transition-colors disabled:opacity-50"
+                              className="flex w-full items-center gap-3 p-2 rounded-xl bg-red-50/80 hover:bg-red-100 text-red-700 transition-colors border border-red-100 cursor-pointer shadow-sm font-black"
                             >
-                              <Edit size={18} className="text-natural-primary" />
-                              <span className="text-sm font-bold">تعديل اسم اللوحة الحالية</span>
-                            </button>
-                            <button
-                              onClick={() => {
-                                setIsSidebarOpen(false);
-                                setModalState({ isOpen: true, type: 'reorder' });
-                              }}
-                              className="flex w-full items-center gap-3 p-3 rounded-xl hover:bg-natural-secondary-bg text-natural-text transition-colors"
-                            >
-                              <LayoutGrid size={18} className="text-natural-primary" />
-                              <span className="text-sm font-bold">ترتيب اللوحات</span>
+                              <Trash2 size={18} className="text-red-500 animate-pulse" />
+                              <span className="text-sm">المحذوفات</span>
                             </button>
                           </div>
                         )}
@@ -402,7 +534,7 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
       <BoardModals
         isOpen={modalState.isOpen}
         type={modalState.type}
-        board={currentBoard}
+        board={modalState.targetBoard || currentBoard}
         boards={boards}
         onClose={() => setModalState({ ...modalState, isOpen: false })}
         onSubmit={handleBoardSubmit}
@@ -414,6 +546,74 @@ export default function Header({ user, isAdmin, currentBoard, boards, onSelectBo
         isAdmin={isAdmin}
         activeBoardId={currentBoard?.id || null}
       />
+
+      <RecycleBinModal
+        isOpen={isRecycleBinOpen}
+        onClose={() => setIsRecycleBinOpen(false)}
+      />
+
+      {/* Board Deletion Custom Confirmation Modal (Iframe Safe) */}
+      <AnimatePresence>
+        {boardToDelete && (
+          <div className="fixed inset-0 z-[2600] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setBoardToDelete(null)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 15 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 15 }}
+              className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 text-right z-10 border border-red-100"
+              dir="rtl"
+            >
+              <div className="flex items-center gap-2 text-red-600 pb-3 border-b border-neutral-100 mb-4">
+                <AlertTriangle size={24} className="text-red-500 animate-pulse" />
+                <h4 className="text-base font-black text-red-700">تنبيه أمان صارم! ⚠️</h4>
+              </div>
+
+              <div className="space-y-3 mb-6">
+                <p className="text-xs text-natural-text leading-relaxed font-bold">
+                  هل أنت متأكد تماماً من نقل لوحة <span className="font-black text-red-600 bg-red-50 px-1.5 py-0.5 rounded">"{boardToDelete.name}"</span> مع جميع منشوراتها ورسائلها المرتبطة بها ونقلها إلى سلة المحذوفات؟
+                </p>
+                <p className="text-[10px] text-natural-muted leading-relaxed font-medium">
+                  * سيتم نقل اللوحة مع جميع محتوياتها مؤقتاً إلى سلة المحذوفات ويمكنك استعادتها من هناك لاحقاً إذا أردت.
+                </p>
+              </div>
+
+              <div className="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  disabled={isDeletingBoard}
+                  onClick={() => setBoardToDelete(null)}
+                  className="px-4 py-2.5 rounded-xl border border-natural-border text-xs font-bold text-natural-text hover:bg-neutral-50 transition-colors cursor-pointer"
+                >
+                  إلغاء الأمر
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeletingBoard}
+                  onClick={async () => {
+                    setIsDeletingBoard(true);
+                    try {
+                      await handleDeleteBoard(boardToDelete);
+                    } finally {
+                      setIsDeletingBoard(false);
+                      setBoardToDelete(null);
+                    }
+                  }}
+                  className="px-5 py-2.5 rounded-xl bg-red-600 text-white hover:bg-red-700 text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  {isDeletingBoard ? 'جاري النقل...' : 'نعم، انقل لسلة المحذوفات 🗑️'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Iframe Safe Custom Login Modal */}
       <AnimatePresence>

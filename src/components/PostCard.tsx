@@ -7,6 +7,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError } from '../lib/error-handler';
 import { uploadPostImage, deletePostImage } from '../lib/upload-helper';
+import { movePostToRecycleBin } from '../lib/recycle-bin';
 import { getAccessToken, googleSignIn } from '../lib/auth';
 import Lightbox from "yet-another-react-lightbox";
 import Zoom from "yet-another-react-lightbox/plugins/zoom";
@@ -260,21 +261,9 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
     const postPath = `posts/${post.id}`;
     
     try {
-      const accessToken = getAccessToken();
-      const urlsToDelete = post.imageUrls || (post.imageUrl ? [post.imageUrl] : []);
-      
-      if (urlsToDelete.length > 0) {
-        for (const url of urlsToDelete) {
-          try {
-            await deletePostImage(url, accessToken);
-          } catch (err) {
-            console.warn('[PostCard] Failed to delete image:', err);
-          }
-        }
-      }
-
-      await deleteDoc(doc(db, 'posts', post.id));
-      alert('تم حذف المنشور بنجاح! 🗑️');
+      const boardName = boards.find(b => b.id === post.boardId)?.name || 'غير معروف';
+      await movePostToRecycleBin(post, boardName);
+      alert('تم نقل المنشور إلى سلة المحذوفات بنجاح! 🗑️');
     } catch (err) {
       console.error('Delete error:', err);
       alert('حدث خطأ أثناء الحذف: ' + (err instanceof Error ? err.message : String(err)));
@@ -851,7 +840,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                                           }
                                           setShowDropdown(false);
                                         }}
-                                        className={`block text-[13px] md:text-sm font-black hover:underline whitespace-nowrap overflow-hidden text-ellipsis text-left w-full transition-colors leading-normal cursor-pointer font-mono ${
+                                        className={`block text-[14px] md:text-[14px] font-black hover:underline whitespace-nowrap overflow-hidden text-ellipsis text-left w-full transition-colors leading-normal cursor-pointer font-mono ${
                                           isVisited
                                             ? 'text-red-700 hover:text-red-800'
                                             : 'text-emerald-950 hover:text-emerald-950'
@@ -861,8 +850,8 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                                       >
                                         {cleanDisplayUrl}
                                       </a>
-                                      <div className="flex items-center gap-2 opacity-90 w-full bg-[#4A4A35]/5 border border-natural-border/50 rounded-lg px-2.5 py-1 text-right">
-                                        <span className="text-[10px] text-[#4A4A35] font-black shrink-0 select-none">الميزة:</span>
+                                      <div className="flex items-center gap-1 opacity-90 w-full bg-[#4A4A35]/5 border border-natural-border/50 rounded-lg px-1 py-1 text-right">
+                                        <span className="text-[10px] text-[#4A4A35] font-black shrink-0 select-none"> الميزة : </span>
                                         <span className="text-[11px] font-bold text-[#3A3A28] py-0 text-right truncate select-all flex-1 min-w-0">{site.label}</span>
                                       </div>
                                     </div>
@@ -900,7 +889,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                                           }
                                           setShowDropdown(false);
                                         }}
-                                        className={`block text-[13px] md:text-sm font-black hover:underline whitespace-nowrap overflow-hidden text-ellipsis text-left w-full transition-colors leading-normal cursor-pointer font-mono ${
+                                        className={`block text-[14px] md:text-[14px] font-black hover:underline whitespace-nowrap overflow-hidden text-ellipsis text-left w-full transition-colors leading-normal cursor-pointer font-mono ${
                                           isVisited
                                             ? 'text-red-700 hover:text-red-800'
                                             : 'text-emerald-950 hover:text-emerald-950'
@@ -910,8 +899,8 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                                       >
                                         {cleanDisplayUrl}
                                       </a>
-                                      <div className="flex items-center gap-2 opacity-90 w-full bg-[#4A4A35]/5 border border-natural-border/50 rounded-lg px-2.5 py-1 text-right">
-                                        <span className="text-[10px] text-[#4A4A35] font-black shrink-0 select-none">الميزة:</span>
+                                      <div className="flex items-center gap-1 opacity-90 w-full bg-[#4A4A35]/5 border border-natural-border/50 rounded-lg px-1 py-1 text-right">
+                                        <span className="text-[10px] text-[#4A4A35] font-black shrink-0 select-none"> الميزة : </span>
                                         <input
                                           type="text"
                                           value={site.label || ''}
