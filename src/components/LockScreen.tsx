@@ -7,7 +7,7 @@ import { License } from '../types';
 
 interface LockScreenProps {
   userEmail: string;
-  userLicense: License;
+  userLicense: License | null;
   onLogout: () => Promise<void>;
   onActivationSuccess: () => void;
   onClose?: () => void;
@@ -38,7 +38,7 @@ export default function LockScreen({ userEmail, userLicense, onLogout, onActivat
 
     setLoading(true);
     try {
-      if (cleanCode === userLicense.activationCode) {
+      if (cleanCode === userLicense?.activationCode) {
         // Correct code! Update the user's license document in Firestore
         const docRef = doc(db, 'licenses', userEmail.trim().toLowerCase());
         await updateDoc(docRef, {
@@ -157,7 +157,7 @@ export default function LockScreen({ userEmail, userLicense, onLogout, onActivat
           </button>
 
           <a
-            href={`mailto:${userLicense.email}?subject=طلب كود تفعيل لتطبيق الويب`}
+            href={`mailto:${userLicense?.email || userEmail}?subject=طلب كود تفعيل لتطبيق الويب`}
             className="text-[11px] text-natural-primary hover:underline font-black"
           >
             طلب كود تفعيل من المالك ↗

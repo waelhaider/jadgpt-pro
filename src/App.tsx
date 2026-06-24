@@ -194,11 +194,11 @@ export default function App() {
   const hasFullAccess = isOwner || globalSettings.allFree || (userLicense?.activated === true);
   const hasTrialAccess = hasFullAccess || isInTrial;
 
-  const isTrialExpired = !!user && !hasFullAccess && !isInTrial;
+  const isTrialExpired = !!user && !licenseLoading && !hasFullAccess && !isInTrial;
 
   const currentBoard = boards.find(b => b.id === activeBoardId);
 
-  if (loading) {
+  if (loading || (user && licenseLoading)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-natural-bg">
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-natural-primary shadow-xl animate-pulse overflow-hidden">
@@ -262,7 +262,7 @@ export default function App() {
           <div className="mt-6">
             <LockScreen 
               userEmail={user.email!} 
-              userLicense={userLicense!} 
+              userLicense={userLicense} 
               onLogout={async () => {
                 await logout();
                 setUser(null);
@@ -438,7 +438,7 @@ export default function App() {
         {showActivationForce && user && (
           <LockScreen 
             userEmail={user.email!} 
-            userLicense={userLicense!} 
+            userLicense={userLicense} 
             onLogout={async () => {
               await logout();
               setUser(null);
