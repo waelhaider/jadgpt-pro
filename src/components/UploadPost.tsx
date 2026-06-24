@@ -43,6 +43,7 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
   const [images, setImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
+  const [imageCaptions, setImageCaptions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -80,10 +81,12 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
     const newImages = [...images];
     const newPreviews = [...previews];
     const newModels = [...selectedModels];
+    const newCaptions = [...imageCaptions];
 
     files.forEach(file => {
       newImages.push(file);
       newModels.push(''); // No model selected initially
+      newCaptions.push(''); // No caption initially
       const reader = new FileReader();
       reader.onloadend = () => {
         setPreviews(prev => [...prev, reader.result as string]);
@@ -93,6 +96,7 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
 
     setImages(newImages);
     setSelectedModels(newModels);
+    setImageCaptions(newCaptions);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -100,9 +104,11 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
     const newImages = images.filter((_, i) => i !== index);
     const newPreviews = previews.filter((_, i) => i !== index);
     const newModels = selectedModels.filter((_, i) => i !== index);
+    const newCaptions = imageCaptions.filter((_, i) => i !== index);
     setImages(newImages);
     setPreviews(newPreviews);
     setSelectedModels(newModels);
+    setImageCaptions(newCaptions);
   };
 
   const [status, setStatus] = useState<string>('');
@@ -211,6 +217,7 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
         imageUrl: imageUrls.length > 0 ? imageUrls[0] : null,
         imageUrls: imageUrls,
         imageModels: selectedModels,
+        imageCaptions: imageCaptions,
         boardId: activeBoardId || null, // Explicitly null for main feed
         authorId: currentUser.uid,
         authorEmail: currentUser.email,
@@ -232,6 +239,7 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
       setImages([]);
       setPreviews([]);
       setSelectedModels([]);
+      setImageCaptions([]);
       setStatus('');
       alert('تم النشر ورفع الصور بكامل جودتها وابعادها الاصلية إلى Google Drive وحفظها بنجاح! 🎉');
     } catch (error) {
@@ -316,6 +324,23 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
                         >
                           <X size={12} />
                         </button>
+                      </div>
+
+                      {/* Manual image caption input */}
+                      <div className="flex flex-col gap-1 text-right" dir="rtl">
+                        <span className="text-[10px] font-black text-[#4A4A35] select-none">العبارة التعريفية للصورة (اختياري):</span>
+                        <input
+                          type="text"
+                          placeholder="اكتب عبارة تعريفية لهذه الصورة..."
+                          value={imageCaptions[index] || ''}
+                          onChange={(e) => {
+                            const updated = [...imageCaptions];
+                            updated[index] = e.target.value;
+                            setImageCaptions(updated);
+                          }}
+                          disabled={loading}
+                          className="w-full text-[11px] font-medium border border-natural-border/60 rounded-lg px-2 py-1.5 bg-white text-natural-text placeholder-[#A1A18E] focus:outline-none focus:ring-1 focus:ring-natural-primary"
+                        />
                       </div>
 
                       {/* Model Selector Pills */}

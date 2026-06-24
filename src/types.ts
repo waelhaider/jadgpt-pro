@@ -6,6 +6,7 @@ export interface Post {
   imageUrl?: string;
   imageUrls?: string[];
   imageModels?: string[];
+  imageCaptions?: string[];
   boardId: string;
   createdAt: Timestamp;
   updatedAt?: Timestamp;

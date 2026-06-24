@@ -1864,10 +1864,10 @@ ${originalPrompt}
             <button
               onClick={() => handleExecutePrompt('original')}
               disabled={!promptText.trim()}
-              className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-natural-primary text-white font-bold text-xs px-4 py-3.5 shadow-md hover:bg-[#4A4A35] active:scale-95 transition-all outline-none disabled:opacity-50"
+              className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-natural-primary text-white font-bold text-xs px-3.5 py-3.5 shadow-md hover:bg-[#4A4A35] active:scale-95 transition-all outline-none disabled:opacity-50"
             >
               <Sparkles size={13} className="text-white shrink-0" />
-              <span className="truncate">تنفيذ البرومبت الأصلي</span>
+              <span className="truncate">نسخ وتنفيذ البرومبت الأصلي</span>
             </button>
 
             {/* Clear Button with Warning/Confirm */}
@@ -1923,10 +1923,10 @@ ${originalPrompt}
               <button
                 onClick={() => setShowClearConfirm(true)}
                 className="flex-none flex items-center justify-center gap-1.5 rounded-2xl border border-red-200 bg-red-50 text-red-700 font-bold text-xs px-5 py-3.5 shadow-sm hover:bg-red-100 active:scale-95 transition-all outline-none shrink-0"
-                title="مسح النص والخيارات"
+                title="حذف النص والخيارات"
               >
                 <Trash2 size={13} className="text-red-600 shrink-0" />
-                <span className="truncate">مسح النص</span>
+                <span className="truncate">حذف النص</span>
               </button>
             )}
 
@@ -1934,10 +1934,10 @@ ${originalPrompt}
             <button
               onClick={() => handleExecutePrompt('translated')}
               disabled={!translatedPromptText.trim()}
-              className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-amber-50 text-amber-900 border border-amber-200 font-bold text-xs px-4 py-3.5 shadow-sm hover:bg-amber-100 active:scale-95 transition-all outline-none disabled:opacity-50"
+              className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-amber-50 text-amber-900 border border-amber-200 font-bold text-xs px-3.5 py-3.5 shadow-sm hover:bg-amber-100 active:scale-95 transition-all outline-none disabled:opacity-50"
             >
               <Sparkles size={13} className="text-amber-700 animate-pulse shrink-0" />
-              <span className="truncate">تنفيذ البرومبت المترجم </span>
+              <span className="truncate">نسخ وتنفيذ البرومبت المترجم </span>
             </button>
           </div>
         </div>

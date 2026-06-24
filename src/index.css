@@ -1,9 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap');
 @import "yet-another-react-lightbox/styles.css";
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Cairo", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Noto Sans Arabic", "Inter", ui-sans-serif, system-ui, sans-serif;
   --color-natural-bg: #F9FAF8;
   --color-natural-text: #2D2D2A;
   --color-natural-primary: #5A5A40;
@@ -13,7 +13,7 @@
 }
 
 html, body, button, input, select, textarea, span, p, h1, h2, h3, h4, h5, h6, div, label {
-  font-family: "Cairo", "Inter", ui-sans-serif, system-ui, sans-serif !important;
+  font-family: "Noto Sans Arabic", "Inter", ui-sans-serif, system-ui, sans-serif !important;
 }
 
 .no-scrollbar {
@@ -33,7 +33,7 @@ html, body, button, input, select, textarea, span, p, h1, h2, h3, h4, h5, h6, di
 }
 
 .yarl__slide {
-  padding: 10px 10px 110px 10px !important; /* دفع الصورة للأعلى بشكل متناسق وثابت عبر تضخيم الهامش السفلي للمحتوى داخل الـ Lightbox */
+  padding: 64px 16px !important; /* الهامش متناسق ومتماثل عمودياً لتجنب مشاكل حسابات التكبير والتحريك في الزوم */
 }
 
 .yarl__slide_image {

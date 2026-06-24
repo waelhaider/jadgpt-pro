@@ -136,6 +136,8 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
   const [removedImageUrls, setRemovedImageUrls] = useState<string[]>([]);
   const [editedImageModels, setEditedImageModels] = useState<string[]>([]);
   const [newImageModels, setNewImageModels] = useState<string[]>([]);
+  const [editedImageCaptions, setEditedImageCaptions] = useState<string[]>([]);
+  const [newImageCaptions, setNewImageCaptions] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [status, setStatus] = useState('');
   
@@ -304,6 +306,10 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
       const originalModels = Array(originalUrls.length).fill('').map((_, i) => post.imageModels?.[i] || '');
       setEditedImageModels(originalModels);
       setNewImageModels([]);
+      
+      const originalCaptions = Array(originalUrls.length).fill('').map((_, i) => post.imageCaptions?.[i] || '');
+      setEditedImageCaptions(originalCaptions);
+      setNewImageCaptions([]);
     }
   }, [isEditing]); // Only reset when toggling isEditing
 
@@ -424,11 +430,13 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
       setStatus('جاري الحفظ في Firestore...');
       // 3. Update Firestore
       const finalImageModels = [...editedImageModels, ...newImageModels];
+      const finalImageCaptions = [...editedImageCaptions, ...newImageCaptions];
       await updateDoc(doc(db, 'posts', post.id), {
         text: editedText.trim(),
         imageUrls: finalImageUrls,
         imageUrl: finalImageUrls.length > 0 ? finalImageUrls[0] : null,
         imageModels: finalImageModels,
+        imageCaptions: finalImageCaptions,
         boardId: editedBoardId,
         updatedAt: serverTimestamp(),
       });
@@ -461,10 +469,12 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
     const nextNewImages = [...newImages];
     const nextNewPreviews = [...newPreviews];
     const nextNewModels = [...newImageModels];
+    const nextNewCaptions = [...newImageCaptions];
 
     files.forEach(file => {
       nextNewImages.push(file);
       nextNewModels.push(''); // No model selected initially
+      nextNewCaptions.push(''); // No caption initially
       const reader = new FileReader();
       reader.onloadend = () => {
         setNewPreviews(prev => [...prev, reader.result as string]);
@@ -474,6 +484,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
 
     setNewImages(nextNewImages);
     setNewImageModels(nextNewModels);
+    setNewImageCaptions(nextNewCaptions);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -481,6 +492,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
     const url = editedImageUrls[index];
     setEditedImageUrls(editedImageUrls.filter((_, i) => i !== index));
     setEditedImageModels(editedImageModels.filter((_, i) => i !== index));
+    setEditedImageCaptions(editedImageCaptions.filter((_, i) => i !== index));
     setRemovedImageUrls([...removedImageUrls, url]);
   };
 
@@ -488,6 +500,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
     setNewImages(newImages.filter((_, i) => i !== index));
     setNewPreviews(newPreviews.filter((_, i) => i !== index));
     setNewImageModels(newImageModels.filter((_, i) => i !== index));
+    setNewImageCaptions(newImageCaptions.filter((_, i) => i !== index));
   };
 
   const imageUrls = post.imageUrls || (post.imageUrl ? [post.imageUrl] : []);
@@ -516,14 +529,28 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
               )}
             </div>
             <div className="text-right">
-              <div className="flex items-center gap-1.5 flex-wrap">
+              <div className="flex items-center gap-1.5">
                 <span className="text-sm font-bold text-natural-text">{displayName}</span>
-                {isPostFromAdmin && <span className="text-[10px] font-normal text-natural-muted leading-none opacity-70 relative -top-[1px]">(المسؤول)</span>}
-                {post.isPinned && (
-                  <Pin size={11} className="fill-red-500 text-red-600 shrink-0 select-none relative -top-[1px]" title="منشور مثبت" />
-                )}
               </div>
-              <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-natural-muted">
+              
+              {/* المسؤول ورمز التثبيت تحت الاسم لمنع التداخل */}
+              {(isPostFromAdmin || post.isPinned) && (
+                <div className="flex items-center gap-1.5 mt-0.5 mb-0.5">
+                  {isPostFromAdmin && (
+                    <span className="text-[10px] font-medium text-red-600 bg-red-50 px-1.5 py-0.5 rounded leading-none border border-red-100/40">
+                      المسؤول
+                    </span>
+                  )}
+                  {post.isPinned && (
+                    <span className="flex items-center gap-1 text-[10px] font-medium text-red-600 bg-red-50 px-1.5 py-0.5 rounded leading-none border border-red-100/40">
+                      <Pin size={10} className="fill-red-500 text-red-600 shrink-0 select-none" />
+                     مثبت
+                    </span>
+                  )}
+                </div>
+              )}
+
+              <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-natural-muted mt-0.5">
                 {(() => {
                   if (!post.createdAt) return 'الآن';
                   const dateObj = post.createdAt.toDate();
@@ -677,6 +704,23 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                           <div className="relative aspect-video overflow-hidden rounded-md border border-natural-border/20 bg-natural-bg">
                             <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                           </div>
+                          
+                          {/* Caption Edit Field */}
+                          <div className="flex flex-col gap-1 text-right">
+                            <span className="text-[9px] font-bold text-[#4A4A35]">العبارة التعريفية للصورة (اختياري):</span>
+                            <input
+                              type="text"
+                              placeholder="اكتب عبارة تعريفية لهذه الصورة..."
+                              value={editedImageCaptions[index] || ''}
+                              onChange={(e) => {
+                                const updated = [...editedImageCaptions];
+                                updated[index] = e.target.value;
+                                setEditedImageCaptions(updated);
+                              }}
+                              className="w-full text-[10px] font-medium border border-natural-border/60 rounded-md px-2 py-1 bg-white text-natural-text focus:outline-none focus:ring-1 focus:ring-natural-primary"
+                            />
+                          </div>
+
                           <div className="flex flex-col gap-1">
                             <span className="text-[9px] font-bold text-[#4A4A35]">موديل توليد الصورة:</span>
                             <div className="flex flex-wrap gap-1">
@@ -716,6 +760,23 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                             <img src={prev} alt="" className="h-full w-full object-cover" />
                             <div className="absolute bottom-1 left-1 bg-green-600 text-[8px] text-white px-1 rounded font-black">جديدة</div>
                           </div>
+
+                          {/* New Image Caption Edit Field */}
+                          <div className="flex flex-col gap-1 text-right">
+                            <span className="text-[9px] font-bold text-green-700">العبارة التعريفية للصورة الجديدة (اختياري):</span>
+                            <input
+                              type="text"
+                              placeholder="اكتب عبارة تعريفية لهذه الصورة..."
+                              value={newImageCaptions[index] || ''}
+                              onChange={(e) => {
+                                const updated = [...newImageCaptions];
+                                updated[index] = e.target.value;
+                                setNewImageCaptions(updated);
+                              }}
+                              className="w-full text-[10px] font-medium border border-green-200 rounded-md px-2 py-1 bg-white text-natural-text focus:outline-none focus:ring-1 focus:ring-green-700"
+                            />
+                          </div>
+
                           <div className="flex flex-col gap-1">
                             <span className="text-[9px] font-bold text-green-700">الموديل للصورة الجديدة:</span>
                             <div className="flex flex-wrap gap-1">
@@ -1062,8 +1123,15 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                 referrerPolicy="no-referrer"
               />
               {post.imageModels && post.imageModels[0] && (
-                <div className="absolute bottom-2 right-2 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-2 py-0.5 text-[9px] font-black backdrop-blur-xs select-none pointer-events-none z-10 font-sans tracking-wide">
+                <div className="absolute bottom-1 right-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded px-1.5 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10 font-sans font-bold" style={{ fontSize: '7px' }}>
                   ✨ {post.imageModels[0]}
+                </div>
+              )}
+              {post.imageCaptions && post.imageCaptions[0] && (
+                <div className="absolute bottom-1 left-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1.5 py-0.5 backdrop-blur-xs select-text z-10" onClick={(e) => e.stopPropagation()}>
+                  <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '7px' }} dir="rtl">
+                    {post.imageCaptions[0]}
+                  </p>
                 </div>
               )}
             </div>
@@ -1073,14 +1141,21 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
             <div className="grid grid-cols-2 gap-0.5">
               {imageUrls.map((url, i) => (
                 <div 
-                  key={i} 
+                  key={url + i} 
                   className="relative aspect-square bg-natural-secondary-bg overflow-hidden cursor-pointer"
                   onClick={() => { setLightboxIndex(i); setLightboxOpen(true); }}
                 >
                   <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                   {post.imageModels && post.imageModels[i] && (
-                    <div className="absolute bottom-2 right-2 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-2 py-0.5 text-[9px] font-black backdrop-blur-xs select-none pointer-events-none z-10 font-sans tracking-wide">
+                    <div className="absolute bottom-1 right-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded px-1.5 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10 font-sans font-bold" style={{ fontSize: '7px' }}>
                       ✨ {post.imageModels[i]}
+                    </div>
+                  )}
+                  {post.imageCaptions && post.imageCaptions[i] && (
+                    <div className="absolute bottom-1 left-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1.5 py-0.5 backdrop-blur-xs select-text z-10" onClick={(e) => e.stopPropagation()}>
+                      <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '7px' }} dir="rtl">
+                        {post.imageCaptions[i]}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -1096,8 +1171,15 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
               >
                 <img src={imageUrls[0]} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                 {post.imageModels && post.imageModels[0] && (
-                  <div className="absolute bottom-2 right-2 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-2 py-0.5 text-[9px] font-black backdrop-blur-xs select-none pointer-events-none z-10 font-sans tracking-wide">
+                  <div className="absolute bottom-1 right-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded px-1.5 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10 font-sans font-bold" style={{ fontSize: '7px' }}>
                     ✨ {post.imageModels[0]}
+                  </div>
+                )}
+                {post.imageCaptions && post.imageCaptions[0] && (
+                  <div className="absolute bottom-1 left-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1.5 py-0.5 backdrop-blur-xs select-text z-10" onClick={(e) => e.stopPropagation()}>
+                    <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '7px' }} dir="rtl">
+                      {post.imageCaptions[0]}
+                    </p>
                   </div>
                 )}
               </div>
@@ -1106,14 +1188,21 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                   const actualIndex = i + 1;
                   return (
                     <div 
-                      key={i} 
+                      key={url + actualIndex} 
                       className="relative aspect-square bg-natural-secondary-bg overflow-hidden cursor-pointer"
                       onClick={() => { setLightboxIndex(actualIndex); setLightboxOpen(true); }}
                     >
                       <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                       {post.imageModels && post.imageModels[actualIndex] && (
-                        <div className="absolute bottom-2 right-2 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-2 py-0.5 text-[9px] font-black backdrop-blur-xs select-none pointer-events-none z-10 font-sans tracking-wide">
+                        <div className="absolute bottom-1 right-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded px-1.5 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10 font-sans font-bold" style={{ fontSize: '7px' }}>
                           ✨ {post.imageModels[actualIndex]}
+                        </div>
+                      )}
+                      {post.imageCaptions && post.imageCaptions[actualIndex] && (
+                        <div className="absolute bottom-1 left-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1.5 py-0.5 backdrop-blur-xs select-text z-10" onClick={(e) => e.stopPropagation()}>
+                          <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '7px' }} dir="rtl">
+                            {post.imageCaptions[actualIndex]}
+                          </p>
                         </div>
                       )}
                     </div>
@@ -1127,14 +1216,21 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
             <div className="grid grid-cols-2 gap-0.5">
               {imageUrls.slice(0, 4).map((url, i) => (
                 <div 
-                  key={i} 
+                  key={url + i} 
                   className="relative aspect-square bg-natural-secondary-bg overflow-hidden cursor-pointer"
                   onClick={() => { setLightboxIndex(i); setLightboxOpen(true); }}
                 >
                   <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                   {post.imageModels && post.imageModels[i] && (
-                    <div className="absolute bottom-2 right-2 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-2 py-0.5 text-[9px] font-black backdrop-blur-xs select-none pointer-events-none z-10 font-sans tracking-wide">
+                    <div className="absolute bottom-1 right-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded px-1.5 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10 font-sans font-bold" style={{ fontSize: '7px' }}>
                       ✨ {post.imageModels[i]}
+                    </div>
+                  )}
+                  {post.imageCaptions && post.imageCaptions[i] && (
+                    <div className="absolute bottom-1 left-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1.5 py-0.5 backdrop-blur-xs select-text z-10" onClick={(e) => e.stopPropagation()}>
+                      <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '7px' }} dir="rtl">
+                        {post.imageCaptions[i]}
+                      </p>
                     </div>
                   )}
                   {i === 3 && imageUrls.length > 4 && (

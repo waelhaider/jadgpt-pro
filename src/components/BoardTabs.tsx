@@ -137,7 +137,7 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
         >
           <button
             onClick={(e) => handleTabClick(e, 'prompt-builder')}
-            className={`relative whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-bold transition-all shadow-sm cursor-pointer ${
+            className={`relative whitespace-nowrap rounded-full px-2.5 py-1.5 text-[14px] font-normal transition-all shadow-sm cursor-pointer ${
               activeBoardId === 'prompt-builder'
                 ? 'bg-natural-primary text-white scale-105 shadow-md'
                 : 'bg-white text-natural-text hover:bg-natural-secondary-bg'
@@ -148,7 +148,7 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
 
           <button
             onClick={(e) => handleTabClick(e, null)}
-            className={`relative whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-bold transition-all shadow-sm cursor-pointer ${
+            className={`relative whitespace-nowrap rounded-full px-2.5 py-1.5 text-[14px] font-normal transition-all shadow-sm cursor-pointer ${
               activeBoardId === null
                 ? 'bg-natural-primary text-white scale-105 shadow-md'
                 : 'bg-white text-natural-text hover:bg-natural-secondary-bg'
@@ -161,18 +161,18 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
               </span>
             )}
           </button>
-
+          
           {sortedBoards.map((board) => (
             <button
               key={board.id}
               onClick={(e) => handleTabClick(e, board.id)}
-              className={`relative whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-bold transition-all shadow-sm cursor-pointer ${
+              className={`relative whitespace-nowrap rounded-full px-2.5 py-1.5 text-[14px] font-normal transition-all shadow-sm cursor-pointer ${
                 activeBoardId === board.id
                   ? 'bg-natural-primary text-white scale-105 shadow-md'
                   : 'bg-white text-natural-text hover:bg-natural-secondary-bg'
               }`}
             >
-              <span className="flex items-center gap-1">
+              <span className="flex items-center gap-0.5">
                 {board.locked && <span className="text-xs shrink-0 select-none">🔒</span>}
                 <span>{board.name}</span>
               </span>
