@@ -12,6 +12,63 @@ import { getAccessToken, googleSignIn } from '../lib/auth';
 import Lightbox from "yet-another-react-lightbox";
 import Zoom from "yet-another-react-lightbox/plugins/zoom";
 
+function ImageModelBadge({ modelName, slideSrc }: { modelName: string; slideSrc: string }) {
+  const [imgRect, setImgRect] = useState<{ bottom: number; left: number; width: number } | null>(null);
+
+  useEffect(() => {
+    let rafId: number;
+    const updatePosition = () => {
+      const imgElements = document.querySelectorAll('.yarl__slide_image');
+      let activeImg: HTMLImageElement | null = null;
+      for (let i = 0; i < imgElements.length; i++) {
+        const img = imgElements[i] as HTMLImageElement;
+        const srcAttr = img.getAttribute('src');
+        if (img.src === slideSrc || img.currentSrc === slideSrc || srcAttr === slideSrc) {
+          activeImg = img;
+          break;
+        }
+      }
+
+      if (activeImg) {
+        const rect = activeImg.getBoundingClientRect();
+        setImgRect({
+          bottom: rect.bottom,
+          left: rect.left,
+          width: rect.width
+        });
+      } else {
+        setImgRect(null);
+      }
+      rafId = requestAnimationFrame(updatePosition);
+    };
+
+    updatePosition();
+    return () => {
+      cancelAnimationFrame(rafId);
+    };
+  }, [slideSrc]);
+
+  if (!imgRect || !modelName) return null;
+
+  return (
+    <div 
+      style={{
+        position: 'fixed',
+        left: `${imgRect.left + imgRect.width / 2}px`,
+        top: `${imgRect.bottom + 12}px`,
+        transform: 'translate3d(-50%, 0, 0)',
+        pointerEvents: 'none',
+        zIndex: 9999,
+      }}
+      className="bg-black/80 text-[#F5F5EC] border border-white/20 rounded-full px-3.5 py-1.5 text-[11px] font-black backdrop-blur-md select-none font-sans tracking-wide shadow-lg flex items-center gap-1.5 whitespace-nowrap animate-fade-in"
+      dir="rtl"
+    >
+      <span>موديل التوليد :</span>
+      <span className="text-amber-200">{modelName}</span>
+    </div>
+  );
+}
+
 interface PostCardProps {
   post: Post;
   isAdmin: boolean;
@@ -419,7 +476,10 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
   };
 
   const imageUrls = post.imageUrls || (post.imageUrl ? [post.imageUrl] : []);
-  const slides = imageUrls.map(url => ({ src: url }));
+  const slides = imageUrls.map((url, i) => ({ 
+    src: url,
+    modelName: post.imageModels?.[i] || ''
+  }));
 
   return (
     <>
@@ -1108,10 +1168,10 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
             const currentModel = post.imageModels?.[lightboxIndex];
             if (!currentModel) return null;
             return (
-              <div className="absolute bottom-30 right-3 bg-black/75 text-[#F5F5EC] border border-white/50 rounded-full px-3.5 py-1.5 text-xs font-black backdrop-blur-md select-none pointer-events-none z-50 font-sans tracking-wide shadow-lg flex items-center gap-1.5 animate-fade-in" dir="rtl">
-                <span>موديل التوليد :</span>
-                <span className="text-amber-200">{currentModel}</span>
-              </div>
+              <ImageModelBadge 
+                modelName={currentModel} 
+                slideSrc={imageUrls[lightboxIndex]} 
+              />
             );
           }
         }}

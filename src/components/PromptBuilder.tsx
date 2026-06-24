@@ -418,6 +418,7 @@ export default function PromptBuilder() {
   const [expression, setExpression] = useState('يتبع الصورة المرجعية');
   const [lighting, setLighting] = useState('يتبع الصورة المرجعية');
   const [camera, setCamera] = useState('يتبع الصورة المرجعية');
+  const [isAngleSelectorOpen, setIsAngleSelectorOpen] = useState(false);
 
   // Generated Text State
   const [isCopied, setIsCopied] = useState(false);
@@ -809,6 +810,7 @@ ${originalPrompt}
     setMenOutfitSubCategory('modern');
     setWomenOutfitSubCategory('casual');
     setShowExecutionDropdown(false);
+    setIsAngleSelectorOpen(false);
   };
 
   // Selection Arrays
@@ -843,12 +845,131 @@ ${originalPrompt}
     'بمستوى العين مباشرة (Eye Level Shot)',
     'زاوية منخفضة من الأسفل للأعلى (Low Angle Shot)',
     'زاوية مرتفعة من الأعلى للأسفل (High Angle Shot)',
-    'زاوية من فوق الكتف (Over the Shoulder Shot)',
+    'زاوية منخفضة للغاية (Extreme Low Angle)',
+    'زاوية مرتفعة للغاية (Extreme High Angle)',
     'لقطة عين الطائر عمودية (Bird\'s Eye View)',
+    'لقطة عين الدودة (Worm\'s Eye View)',
     'زاوية مائلة سينمائية (Dutch Angle)',
-    'زاوية ديناميكية 3/4',
-    'لقطة عرض عين الدودة',
-    'الزاوية الهولندية'
+    'زاوية من فوق الكتف (Over the Shoulder Shot)',
+    'منظور الشخص الأول (POV Shot)',
+    'لقطة طائرة درون جوية (Drone Shot)',
+    'منظور من الأمام مباشرة (Front View)',
+    'منظور من الجانب (Side Profile View)',
+    'منظور من الخلف (Back View)',
+    'زاوية ثلاثة أرباع (Three-Quarter View)',
+    'منظور مستوى الأرض (Ground Level Shot)',
+    'لقطة ماكرو مقربة (Macro Shot)'
+  ];
+
+  const shotAnglesData = [
+    {
+      value: 'يتبع الصورة المرجعية',
+      label: 'يتبع الصورة المرجعية',
+      enLabel: 'Follow Reference',
+      image: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=300&q=80'
+    },
+    {
+      value: 'بمستوى العين مباشرة (Eye Level Shot)',
+      label: 'بمستوى العين',
+      enLabel: 'Eye Level',
+      image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80'
+    },
+    {
+      value: 'زاوية منخفضة من الأسفل للأعلى (Low Angle Shot)',
+      label: 'زاوية منخفضة',
+      enLabel: 'Low Angle',
+      image: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=300&q=80'
+    },
+    {
+      value: 'زاوية مرتفعة من الأعلى للأسفل (High Angle Shot)',
+      label: 'زاوية مرتفعة',
+      enLabel: 'High Angle',
+      image: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=300&q=80'
+    },
+    {
+      value: 'زاوية منخفضة للغاية (Extreme Low Angle)',
+      label: 'منخفضة للغاية',
+      enLabel: 'Extreme Low',
+      image: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=300&q=80'
+    },
+    {
+      value: 'زاوية مرتفعة للغاية (Extreme High Angle)',
+      label: 'مرتفعة للغاية',
+      enLabel: 'Extreme High',
+      image: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=300&q=80'
+    },
+    {
+      value: 'لقطة عين الطائر عمودية (Bird\'s Eye View)',
+      label: 'عين الطائر',
+      enLabel: 'Bird\'s Eye',
+      image: 'https://images.unsplash.com/photo-1473968512647-3e447244af8f?auto=format&fit=crop&w=300&q=80'
+    },
+    {
+      value: 'لقطة عين الدودة (Worm\'s Eye View)',
+      label: 'عين الدودة',
+      enLabel: 'Worm\'s Eye',
+      image: 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=300&q=80'
+    },
+    {
+      value: 'زاوية مائلة سينمائية (Dutch Angle)',
+      label: 'الزاوية الهولندية',
+      enLabel: 'Dutch Angle',
+      image: 'https://images.unsplash.com/photo-1516257984-b1b4d707412e?auto=format&fit=crop&w=300&q=80'
+    },
+    {
+      value: 'زاوية من فوق الكتف (Over the Shoulder Shot)',
+      label: 'من فوق الكتف',
+      enLabel: 'Over Shoulder',
+      image: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=300&q=80'
+    },
+    {
+      value: 'منظور الشخص الأول (POV Shot)',
+      label: 'شخص أول',
+      enLabel: 'POV Shot',
+      image: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=300&q=80'
+    },
+    {
+      value: 'لقطة طائرة درون جوية (Drone Shot)',
+      label: 'لقطة درون',
+      enLabel: 'Drone Shot',
+      image: 'https://images.unsplash.com/photo-1527977966376-1c8408f9f108?auto=format&fit=crop&w=300&q=80'
+    },
+    {
+      value: 'منظور من الأمام مباشرة (Front View)',
+      label: 'من الأمام',
+      enLabel: 'Front View',
+      image: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=300&q=80'
+    },
+    {
+      value: 'منظور من الجانب (Side Profile View)',
+      label: 'من الجانب',
+      enLabel: 'Side Profile',
+      image: 'https://images.unsplash.com/photo-1519345182560-3f2917c472ef?auto=format&fit=crop&w=300&q=80'
+    },
+    {
+      value: 'منظور من الخلف (Back View)',
+      label: 'من الخلف',
+      enLabel: 'Back View',
+      image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=300&q=80'
+    },
+    {
+      value: 'زاوية ثلاثة أرباع (Three-Quarter View)',
+      label: 'زاوية 3/4',
+      enLabel: 'Three-Quarter',
+      image: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=300&q=80'
+    },
+    {
+      value: 'منظور مستوى الأرض (Ground Level Shot)',
+      label: 'مستوى الأرض',
+      enLabel: 'Ground Level',
+      image: 'https://images.unsplash.com/photo-1470246973918-29a93221c455?auto=format&fit=crop&w=300&q=80'
+    },
+    {
+      value: 'لقطة ماكرو مقربة (Macro Shot)',
+      label: 'لقطة ماكرو',
+      enLabel: 'Macro Shot',
+      image: 'https://images.unsplash.com/photo-1501854140801-50d01698950b?auto=format&fit=crop&w=300&q=80'
+    }
   ];
 
   const poses = [
@@ -1292,14 +1413,91 @@ ${originalPrompt}
                 zIndex={85}
               />
 
-              {/* Option 4.5: Shot Angle */}
-              <CustomSelector
-                label="زاوية التصوير"
-                options={shotAngles}
-                value={shotAngle}
-                onChange={setShotAngle}
-                zIndex={80}
-              />
+              {/* Option 4.5: Shot Angle (Custom Visual Selector) */}
+              <div className="relative text-right z-[80] space-y-2">
+                <label className="block text-xs font-black text-natural-primary">
+                  زاوية التصوير
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsAngleSelectorOpen(!isAngleSelectorOpen)}
+                  className={`w-full flex items-center justify-between text-right rounded-xl border px-3 py-2.5 text-xs font-bold transition-all ${
+                    isAngleSelectorOpen 
+                      ? 'border-amber-500 bg-amber-50/20 ring-1 ring-amber-500' 
+                      : 'border-natural-border bg-natural-bg/40 hover:bg-natural-bg/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 text-right flex-1 select-none">
+                    <span className="truncate text-[#4A4A35] font-black">
+                      {shotAnglesData.find(a => a.value === shotAngle)?.label || shotAngle}
+                    </span>
+                    {shotAngle !== 'يتبع الصورة المرجعية' && (
+                      <span className="text-[10px] text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">
+                        نشط
+                      </span>
+                    )}
+                  </div>
+                  <ChevronDown size={14} className={`text-natural-muted transition-transform shrink-0 ${isAngleSelectorOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                <AnimatePresence>
+                  {isAngleSelectorOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.25, ease: 'easeOut' }}
+                      className="overflow-hidden bg-neutral-50/80 rounded-2xl border border-natural-border/60 p-3 mt-1 shadow-inner"
+                    >
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                        {shotAnglesData.map((angle) => {
+                          const isSelected = shotAngle === angle.value;
+                          return (
+                            <button
+                              key={angle.value}
+                              type="button"
+                              onClick={() => {
+                                setShotAngle(angle.value);
+                                setIsAngleSelectorOpen(false);
+                              }}
+                              className={`group relative flex flex-col overflow-hidden rounded-xl border text-right transition-all duration-300 ${
+                                isSelected 
+                                  ? 'border-amber-500 ring-2 ring-amber-500/20 bg-amber-50/30 shadow-md scale-[1.02]' 
+                                  : 'border-natural-border/80 bg-white hover:border-amber-400 hover:shadow-sm'
+                              }`}
+                            >
+                              {/* Image Container */}
+                              <div className="relative w-full aspect-[4/3] overflow-hidden bg-neutral-100">
+                                <img
+                                  src={angle.image}
+                                  alt={angle.label}
+                                  referrerPolicy="no-referrer"
+                                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                />
+                                {isSelected && (
+                                  <div className="absolute top-1.5 right-1.5 bg-amber-500 text-white rounded-full p-1 shadow-md z-10 animate-fade-in">
+                                    <Check size={11} strokeWidth={3} />
+                                  </div>
+                                )}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+                                <div className="absolute top-1.5 left-1.5 bg-black/60 backdrop-blur-[1px] text-[8px] text-white/90 px-1.5 py-0.5 rounded font-mono select-none">
+                                  {angle.enLabel}
+                                </div>
+                              </div>
+                              {/* Bottom title */}
+                              <div className="p-2 w-full text-center bg-white border-t border-neutral-100 group-hover:bg-neutral-50/50">
+                                <span className={`block text-[11px] font-black truncate leading-tight ${isSelected ? 'text-amber-800' : 'text-neutral-700'}`}>
+                                  {angle.label}
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
 
               {/* Option 5: Pose */}
               <CustomSelector

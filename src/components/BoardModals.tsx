@@ -86,7 +86,7 @@ export default function BoardModals({ isOpen, type, board, boards, onClose, onSu
                     className="h-4.5 w-4.5 rounded text-natural-primary focus:ring-natural-primary border-natural-border cursor-pointer"
                   />
                   <label htmlFor="board-locked" className="text-sm font-bold text-[#4A4A35] cursor-pointer select-none">
-                    لوحة مقفولة 🔒 (للمشتركين الحاصلين على ترخيص فقط)
+                    لوحة مقفولة 🔒 (للمشتركين فقط)
                   </label>
                 </div>
                 <button
