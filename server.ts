@@ -530,6 +530,12 @@ ${prompt}
     });
   });
 
+  // Web Share Target fallback route
+  app.post('/share-target', (req, res) => {
+    console.log('[Share Target Fallback] Redirecting shared post to home page');
+    res.redirect(303, '/?shared=true');
+  });
+
   // Serve uploaded images statically
   app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 

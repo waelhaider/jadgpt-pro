@@ -9,6 +9,8 @@ import { OperationType } from '../types';
 
 import { uploadPostImage } from '../lib/upload-helper';
 import { ADMIN_CONFIG } from '../config';
+import { compressImage } from '../lib/imageCompressor';
+import { saveLocalUserPostsIndexedDB, getLocalUserPostsIndexedDB } from '../lib/indexedDbService';
 
 interface UploadPostProps {
   activeBoardId: string | null;
@@ -48,24 +50,74 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
-    const checkIncomingShare = () => {
-      const shared = localStorage.getItem('shared_incoming_post');
-      if (shared) {
-        setText(shared);
+    const checkIncomingShare = async () => {
+      // 1. Check local storage for simple text shares
+      const sharedText = localStorage.getItem('shared_incoming_post');
+      if (sharedText) {
+        setText(sharedText);
         localStorage.removeItem('shared_incoming_post');
         alert('📥 تم جلب النص المشارك بنجاح إلى حقل كتابة المنشور! ✍️');
+      }
+
+      // 2. Check Cache Storage for PWA Web Share Target (images & metadata)
+      if ('caches' in window) {
+        try {
+          const cache = await caches.open('shared-data');
+          const metaRes = await cache.match('shared-meta');
+          
+          if (metaRes) {
+            const meta = await metaRes.json();
+            console.log('[PWA Share Target] Found metadata:', meta);
+            
+            let combinedText = meta.text || '';
+            if (meta.title && meta.title !== 'undefined' && meta.title !== '') {
+              combinedText = `${meta.title}\n${combinedText}`.trim();
+            }
+            
+            if (combinedText) {
+              setText(combinedText);
+            }
+            
+            // Delete metadata from cache
+            await cache.delete('shared-meta');
+            
+            // Get shared file (image)
+            const fileRes = await cache.match('shared-file');
+            if (fileRes) {
+              const blob = await fileRes.blob();
+              // Construct a valid File object
+              const file = new File([blob], `shared_${Date.now()}.png`, { type: blob.type || 'image/png' });
+              
+              setImages([file]);
+              setSelectedModels(['']);
+              setImageCaptions(['']);
+              
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                setPreviews([reader.result as string]);
+              };
+              reader.readAsDataURL(file);
+              
+              // Delete cached file
+              await cache.delete('shared-file');
+            }
+            
+            alert('📥 تم جلب الصور والنصوص المشاركة بنجاح تلقائياً! 🎉');
+          }
+        } catch (err) {
+          console.error('[PWA Share Target] Error checking cache:', err);
+        }
       }
     };
 
     window.addEventListener('storage', checkIncomingShare);
     checkIncomingShare();
 
-    const handleCustomEvent = () => checkIncomingShare();
-    window.addEventListener('check_shared_post', handleCustomEvent);
+    window.addEventListener('check_shared_post', checkIncomingShare);
 
     return () => {
       window.removeEventListener('storage', checkIncomingShare);
-      window.removeEventListener('check_shared_post', handleCustomEvent);
+      window.removeEventListener('check_shared_post', checkIncomingShare);
     };
   }, []);
 
@@ -140,7 +192,6 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     let currentUser = getCurrentUser();
-    if (!currentUser) return;
     
     const hasText = text.trim().length > 0;
     const hasImages = images.length > 0;
@@ -152,6 +203,58 @@ export default function UploadPost({ activeBoardId, activeBoardName }: UploadPos
 
     setLoading(true);
     setUploadError(null);
+
+    // Intercept local posts
+    if (activeBoardId === 'user-board') {
+      try {
+        const imageUrls: string[] = [];
+        for (let i = 0; i < images.length; i++) {
+          const file = images[i];
+          const base64 = await compressImage(file);
+          imageUrls.push(base64);
+        }
+
+        const payload = {
+          id: 'local_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+          text: text.trim(),
+          imageUrl: imageUrls.length > 0 ? imageUrls[0] : null,
+          imageUrls: imageUrls,
+          imageModels: selectedModels,
+          imageCaptions: imageCaptions,
+          boardId: 'user-board',
+          authorId: currentUser?.uid || 'local-user',
+          authorEmail: currentUser?.email || 'local-user@local.com',
+          createdAtMillis: Date.now(),
+        };
+
+        const parsed = await getLocalUserPostsIndexedDB();
+        parsed.unshift(payload);
+        
+        const isSaved = await saveLocalUserPostsIndexedDB(parsed);
+        if (isSaved) {
+          setText('');
+          setImages([]);
+          setPreviews([]);
+          setSelectedModels([]);
+          setImageCaptions([]);
+          setStatus('');
+          window.dispatchEvent(new Event('reload_local_posts'));
+          alert('تم الحفظ والنشر في لوحتك الشخصية بنجاح! 🎉');
+        }
+      } catch (err: any) {
+        console.error(err);
+        alert('حدث خطأ أثناء الحفظ محلياً: ' + err.message);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    if (!currentUser) {
+      alert('يجب تسجيل الدخول لنشر منشور في اللوحات العامة.');
+      setLoading(false);
+      return;
+    }
 
     // If we have images, check if we need to request authorization
     if (hasImages) {

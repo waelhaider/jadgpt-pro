@@ -21,6 +21,7 @@ interface HeaderProps {
   user: User | null;
   isAdmin: boolean;
   currentBoard?: Board;
+  activeBoardId: string | null;
   boards: Board[];
   onSelectBoard: (id: string | null) => void;
   globalSettings?: GlobalSettings;
@@ -31,12 +32,14 @@ export default function Header({
   user, 
   isAdmin, 
   currentBoard, 
+  activeBoardId,
   boards, 
   onSelectBoard,
   globalSettings,
   onUpdateSettings
 }: HeaderProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isBoardsDrawerOpen, setIsBoardsDrawerOpen] = useState(false);
   const [isTranslatorOpen, setIsTranslatorOpen] = useState(false);
   const [modalState, setModalState] = useState<{
     isOpen: boolean;
@@ -259,40 +262,140 @@ export default function Header({
   return (
     <>
       <header className="sticky top-0 z-40 w-full border-b border-natural-border bg-white/80 backdrop-blur-md shadow-sm shrink-0">
-        <div className="mx-auto flex h-12 max-w-5xl items-center justify-between px-6">
-          {/* Menu Button (Right side for RTL feel, or Left side) */}
-          {/* User expects mobile style, usually top-left or top-right. Let's put it on the left since logo is on the right for Arabic? 
-              Actually line 43 in previous version had logo on the left of its container. 
-              Let's put Menu on one side and Logo on the other. */}
+        <div className="mx-auto flex h-12 max-w-5xl items-center justify-between px-6 relative">
+          
+          {/* Left Side: Settings Menu Button */}
           <button 
             onClick={() => setIsSidebarOpen(true)}
-            className="p-2 text-natural-primary hover:bg-natural-secondary-bg rounded-full transition-colors"
+            className="px-1 py-1 text-[12px] sm:text-xs md:text-sm font-bold text-[#1e3a8a] bg-[#e2e8f0] hover:bg-natural-secondary-bg rounded-lg border border-[#cbd5e1] shadow-xs transition-all z-10 cursor-pointer flex items-center justify-center h-8 whitespace-nowrap"
+            title="الأدوات"
           >
-            <Menu size={24} />
+            الأدوات
           </button>
 
-          {/* Logo */}
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-natural-primary shadow-sm border border-natural-border/20">
-              <img 
-                src="/logo.png" 
-                alt="JADGPT Logo" 
-                className="h-full w-full object-cover"
-                onError={(e) => {
-                  // Fallback to stylized letter if image fails
-                  (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="text-white font-black text-xl">J</div>';
-                }}
-              />
+          {/* Absolute Centered Logo/Name */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="flex items-center gap-2 pointer-events-auto cursor-pointer" onClick={() => onSelectBoard(null)}>
+              <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg bg-natural-primary shadow-xs border border-natural-border/10">
+                <img 
+                  src="/logo.png" 
+                  alt="JADGPT Logo" 
+                  className="h-full w-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="text-white font-black text-base">J</div>';
+                  }}
+                />
+              </div>
+              <h1 className="text-lg sm:text-xl font-black tracking-tight text-[#4A4A35]">
+                JADGPT
+              </h1>
             </div>
-            <h1 className="text-2xl font-black tracking-tight text-[#4A4A35]">
-              JADGPT
-            </h1>
           </div>
           
-          {/* Spacer for centering logic if needed, but justify-between is fine */}
-          <div className="w-10" /> 
+          {/* Right Side: Boards Drawer Button */}
+          <button 
+            onClick={() => setIsBoardsDrawerOpen(true)}
+            className="px-1 py-1 text-[12px] sm:text-xs md:text-sm font-bold text-[#1e3a8a] bg-[#e2e8f0] hover:bg-natural-secondary-bg rounded-lg border border-[#cbd5e1] shadow-xs transition-all z-10 cursor-pointer flex items-center justify-center h-8 whitespace-nowrap"
+            title="لوحات كاملة"
+          >
+            لوحات كاملة
+          </button>
+
         </div>
       </header>
+
+      {/* Boards Drawer (Slides in from the right) */}
+      <AnimatePresence>
+        {isBoardsDrawerOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsBoardsDrawerOpen(false)}
+              className="fixed inset-0 z-[1000] bg-black/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed inset-y-0 right-0 z-[1001] w-72 bg-white shadow-2xl"
+              dir="rtl"
+            >
+              <div className="flex flex-col h-full">
+                {/* Header */}
+                <div className="relative flex items-center justify-center py-2.5 px-3 border-b border-natural-border/40 bg-neutral-50/50">
+                  <h2 className="text-sm font-black text-[#3A3A28] text-center">الأقسام واللوحات</h2>
+                  <button 
+                    onClick={() => setIsBoardsDrawerOpen(false)}
+                    className="absolute right-2.5 p-1.5 text-natural-muted hover:bg-neutral-100 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                  <p className="text-xs text-natural-muted font-bold mb-4 text-center leading-relaxed">
+                    تصفح جميع أقسام ولوحات توليد الصور الذكية
+                  </p>
+
+                  <div className="space-y-2">
+                    {/* Main Feed option */}
+                    <button
+                      onClick={() => {
+                        onSelectBoard(null);
+                        setIsBoardsDrawerOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between p-3 rounded-2xl border text-right transition-all cursor-pointer ${
+                        currentBoard === undefined && activeBoardId !== 'prompt-builder' && activeBoardId !== 'user-board'
+                          ? 'bg-natural-primary border-natural-primary text-white shadow-md font-normal'
+                          : 'bg-white border-natural-border hover:bg-natural-secondary-bg text-natural-text font-normal'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className="text-lg">🏡</span>
+                        <span>الرئيسية (عام)</span>
+                      </span>
+                      {currentBoard === undefined && activeBoardId !== 'prompt-builder' && activeBoardId !== 'user-board' && (
+                        <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+                      )}
+                    </button>
+
+                    {/* Dynamic Boards */}
+                    {boards.map((board) => {
+                      const isSelected = currentBoard?.id === board.id;
+                      return (
+                        <button
+                          key={board.id}
+                          onClick={() => {
+                            onSelectBoard(board.id);
+                            setIsBoardsDrawerOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between p-3 rounded-2xl border text-right transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-natural-primary border-natural-primary text-white shadow-md font-normal'
+                              : 'bg-white border-natural-border hover:bg-natural-secondary-bg text-natural-text font-normal'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">
+                            <span className="text-lg">{board.locked ? '🔒' : '📁'}</span>
+                            <span>{board.name}</span>
+                          </span>
+                          {isSelected && (
+                            <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Sidebar Overlay */}
       <AnimatePresence>

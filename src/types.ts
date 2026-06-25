@@ -13,6 +13,7 @@ export interface Post {
   authorId: string;
   authorEmail: string;
   isPinned?: boolean;
+  createdAtMillis?: number;
 }
 
 export interface Board {

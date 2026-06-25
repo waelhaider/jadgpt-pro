@@ -117,24 +117,36 @@ export default function App() {
   useEffect(() => {
     // Check for shared content from Web Share Target
     const searchParams = new URLSearchParams(window.location.search);
+    const isShared = searchParams.get('shared') === 'true';
     const sharedTitle = searchParams.get('title');
     const sharedText = searchParams.get('text');
     const sharedUrl = searchParams.get('url');
 
-    if (sharedTitle || sharedText || sharedUrl) {
-      let combined = '';
-      if (sharedTitle) combined += sharedTitle + '\n';
-      if (sharedText) combined += sharedText + '\n';
-      if (sharedUrl) combined += sharedUrl;
-      
-      combined = combined.trim();
-      
-      if (combined) {
-        setIncomingShareText(combined);
-        // Remove query parameters from address bar to avoid re-triggering on refresh
-        const newUrl = window.location.origin + window.location.pathname;
-        window.history.replaceState({}, document.title, newUrl);
+    if (isShared || sharedTitle || sharedText || sharedUrl) {
+      // Force switch to user-board so user can see and submit the post
+      setActiveBoardId('user-board');
+
+      if (sharedTitle || sharedText || sharedUrl) {
+        let combined = '';
+        if (sharedTitle) combined += sharedTitle + '\n';
+        if (sharedText) combined += sharedText + '\n';
+        if (sharedUrl) combined += sharedUrl;
+        
+        combined = combined.trim();
+        
+        if (combined) {
+          localStorage.setItem('shared_incoming_post', combined);
+        }
       }
+
+      // Dispatch custom event to notify UploadPost to grab shared content (from caches or localStorage)
+      setTimeout(() => {
+        window.dispatchEvent(new Event('check_shared_post'));
+      }, 300);
+
+      // Remove query parameters from address bar to avoid re-triggering on refresh
+      const newUrl = window.location.origin + window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
     }
   }, []);
 
@@ -214,6 +226,7 @@ export default function App() {
         user={user} 
         isAdmin={isAdmin} 
         currentBoard={currentBoard} 
+        activeBoardId={activeBoardId}
         boards={boards} 
         onSelectBoard={setActiveBoardId}
         globalSettings={globalSettings}
@@ -248,7 +261,7 @@ export default function App() {
 
       <main className="container mx-auto px-4 max-w-5xl">
 
-        <div className="sticky top-12 z-30 bg-natural-bg/95 backdrop-blur-sm pt-2 pb-1.5 border-b border-natural-border/20 mb-1">
+        <div className="sticky top-12 z-30 bg-natural-bg/95 backdrop-blur-sm pt-1.5 pb-0.5 border-b border-natural-border/20 mb-1">
           <BoardTabs 
             boards={boards} 
             activeBoardId={activeBoardId} 
@@ -313,19 +326,40 @@ export default function App() {
           /* Normal Access Allowed! */
           <>
             <AnimatePresence mode="wait">
-              {isAdmin && activeBoardId !== 'merged-app' && activeBoardId !== 'prompt-builder' && (
+              {(isAdmin || activeBoardId === 'user-board') && activeBoardId !== 'merged-app' && activeBoardId !== 'prompt-builder' && (
                 <motion.div
                   initial={{ opacity: 0, y: -20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   key="admin-upload"
                 >
-                  <UploadPost activeBoardId={activeBoardId} activeBoardName={currentBoard?.name} />
+                  <UploadPost 
+                    activeBoardId={activeBoardId} 
+                    activeBoardName={activeBoardId === 'user-board' ? "لوحة المستخدم" : currentBoard?.name} 
+                  />
                 </motion.div>
               )}
             </AnimatePresence>
 
             <div className="mt-1.5">
+              {activeBoardId !== 'prompt-builder' && activeBoardId !== 'user-board' && activeBoardId !== null && currentBoard && (
+                <div className="mx-auto max-w-xl px-4 py-2.5 flex items-center justify-between border border-natural-border bg-white rounded-2xl shadow-xs mb-3 animate-fadeIn" dir="rtl">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">📂</span>
+                    <div className="text-right">
+                      <h2 className="text-xs font-black text-natural-text"> لوحة {currentBoard.name}</h2>
+                      <p className="text-[9px] font-bold text-natural-muted leading-tight">أنت تتصفح هذه اللوحة</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setActiveBoardId(null)}
+                    className="text-[10px] font-black text-natural-primary hover:underline bg-natural-secondary-bg px-2.5 py-1 rounded-xl cursor-pointer"
+                  >
+                    العودة للرئيسية 🏡
+                  </button>
+                </div>
+              )}
+
               {activeBoardId === 'prompt-builder' ? (
                 <PromptBuilder />
               ) : (

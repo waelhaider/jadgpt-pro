@@ -6,6 +6,7 @@ import PostCard from './PostCard';
 import { Loader2, CameraOff } from 'lucide-react';
 import { handleFirestoreError } from '../lib/error-handler';
 import { AnimatePresence } from 'motion/react';
+import { getLocalUserPostsIndexedDB } from '../lib/indexedDbService';
 
 interface FeedProps {
   isAdmin: boolean;
@@ -20,6 +21,57 @@ export default function Feed({ isAdmin, boardId, boards, onTestPrompt }: FeedPro
 
   useEffect(() => {
     setLoading(true);
+
+    if (boardId === 'user-board') {
+      const loadLocalPosts = async () => {
+        try {
+          const parsed = await getLocalUserPostsIndexedDB();
+          const mapped: Post[] = parsed.map((p: any) => ({
+            id: p.id,
+            text: p.text,
+            imageUrl: p.imageUrl,
+            imageUrls: p.imageUrls || (p.imageUrl ? [p.imageUrl] : []),
+            imageModels: p.imageModels || [],
+            imageCaptions: p.imageCaptions || [],
+            boardId: 'user-board',
+            authorId: p.authorId || 'local-user',
+            authorEmail: p.authorEmail || 'local-user@local.com',
+            isPinned: !!p.isPinned,
+            createdAt: {
+              toMillis: () => p.createdAtMillis || Date.now(),
+              toDate: () => new Date(p.createdAtMillis || Date.now()),
+              seconds: Math.floor((p.createdAtMillis || Date.now()) / 1000),
+              nanoseconds: 0,
+            } as any,
+          }));
+
+          mapped.sort((a, b) => {
+            const pinA = a.isPinned ? 1 : 0;
+            const pinB = b.isPinned ? 1 : 0;
+            if (pinA !== pinB) {
+              return pinB - pinA;
+            }
+            const timeA = a.createdAt?.toMillis() || 0;
+            const timeB = b.createdAt?.toMillis() || 0;
+            return timeB - timeA;
+          });
+
+          setPosts(mapped);
+          setLoading(false);
+        } catch (err) {
+          console.error(err);
+          setPosts([]);
+          setLoading(false);
+        }
+      };
+
+      loadLocalPosts();
+      window.addEventListener('reload_local_posts', loadLocalPosts);
+      return () => {
+        window.removeEventListener('reload_local_posts', loadLocalPosts);
+      };
+    }
+
     const postsCollection = collection(db, 'posts');
     
     const q = query(

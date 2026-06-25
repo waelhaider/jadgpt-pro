@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Post, OperationType, Board } from '../types';
-import { db } from '../lib/firebase';
+import { db, auth } from '../lib/firebase';
 import { doc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { MoreHorizontal, Trash2, Edit3, Check, X, Clock, Copy, Loader2, Image as ImageIcon, Plus, Sparkles, Pin } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -10,6 +10,8 @@ import { handleFirestoreError } from '../lib/error-handler';
 import { uploadPostImage, deletePostImage } from '../lib/upload-helper';
 import { movePostToRecycleBin } from '../lib/recycle-bin';
 import { getAccessToken, googleSignIn } from '../lib/auth';
+import { compressImage } from '../lib/imageCompressor';
+import { getLocalUserPostsIndexedDB, saveLocalUserPostsIndexedDB } from '../lib/indexedDbService';
 import Lightbox from "yet-another-react-lightbox";
 import Zoom from "yet-another-react-lightbox/plugins/zoom";
 
@@ -120,8 +122,31 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
     return rtlChar.test(val);
   };
 
+  const [currentUser, setCurrentUser] = useState<any>(auth.currentUser);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setCurrentUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
+
   const isPostFromAdmin = post.authorEmail === ADMIN_CONFIG.email;
-  const displayName = isPostFromAdmin ? ADMIN_CONFIG.displayName : post.authorEmail.split('@')[0];
+  const isLocalPost = post.boardId === 'user-board';
+
+  const displayEmailOrName = isLocalPost 
+    ? (currentUser?.email || post.authorEmail || 'local-user@local.com')
+    : (isPostFromAdmin ? ADMIN_CONFIG.displayName : post.authorEmail.split('@')[0]);
+
+  const personName = isLocalPost 
+    ? (currentUser?.displayName || (currentUser?.email || post.authorEmail || 'local-user@local.com').split('@')[0])
+    : (isPostFromAdmin ? ADMIN_CONFIG.displayName : post.authorEmail.split('@')[0]);
+
+  const avatarChar = isLocalPost 
+    ? (currentUser?.email || post.authorEmail || 'U').charAt(0).toUpperCase()
+    : (post.authorEmail || 'U').charAt(0).toUpperCase();
+
+  const displayName = displayEmailOrName;
 
   const boardName = post.boardId 
     ? boards.find(b => b.id === post.boardId)?.name || 'غير معروف'
@@ -143,6 +168,8 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
   
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   
+  const hasManagePermissions = isAdmin || isLocalPost;
+  
   const [isDeleting, setIsDeleting] = useState(false);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -150,9 +177,22 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
 
   const handleTogglePin = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!isAdmin) return;
+    if (!hasManagePermissions) return;
     try {
       setIsPinning(true);
+      if (isLocalPost) {
+        const parsed = await getLocalUserPostsIndexedDB();
+        const updated = parsed.map((p: any) => {
+          if (p.id === post.id) {
+            return { ...p, isPinned: !p.isPinned };
+          }
+          return p;
+        });
+        await saveLocalUserPostsIndexedDB(updated);
+        window.dispatchEvent(new Event('reload_local_posts'));
+        setIsPinning(false);
+        return;
+      }
       const isPinnedNewValue = !post.isPinned;
       await updateDoc(doc(db, 'posts', post.id), {
         isPinned: isPinnedNewValue,
@@ -329,6 +369,16 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
     const postPath = `posts/${post.id}`;
     
     try {
+      if (isLocalPost) {
+        const parsed = await getLocalUserPostsIndexedDB();
+        const filtered = parsed.filter((p: any) => p.id !== post.id);
+        await saveLocalUserPostsIndexedDB(filtered);
+        window.dispatchEvent(new Event('reload_local_posts'));
+        alert('تم حذف المنشور من لوحتك بنجاح! 🗑️');
+        setIsDeleting(false);
+        setShowDeleteConfirm(false);
+        return;
+      }
       const boardName = boards.find(b => b.id === post.boardId)?.name || 'غير معروف';
       await movePostToRecycleBin(post, boardName);
       alert('تم نقل المنشور إلى سلة المحذوفات بنجاح! 🗑️');
@@ -373,6 +423,50 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
     setStatus('جاري الحفظ...');
 
     try {
+      if (isLocalPost) {
+        setStatus('جاري حفظ التعديلات محلياً...');
+        const newUrls: string[] = [];
+        for (const file of newImages) {
+          const base64 = await compressImage(file);
+          newUrls.push(base64);
+        }
+
+        const remainingOldUrls = editedImageUrls.filter(url => !removedImageUrls.includes(url));
+        const finalImageUrls = [...remainingOldUrls, ...newUrls];
+        const finalImageModels = [...editedImageModels, ...newImageModels];
+        const finalImageCaptions = [...editedImageCaptions, ...newImageCaptions];
+
+        const parsed = await getLocalUserPostsIndexedDB();
+        const updated = parsed.map((p: any) => {
+          if (p.id === post.id) {
+            return {
+              ...p,
+              text: editedText.trim(),
+              imageUrls: finalImageUrls,
+              imageUrl: finalImageUrls.length > 0 ? finalImageUrls[0] : null,
+              imageModels: finalImageModels,
+              imageCaptions: finalImageCaptions,
+              boardId: editedBoardId,
+            };
+          }
+          return p;
+        });
+        
+        const isSaved = await saveLocalUserPostsIndexedDB(updated);
+        if (isSaved) {
+          window.dispatchEvent(new Event('reload_local_posts'));
+          alert('تم تحديث المنشور محلياً بنجاح! ✅');
+        }
+
+        setIsEditing(false);
+        setNewImages([]);
+        setNewPreviews([]);
+        setRemovedImageUrls([]);
+        setIsSaving(false);
+        setStatus('');
+        return;
+      }
+
       setStatus('جاري معالجة الصور...');
       const finalImageUrls = [...editedImageUrls];
       
@@ -522,36 +616,66 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
         <div className="flex items-center justify-between px-4 pt-4 pb-1" dir="rtl">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-natural-primary to-natural-muted border border-natural-border shadow-md">
-              {isPostFromAdmin ? (
+              {isPostFromAdmin && !isLocalPost ? (
                 <img src={ADMIN_CONFIG.photoUrl} alt={displayName} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
               ) : (
-                <span className="font-bold text-white uppercase">{post.authorEmail.charAt(0)}</span>
+                <span className="font-bold text-white uppercase">{avatarChar}</span>
               )}
             </div>
+            {/* حجم الايميل للمستخدم */}
             <div className="text-right">
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-bold text-natural-text">{displayName}</span>
+              <div className="flex items-center gap-1">
+                <span className={`${isLocalPost ? 'text-[10px] font-semibold break-all' : 'text-sm font-bold'} text-natural-text`}>{displayName}</span>
               </div>
               
-              {/* المسؤول ورمز التثبيت تحت الاسم لمنع التداخل */}
-              {(isPostFromAdmin || post.isPinned) && (
-                <div className="flex items-center gap-1.5 mt-0.5 mb-0.5">
-                  {isPostFromAdmin && (
-                    <span className="text-[10px] font-medium text-red-600 bg-red-50 px-1.5 py-0.5 rounded leading-none border border-red-100/40">
-                      المسؤول
-                    </span>
-                  )}
+              {isLocalPost ? (
+                <div className="flex flex-col gap-0.5 mt-0.5 mb-1">
+                  <div className="text-[10px] font-medium text-[#7A7C73] bg-natural-secondary-bg px-1.5 py-0.5 rounded leading-none border border-natural-border/30 w-fit">
+                    المسؤول: {personName}
+                  </div>
                   {post.isPinned && (
-                    <span className="flex items-center gap-1 text-[10px] font-medium text-red-600 bg-red-50 px-1.5 py-0.5 rounded leading-none border border-red-100/40">
+                    <span className="flex items-center gap-1 text-[10px] font-medium text-red-600 bg-red-50 px-1.5 py-0.5 rounded leading-none border border-red-100/40 w-fit">
                       <Pin size={10} className="fill-red-500 text-red-600 shrink-0 select-none" />
-                     مثبت
                     </span>
                   )}
                 </div>
+              ) : (
+                /* المسؤول ورمز التثبيت تحت الاسم لمنع التداخل */
+                (isPostFromAdmin || post.isPinned) && (
+                  <div className="flex items-center gap-1.5 mt-0.5 mb-1">
+                    {isPostFromAdmin && (
+                      <span className="text-[10px] font-medium text-red-600 bg-red-50 px-1.5 py-0.5 rounded leading-none border border-red-100/40">
+                        المسؤول
+                      </span>
+                    )}
+                    {post.isPinned && (
+                      <span className="flex items-center gap-1 text-[10px] font-medium text-red-600 bg-red-50 px-1.5 py-0.5 rounded leading-none border border-red-100/40">
+                        <Pin size={10} className="fill-red-500 text-red-600 shrink-0 select-none" />
+                     {/*كلمة مثبت كانت هنا*/}
+                      </span>
+                    )}
+                  </div>
+                )
               )}
 
               <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-natural-muted mt-0.5">
                 {(() => {
+                  if (isLocalPost && post.createdAtMillis) {
+                    const dateObj = new Date(post.createdAtMillis);
+                    const now = new Date();
+                    const diffTime = Math.abs(now.getTime() - dateObj.getTime());
+                    const diffDays = diffTime / (1000 * 60 * 60 * 24);
+                    
+                    if (diffDays > 3) {
+                      const day = String(dateObj.getDate()).padStart(2, '0');
+                      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                      const year = dateObj.getFullYear();
+                      return `${day}/${month}/${year}`;
+                    }
+                    
+                    return formatDistanceToNow(dateObj, { addSuffix: true, locale: ar });
+                  }
+
                   if (!post.createdAt) return 'الآن';
                   const dateObj = post.createdAt.toDate();
                   const now = new Date();
@@ -566,12 +690,12 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                   }
                   
                   return formatDistanceToNow(dateObj, { addSuffix: true, locale: ar });
-                })()} • {boardName}
+                })()} • {isLocalPost ? 'لوحة المستخدم' : boardName}
               </div>
             </div>
           </div>
 
-          {isAdmin && (
+          {hasManagePermissions && (
             <div className="absolute top-3 left-3 flex gap-0.5 z-10">
               {showDeleteConfirm ? (
                 <div className="flex items-center gap-1 bg-red-50 rounded-lg px-2 py-0.5 animate-in fade-in slide-in-from-right-4 border border-red-200/40 shadow-xs">
@@ -629,7 +753,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
         </div>
 
         {/* Post Content */}
-        <div className="relative px-4 pb-4 pt-1 sm:px-5 sm:pb-5 sm:pt-1 text-right" dir="rtl">
+        <div className="relative px-3 pb-3 pt-1 sm:px-5 sm:pb-5 sm:pt-1 text-right" dir="rtl">
           {isEditing ? (
             <div className="space-y-4">
               <textarea
@@ -889,13 +1013,13 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                     {isTextExpanded ? 'عرض أقل ↑' : 'عرض المزيد ↓'}
                   </button>
                 ) : <div />}
-                <div className="flex items-center gap-1.5 relative">
+                <div className="flex items-center gap-1 relative">
                   <button 
                     onClick={handleTestPromptClick} 
-                    className="flex items-center gap-1 rounded-md bg-natural-primary/10 px-2.5 py-1 text-[10px] font-black text-natural-primary transition-all hover:bg-natural-primary hover:text-white"
+                    className="flex items-center gap-1 rounded-md bg-natural-primary/10 px-1 py-1 text-[10px] font-black text-natural-primary transition-all hover:bg-natural-primary hover:text-white"
                   >
                     <Sparkles size={11} className="text-natural-primary hover:text-white" />
-                    <span>تجريب البرومبت</span>
+                    <span>تجربة البرومبت</span>
                   </button>
 
                   <AnimatePresence>
@@ -1129,7 +1253,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
               )}
               {post.imageCaptions && post.imageCaptions[0] && (
                 <div className="absolute bottom-1 left-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1.5 py-0.5 backdrop-blur-xs select-text z-10" onClick={(e) => e.stopPropagation()}>
-                  <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '7px' }} dir="rtl">
+                  <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '5px' }} dir="rtl">
                     {post.imageCaptions[0]}
                   </p>
                 </div>
@@ -1153,7 +1277,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                   )}
                   {post.imageCaptions && post.imageCaptions[i] && (
                     <div className="absolute bottom-1 left-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1.5 py-0.5 backdrop-blur-xs select-text z-10" onClick={(e) => e.stopPropagation()}>
-                      <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '7px' }} dir="rtl">
+                      <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '5px' }} dir="rtl">
                         {post.imageCaptions[i]}
                       </p>
                     </div>
@@ -1177,7 +1301,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                 )}
                 {post.imageCaptions && post.imageCaptions[0] && (
                   <div className="absolute bottom-1 left-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1.5 py-0.5 backdrop-blur-xs select-text z-10" onClick={(e) => e.stopPropagation()}>
-                    <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '7px' }} dir="rtl">
+                    <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '5px' }} dir="rtl">
                       {post.imageCaptions[0]}
                     </p>
                   </div>
@@ -1200,7 +1324,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                       )}
                       {post.imageCaptions && post.imageCaptions[actualIndex] && (
                         <div className="absolute bottom-1 left-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1.5 py-0.5 backdrop-blur-xs select-text z-10" onClick={(e) => e.stopPropagation()}>
-                          <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '7px' }} dir="rtl">
+                          <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '5px' }} dir="rtl">
                             {post.imageCaptions[actualIndex]}
                           </p>
                         </div>
@@ -1228,7 +1352,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                   )}
                   {post.imageCaptions && post.imageCaptions[i] && (
                     <div className="absolute bottom-1 left-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1.5 py-0.5 backdrop-blur-xs select-text z-10" onClick={(e) => e.stopPropagation()}>
-                      <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '7px' }} dir="rtl">
+                      <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '5px' }} dir="rtl">
                         {post.imageCaptions[i]}
                       </p>
                     </div>
