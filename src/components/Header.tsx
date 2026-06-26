@@ -77,7 +77,7 @@ export default function Header({
       setIframeLoginError('');
       const res = await googleSignIn();
       if (res) {
-        alert('تم تسجيل الدخول بنجاح عبر حساب غوغل! 🎉');
+        alert('تم تسجيل الدخول بنجاح بحساب غوغل');
         window.location.reload();
       }
       setIsSidebarOpen(false);
@@ -262,7 +262,7 @@ export default function Header({
   return (
     <>
       <header className="sticky top-0 z-40 w-full border-b border-natural-border bg-white/80 backdrop-blur-md shadow-sm shrink-0">
-        <div className="mx-auto flex h-12 max-w-5xl items-center justify-between px-6 relative">
+        <div className="mx-auto flex h-12 max-w-5xl items-center justify-between px-2 relative">
           
           {/* Left Side: Settings Menu Button */}
           <button 
@@ -356,7 +356,7 @@ export default function Header({
                     >
                       <span className="flex items-center gap-2">
                         <span className="text-lg">🏡</span>
-                        <span>الرئيسية (عام)</span>
+                        <span> الرئيسية</span>
                       </span>
                       {currentBoard === undefined && activeBoardId !== 'prompt-builder' && activeBoardId !== 'user-board' && (
                         <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
@@ -439,9 +439,9 @@ export default function Header({
                           <p className="text-xs text-natural-muted">{user.email}</p>
                         </div>
                         {isAdmin && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-natural-primary/10 px-1 py-1 text-[10px] font-bold uppercase tracking-wider text-natural-primary">
-                            <ShieldCheck size={12} /> المسؤول
-                          </span>
+                         <span className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-[#e6f4ea] text-[#137333]">
+                         <ShieldCheck size={12} /> المسؤول
+                         </span>
                         )}
                       </div>
 
@@ -600,7 +600,7 @@ export default function Header({
                         onClick={handleLogin}
                         className="flex w-full items-center justify-center gap-2 rounded-xl bg-natural-primary p-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-[#4A4A35] active:scale-95"
                       >
-                        <LogIn size={18} />
+                        <LogIn size={16} />
                         تسجيل الدخول عبر غوغل
                       </button>
 
@@ -626,7 +626,7 @@ export default function Header({
 
                 {/* Sidebar Footer */}
                 <div className="p-6 text-center border-t border-natural-border">
-                  <p className="text-[10px] text-natural-muted uppercase tracking-widest">JADGPT CMS v1.0</p>
+                  <p className="text-[10px] text-natural-muted uppercase tracking-widest">JADGPT CMS v1.7</p>
                 </div>
               </div>
             </motion.div>
@@ -680,7 +680,7 @@ export default function Header({
 
               <div className="space-y-3 mb-6">
                 <p className="text-xs text-natural-text leading-relaxed font-bold">
-                  هل أنت متأكد تماماً من نقل لوحة <span className="font-black text-red-600 bg-red-50 px-1.5 py-0.5 rounded">"{boardToDelete.name}"</span> مع جميع منشوراتها ورسائلها المرتبطة بها ونقلها إلى سلة المحذوفات؟
+                  هل أنت متأكد من نقل لوحة <span className="font-black text-red-600 bg-red-50 px-1.5 py-0.5 rounded">"{boardToDelete.name}"</span> مع جميع منشوراتها ونقلها إلى سلة المحذوفات؟
                 </p>
                 <p className="text-[10px] text-natural-muted leading-relaxed font-medium">
                   * سيتم نقل اللوحة مع جميع محتوياتها مؤقتاً إلى سلة المحذوفات ويمكنك استعادتها من هناك لاحقاً إذا أردت.
@@ -854,7 +854,7 @@ export default function Header({
                         setIframeLoginError('');
                         const res = await googleSignIn();
                         if (res) {
-                          setIframeLoginSuccess('تم تسجيل الدخول بنجاح عبر حساب Google! جاري تحويلك...');
+                          setIframeLoginSuccess('تم تسجيل الدخول بنجاح عبر حساب Google!');
                           setTimeout(() => {
                             window.location.reload();
                           }, 500);

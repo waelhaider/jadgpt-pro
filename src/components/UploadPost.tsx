@@ -389,21 +389,21 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
   return (
     <div className="mx-auto mt-1 w-full max-w-xl">
       <div className="overflow-hidden rounded-2xl border border-natural-border bg-white shadow-[0_4px_12px_rgba(90,90,64,0.05)]">
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6 text-right">
+        <form onSubmit={handleSubmit} className="p-3 sm:p-3 text-right">
           {isAdmin && (
-            <div className="mb-4 flex items-center justify-between rounded-xl bg-natural-bg/55 p-3 border border-natural-border/30" dir="rtl">
+            <div className="mb-2 flex items-center justify-between rounded-xl bg-natural-bg/55 p-1 border border-natural-border/30" dir="rtl">
               <div className="flex items-center gap-1.5">
-                <span className="text-xs text-natural-primary font-black">تحديد لوحة النشر:</span>
+                <span className="text-[13px] text-[#d93025] font-normal">تحديد لوحة النشر:</span>
                 <select
                   value={targetBoardId === null ? 'main-feed' : targetBoardId}
                   onChange={(e) => {
                     const val = e.target.value;
                     setTargetBoardId(val === 'main-feed' ? null : val);
                   }}
-                  className="rounded-lg border border-natural-border/65 bg-white px-2 py-1 text-xs font-bold text-natural-text focus:outline-none focus:ring-1 focus:ring-natural-primary cursor-pointer"
+                  className="rounded-lg border border-natural-border/65 bg-white px-0.5 py-0.5 text-xs font-bold text-natural-text focus:outline-none focus:ring-1 focus:ring-natural-primary cursor-pointer"
                 >
-                  <option value="user-board">لوحة المستخدم الخاصة بك (حفظ محلي)</option>
-                  <option value="main-feed">الرئيسية (عام)</option>
+                  <option value="user-board">لوحة المستخدم</option>
+                  <option value="main-feed">الرئيسية</option>
                   {boards && boards.map((b) => (
                     <option key={b.id} value={b.id}>
                       {b.name}
@@ -411,9 +411,8 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
                   ))}
                 </select>
               </div>
-              <span className="text-[10px] text-green-700 bg-green-50 border border-green-200/50 px-2 py-0.5 rounded-md font-bold">
-                خيارات المسؤول 👑
-              </span>
+              
+              
             </div>
           )}
 
@@ -437,23 +436,18 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
               </div>
             </div>
           )}
-          <div className="flex gap-4">
-            <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-full border border-natural-border bg-[#E8EAE3] shadow-md">
-              <img src={ADMIN_CONFIG.photoUrl} alt="Admin" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-            </div>
-            <div className="flex-1">
-              <textarea
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder={`النشر في لوحة: ${getTargetBoardName()}...`}
-                className="w-full resize-none rounded-xl border-none bg-natural-bg p-3 text-sm font-medium text-natural-text placeholder-[#A1A18E] focus:ring-1 focus:ring-natural-primary"
-                rows={3}
-                dir={isRtl(text) ? 'rtl' : 'ltr'}
-                style={{ textAlign: isRtl(text) ? 'right' : 'left' }}
-                disabled={loading}
-              />
-            </div>
-          </div>
+        <div className="w-full">
+  <textarea
+    value={text}
+    onChange={(e) => setText(e.target.value)}
+    placeholder={`النشر في لوحة : ${getTargetBoardName()}`}
+    className="w-full resize-none rounded-xl border-none bg-natural-bg p-3 text-sm font-medium text-natural-text placeholder-[#A1A18E] focus:ring-1 focus:ring-natural-primary"
+    rows={3}
+    dir={isRtl(text) ? 'rtl' : 'ltr'}
+    style={{ textAlign: isRtl(text) ? 'right' : 'left' }}
+    disabled={loading}
+  />
+</div>
 
           <AnimatePresence>
             {previews.length > 0 && (
@@ -484,7 +478,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
                         <span className="text-[10px] font-black text-[#4A4A35] select-none">العبارة التعريفية للصورة (اختياري):</span>
                         <input
                           type="text"
-                          placeholder="اكتب عبارة تعريفية لهذه الصورة..."
+                          placeholder="اكتب عبارة تعريفية لهذه الصورة"
                           value={imageCaptions[index] || ''}
                           onChange={(e) => {
                             const updated = [...imageCaptions];
