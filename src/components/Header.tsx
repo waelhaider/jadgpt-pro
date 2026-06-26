@@ -286,7 +286,7 @@ export default function Header({
                   }}
                 />
               </div>
-              <h1 className="text-lg sm:text-xl font-black tracking-tight text-[#4A4A35]">
+              <h1 className="text-lg sm:text-xl font-black tracking-tight text-[#15803d]">
                 JADGPT
               </h1>
             </div>

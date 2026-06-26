@@ -13,7 +13,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
   // Intercept the Share Target POST request
-  if (event.request.method === 'POST' && url.pathname === '/share-target') {
+  if (event.request.method === 'POST' && url.pathname === '/share') {
     event.respondWith(
       (async () => {
         try {
@@ -22,8 +22,8 @@ self.addEventListener('fetch', (event) => {
           const text = formData.get('text') || '';
           const urlParam = formData.get('url') || '';
           
-          // Get shared files (images). The name attribute in manifest.json is "images"
-          const files = formData.getAll('images');
+          // Get shared files (images). The name attribute in manifest.json is "media"
+          const files = formData.getAll('media');
           
           const cache = await caches.open('shared-data');
           
