@@ -336,6 +336,7 @@ export default function App() {
                   <UploadPost 
                     activeBoardId={activeBoardId} 
                     activeBoardName={activeBoardId === 'user-board' ? "لوحة المستخدم" : currentBoard?.name} 
+                    boards={boards}
                   />
                 </motion.div>
               )}
