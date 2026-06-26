@@ -16,9 +16,10 @@ interface UploadPostProps {
   activeBoardId: string | null;
   activeBoardName?: string;
   boards?: Board[];
+  onUploadSuccess?: (boardId: string | null) => void;
 }
 
-export default function UploadPost({ activeBoardId, activeBoardName, boards = [] }: UploadPostProps) {
+export default function UploadPost({ activeBoardId, activeBoardName, boards = [], onUploadSuccess }: UploadPostProps) {
   const [text, setText] = useState('');
   const [targetBoardId, setTargetBoardId] = useState<string | null>(activeBoardId);
 
@@ -256,6 +257,9 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
           setImageCaptions([]);
           setStatus('');
           window.dispatchEvent(new Event('reload_local_posts'));
+          if (onUploadSuccess) {
+            onUploadSuccess('user-board');
+          }
           alert('تم الحفظ والنشر في لوحتك الشخصية بنجاح! 🎉');
         }
       } catch (err: any) {
@@ -349,6 +353,9 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
       try {
         const docRef = await addDoc(collection(db, postsPath), payload);
         console.log('[UploadPost] Success! Doc ID:', docRef.id);
+        if (onUploadSuccess) {
+          onUploadSuccess(targetBoardId);
+        }
       } catch (err) {
         console.error('[UploadPost] Firestore Save Internal Error:', err);
         handleFirestoreError(err, OperationType.CREATE, postsPath);

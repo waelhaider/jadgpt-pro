@@ -15,6 +15,30 @@ import { getLocalUserPostsIndexedDB, saveLocalUserPostsIndexedDB } from '../lib/
 import Lightbox from "yet-another-react-lightbox";
 import Zoom from "yet-another-react-lightbox/plugins/zoom";
 
+function renderTextWithLinks(text: string) {
+  if (!text) return '';
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+  const parts = text.split(urlRegex);
+  return parts.map((part, i) => {
+    if (part.match(urlRegex)) {
+      const href = part.toLowerCase().startsWith('www.') ? `https://${part}` : part;
+      return (
+        <a
+          key={i}
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:underline break-all font-semibold inline cursor-pointer"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+}
+
 function ImageModelBadge({ modelName, slideSrc }: { modelName: string; slideSrc: string }) {
   const [imgRect, setImgRect] = useState<{ bottom: number; left: number; width: number } | null>(null);
 
@@ -1004,7 +1028,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                   dir={isRtl(post.text) ? 'rtl' : 'ltr'}
                   style={{ textAlign: isRtl(post.text) ? 'right' : 'left' }}
                 >
-                  {post.text}
+                  {renderTextWithLinks(post.text)}
                 </p>
               </div>
               <div className="mt-2 flex items-center justify-between">

@@ -7,9 +7,10 @@ interface BoardTabsProps {
   activeBoardId: string | null;
   onSelectBoard: (boardId: string | null) => void;
   postCounts: Record<string, number>;
+  lastDynamicBoardId?: string | null;
 }
 
-export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCounts }: BoardTabsProps) {
+export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCounts, lastDynamicBoardId }: BoardTabsProps) {
   const [localCount, setLocalCount] = React.useState(0);
   React.useEffect(() => {
     const updateLocalCount = async () => {
@@ -31,15 +32,22 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
     onSelectBoard(boardId);
   };
 
+  const dynamicBoard = lastDynamicBoardId ? boards.find(b => b.id === lastDynamicBoardId) : null;
+  
+  // Responsive text sizes depending on whether we have 3 or 4 tabs
+  const buttonTextClass = dynamicBoard
+    ? 'text-[11.5px] sm:text-[13px] md:text-[14px] px-0.5 py-0.5 sm:py-1 font-bold'
+    : 'text-[13.5px] sm:text-[14.5px] md:text-[15.5px] px-1 py-0.5 sm:py-1 font-bold';
+
   return (
-    <div className="w-full max-w-xl mx-auto py-1.5 select-none px-2" dir="rtl">
-      <div className="grid grid-cols-3 gap-2 w-full">
+    <div className="w-full max-w-xl mx-auto py-0.5 select-none px-2" dir="rtl">
+      <div className={`grid ${dynamicBoard ? 'grid-cols-4' : 'grid-cols-3'} gap-2 w-full`}>
         {/* 1. صانع البرومبت */}
         <button
           onClick={() => handleTabClick('prompt-builder')}
-          className={`relative flex items-center justify-center rounded-full px-1 py-1 text-[12px] sm:text-[13px] md:text-[14px] font-normal transition-all shadow-xs cursor-pointer ${
+          className={`relative flex items-center justify-center rounded-full transition-all shadow-xs cursor-pointer ${buttonTextClass} ${
             activeBoardId === 'prompt-builder'
-              ? 'bg-natural-primary text-white scale-[1.03] shadow-sm'
+              ? 'bg-orange-50 text-orange-700 border border-orange-300/80 scale-[1.03] shadow-xs'
               : 'bg-white text-natural-text hover:bg-natural-secondary-bg border border-natural-border/30'
           }`}
         >
@@ -49,9 +57,9 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
         {/* 2. لوحة المستخدم */}
         <button
           onClick={() => handleTabClick('user-board')}
-          className={`relative flex items-center justify-center rounded-full px-1 py-1 text-[12px] sm:text-[13px] md:text-[14px] font-normal transition-all shadow-xs cursor-pointer ${
+          className={`relative flex items-center justify-center rounded-full transition-all shadow-xs cursor-pointer ${buttonTextClass} ${
             activeBoardId === 'user-board'
-              ? 'bg-natural-primary text-white scale-[1.03] shadow-sm'
+              ? 'bg-orange-50 text-orange-700 border border-orange-300/80 scale-[1.03] shadow-xs'
               : 'bg-white text-natural-text hover:bg-natural-secondary-bg border border-natural-border/30'
           }`}
         >
@@ -66,19 +74,38 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
         {/* 3. الرئيسية */}
         <button
           onClick={() => handleTabClick(null)}
-          className={`relative flex items-center justify-center rounded-full px-1 py-1 text-[13px] sm:text-[13px] md:text-[14px] font-normal transition-all shadow-xs cursor-pointer ${
+          className={`relative flex items-center justify-center rounded-full transition-all shadow-xs cursor-pointer ${buttonTextClass} ${
             activeBoardId === null
-              ? 'bg-natural-primary text-white scale-[1.03] shadow-sm'
+              ? 'bg-orange-50 text-orange-700 border border-orange-300/80 scale-[1.03] shadow-xs'
               : 'bg-white text-natural-text hover:bg-natural-secondary-bg border border-natural-border/30'
           }`}
         >
           <span>الرئيسية</span>
           {postCounts['null'] > 0 && (
-            <span className="absolute -top-1 -left-1 flex h-5 w-5 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-red-500 text-[9px] sm:text-[10px] font-normal text-white border border-white shadow-xs">
+            <span className="absolute -top-1 -left-1 flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-red-500 text-[9px] sm:text-[10px] font-normal text-white border border-white shadow-xs">
               {postCounts['null']}
             </span>
           )}
         </button>
+
+        {/* 4. التبويب الديناميكي (النشط حالياً أو المختار مؤخراً) */}
+        {dynamicBoard && (
+          <button
+            onClick={() => handleTabClick(dynamicBoard.id)}
+            className={`relative flex items-center justify-center rounded-full transition-all shadow-xs cursor-pointer ${buttonTextClass} ${
+              activeBoardId === dynamicBoard.id
+                ? 'bg-orange-50 text-orange-700 border border-orange-300/80 scale-[1.03] shadow-xs'
+                : 'bg-[#FCFAF2] text-natural-text hover:bg-[#F5F2E6] border border-natural-primary/20'
+            }`}
+          >
+            <span className="truncate">{dynamicBoard.name}</span>
+            {postCounts[dynamicBoard.id] > 0 && (
+              <span className="absolute -top-1 -left-1 flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-red-500 text-[9px] sm:text-[10px] font-normal text-white border border-white shadow-xs">
+                {postCounts[dynamicBoard.id]}
+              </span>
+            )}
+          </button>
+        )}
       </div>
     </div>
   );

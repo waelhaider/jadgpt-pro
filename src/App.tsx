@@ -28,6 +28,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [boards, setBoards] = useState<Board[]>([]);
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
+  const [lastDynamicBoardId, setLastDynamicBoardId] = useState<string | null>(null);
   const [postCounts, setPostCounts] = useState<Record<string, number>>({});
   const [incomingShareText, setIncomingShareText] = useState<string | null>(null);
 
@@ -151,6 +152,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (activeBoardId !== null && activeBoardId !== 'user-board' && activeBoardId !== 'prompt-builder' && activeBoardId !== 'merged-app') {
+      setLastDynamicBoardId(activeBoardId);
+    }
+  }, [activeBoardId]);
+
+  useEffect(() => {
     const unsubscribe = initAuth(
       (currentUser) => {
         setUser(currentUser as any);
@@ -267,6 +274,7 @@ export default function App() {
             activeBoardId={activeBoardId} 
             onSelectBoard={setActiveBoardId} 
             postCounts={postCounts}
+            lastDynamicBoardId={lastDynamicBoardId}
           />
         </div>
 
@@ -337,6 +345,11 @@ export default function App() {
                     activeBoardId={activeBoardId} 
                     activeBoardName={activeBoardId === 'user-board' ? "لوحة المستخدم" : currentBoard?.name} 
                     boards={boards}
+                    onUploadSuccess={(boardId) => {
+                      if (boardId !== undefined) {
+                        setActiveBoardId(boardId);
+                      }
+                    }}
                   />
                 </motion.div>
               )}
