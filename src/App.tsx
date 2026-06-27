@@ -362,7 +362,7 @@ export default function App() {
                     <span className="text-base">📂</span>
                     <div className="text-right">
                       <h2 className="text-xs font-black text-natural-text"> لوحة {currentBoard.name}</h2>
-                      <p className="text-[9px] font-bold text-natural-muted leading-tight">أنت تتصفح هذه اللوحة</p>
+                      <p className="text-[9px] font-normal text-natural-muted leading-tight">أنت تتصفح هذه اللوحة</p>
                     </div>
                   </div>
                   <button 
@@ -424,7 +424,7 @@ export default function App() {
 
               <div className="flex-1 overflow-y-auto mb-5 space-y-3">
                 <p className="text-xs text-natural-muted font-bold">
-                  لقد استقبلنا النص التالي من قائمة المشاركة الخارجية بجهازك. اختر أين تود توجيهه:
+                  لقد استقبلنا النص التالي من مشاركة خارجية . اختر أين تود توجيهه:
                 </p>
                 <div className="border border-neutral-100 bg-[#FAF9F5] p-4 rounded-2xl text-xs leading-relaxed font-mono whitespace-pre-wrap text-[#4A4A35] max-h-48 overflow-y-auto shadow-inner text-right">
                   {incomingShareText}

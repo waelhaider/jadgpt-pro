@@ -36,19 +36,19 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
   
   // Responsive text sizes depending on whether we have 3 or 4 tabs
   const buttonTextClass = dynamicBoard
-    ? 'text-[11.5px] sm:text-[13px] md:text-[14px] px-0.5 py-0.5 sm:py-1 font-bold'
-    : 'text-[13.5px] sm:text-[14.5px] md:text-[15.5px] px-1 py-0.5 sm:py-1 font-bold';
+    ? 'text-[13.5px] sm:text-[14px] md:text-[15px] px-0.1 py-0.5 sm:py-1 font-normal'
+    : 'text-[14.5px] sm:text-[15.5px] md:text-[16.5px] px-1 py-0.5 sm:py-1 font-normal';
 
   return (
-    <div className="w-full max-w-xl mx-auto py-0.5 select-none px-2" dir="rtl">
-      <div className={`grid ${dynamicBoard ? 'grid-cols-4' : 'grid-cols-3'} gap-2 w-full`}>
+    <div className="w-full max-w-xl mx-auto py-0.5 select-none px-0.5" dir="rtl">
+      <div className={`grid ${dynamicBoard ? 'grid-cols-4' : 'grid-cols-3'} gap-1 w-full`}>
         {/* 1. صانع البرومبت */}
         <button
           onClick={() => handleTabClick('prompt-builder')}
           className={`relative flex items-center justify-center rounded-full transition-all shadow-xs cursor-pointer ${buttonTextClass} ${
             activeBoardId === 'prompt-builder'
               ? 'bg-orange-50 text-orange-700 border border-orange-300/80 scale-[1.03] shadow-xs'
-              : 'bg-white text-natural-text hover:bg-natural-secondary-bg border border-natural-border/30'
+              : 'bg-white text-natural-text hover:bg-natural-secondary-bg border border-[#B5B8AB]'
           }`}
         >
           صانع البرومبت
@@ -60,7 +60,7 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
           className={`relative flex items-center justify-center rounded-full transition-all shadow-xs cursor-pointer ${buttonTextClass} ${
             activeBoardId === 'user-board'
               ? 'bg-orange-50 text-orange-700 border border-orange-300/80 scale-[1.03] shadow-xs'
-              : 'bg-white text-natural-text hover:bg-natural-secondary-bg border border-natural-border/30'
+              : 'bg-white text-natural-text hover:bg-natural-secondary-bg border border-[#B5B8AB]'
           }`}
         >
           <span>لوحة المستخدم</span>
@@ -77,7 +77,7 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
           className={`relative flex items-center justify-center rounded-full transition-all shadow-xs cursor-pointer ${buttonTextClass} ${
             activeBoardId === null
               ? 'bg-orange-50 text-orange-700 border border-orange-300/80 scale-[1.03] shadow-xs'
-              : 'bg-white text-natural-text hover:bg-natural-secondary-bg border border-natural-border/30'
+              : 'bg-white text-natural-text hover:bg-natural-secondary-bg border border-[#B5B8AB]'
           }`}
         >
           <span>الرئيسية</span>
@@ -95,7 +95,7 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
             className={`relative flex items-center justify-center rounded-full transition-all shadow-xs cursor-pointer ${buttonTextClass} ${
               activeBoardId === dynamicBoard.id
                 ? 'bg-orange-50 text-orange-700 border border-orange-300/80 scale-[1.03] shadow-xs'
-                : 'bg-[#FCFAF2] text-natural-text hover:bg-[#F5F2E6] border border-natural-primary/20'
+                : 'bg-[#FCFAF2] text-natural-text hover:bg-[#F5F2E6] border border-[#A2A598]'
             }`}
           >
             <span className="truncate">{dynamicBoard.name}</span>

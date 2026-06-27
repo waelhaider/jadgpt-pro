@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { auth, googleProvider } from '../lib/firebase';
 import { googleSignIn, emailSignIn, logout as authLogout, saveUserKeyToFirestore } from '../lib/auth';
 import { safeStorage } from '../lib/safe-storage';
 import { User } from 'firebase/auth';
-import { LogIn, LogOut, ShieldCheck, User as UserIcon, Menu, X, PlusCircle, Edit, LayoutGrid, Key, Trash2, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
+import { LogIn, LogOut, ShieldCheck, User as UserIcon, Menu, X, PlusCircle, Edit, LayoutGrid, Key, Trash2, ChevronDown, ChevronUp, AlertTriangle, Type } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Board } from '../types';
 import BoardModals from './BoardModals';
@@ -56,6 +56,40 @@ export default function Header({
   const [sidebarKey, setSidebarKey] = useState(safeStorage.getItem('user_gemini_api_key') || '');
   const [isEditingKey, setIsEditingKey] = useState(false);
   const [isRecycleBinOpen, setIsRecycleBinOpen] = useState(false);
+  
+  const [postFontSize, setPostFontSize] = useState<number>(() => {
+    const saved = localStorage.getItem('post_font_size');
+    return saved ? parseInt(saved, 10) : 14;
+  });
+  const [isTextSizeMenuOpen, setIsTextSizeMenuOpen] = useState(false);
+
+  const handleIncreaseFontSize = () => {
+    setPostFontSize(prev => {
+      const next = Math.min(28, prev + 1);
+      localStorage.setItem('post_font_size', String(next));
+      window.dispatchEvent(new CustomEvent('post_font_size_changed', { detail: { size: next } }));
+      return next;
+    });
+  };
+
+  const handleDecreaseFontSize = () => {
+    setPostFontSize(prev => {
+      const next = Math.max(10, prev - 1);
+      localStorage.setItem('post_font_size', String(next));
+      window.dispatchEvent(new CustomEvent('post_font_size_changed', { detail: { size: next } }));
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    const handleCloseMenus = () => {
+      setIsTextSizeMenuOpen(false);
+    };
+    window.addEventListener('click', handleCloseMenus);
+    return () => {
+      window.removeEventListener('click', handleCloseMenus);
+    };
+  }, []);
   
 
 
@@ -267,7 +301,7 @@ export default function Header({
           {/* Left Side: Settings Menu Button */}
           <button 
             onClick={() => setIsSidebarOpen(true)}
-            className="px-1 py-1 text-[12px] sm:text-xs md:text-sm font-bold text-[#1e3a8a] bg-[#e2e8f0] hover:bg-natural-secondary-bg rounded-lg border border-[#cbd5e1] shadow-xs transition-all z-10 cursor-pointer flex items-center justify-center h-8 whitespace-nowrap"
+            className="px-1 py-1 text-[12px] sm:text-xs md:text-sm font-bold text-[#15803d] bg-[#f0fdf4] hover:bg-[#dcfce7] hover:text-[#166534] hover:border-[#86efac] rounded-lg border border-[#15803d] shadow-xs transition-all z-10 cursor-pointer flex items-center justify-center h-8 whitespace-nowrap"
             title="الأدوات"
           >
             الأدوات
@@ -295,7 +329,7 @@ export default function Header({
           {/* Right Side: Boards Drawer Button */}
           <button 
             onClick={() => setIsBoardsDrawerOpen(true)}
-            className="px-1 py-1 text-[12px] sm:text-xs md:text-sm font-bold text-[#1e3a8a] bg-[#e2e8f0] hover:bg-natural-secondary-bg rounded-lg border border-[#cbd5e1] shadow-xs transition-all z-10 cursor-pointer flex items-center justify-center h-8 whitespace-nowrap"
+            className="px-1 py-1 text-[12px] sm:text-xs md:text-sm font-bold text-[#15803d] bg-[#f0fdf4] hover:bg-[#dcfce7] hover:text-[#166534] hover:border-[#86efac] rounded-lg border border-[#15803d] shadow-xs transition-all z-10 cursor-pointer flex items-center justify-center h-8 whitespace-nowrap"
             title="لوحات كاملة"
           >
             لوحات كاملة
@@ -460,16 +494,66 @@ export default function Header({
                             </div>
                           )}
 
-                          <button
-                            onClick={() => {
-                              setIsSidebarOpen(false);
-                              setIsTranslatorOpen(true);
-                            }}
-                            className="flex w-full items-center gap-3 p-3 rounded-xl hover:bg-natural-secondary-bg text-natural-text transition-colors border border-dashed border-natural-border hover:border-natural-primary"
-                          >
-                            <Edit size={18} className="text-natural-primary animate-pulse" />
-                            <span className="text-sm font-bold col-span-1">تعديل النص</span>
-                          </button>
+                          <div className="flex items-center justify-between gap-2 w-full">
+                            {/* Button 1: تعديل النص */}
+                            <button
+                              onClick={() => {
+                                setIsSidebarOpen(false);
+                                setIsTranslatorOpen(true);
+                              }}
+                              className="flex items-center gap-2 px-3 py-2.5 rounded-xl hover:bg-natural-secondary-bg text-natural-text transition-all border border-dashed border-natural-border hover:border-natural-primary text-xs font-bold cursor-pointer"
+                            >
+                              <Edit size={16} className="text-natural-primary animate-pulse" />
+                              <span className="whitespace-nowrap">تعديل النص</span>
+                            </button>
+
+                            {/* Button 2: حجم النصوص */}
+                            <div className="relative">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setIsTextSizeMenuOpen(!isTextSizeMenuOpen);
+                                }}
+                                className={`flex items-center gap-2 px-3 py-2.5 rounded-xl hover:bg-natural-secondary-bg text-natural-text transition-all border border-dashed hover:border-natural-primary text-xs font-bold cursor-pointer ${
+                                  isTextSizeMenuOpen ? 'border-natural-primary bg-natural-secondary-bg' : 'border-natural-border'
+                                }`}
+                              >
+                                <Type size={16} className="text-natural-primary" />
+                                <span className="whitespace-nowrap">حجم النصوص</span>
+                              </button>
+
+                              <AnimatePresence>
+                                {isTextSizeMenuOpen && (
+                                  <motion.div
+                                    initial={{ opacity: 0, scale: 0.95, y: 5 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.95, y: 5 }}
+                                    className="absolute left-0 mt-1.5 z-50 min-w-[130px] bg-white border border-natural-border rounded-xl shadow-md p-2 flex items-center justify-between gap-2"
+                                    onClick={(e) => e.stopPropagation()}
+                                    dir="ltr"
+                                  >
+                                    <button
+                                      onClick={handleDecreaseFontSize}
+                                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-neutral-100 hover:bg-neutral-200 text-natural-text font-black transition-colors cursor-pointer text-sm"
+                                      title="تصغير"
+                                    >
+                                      -
+                                    </button>
+                                    <span className="text-xs font-bold text-natural-text font-mono">
+                                      {postFontSize}px
+                                    </span>
+                                    <button
+                                      onClick={handleIncreaseFontSize}
+                                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-neutral-100 hover:bg-neutral-200 text-natural-text font-black transition-colors cursor-pointer text-sm"
+                                      title="تكبير"
+                                    >
+                                      +
+                                    </button>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </div>
+                          </div>
                         </div>
 
                         {isAdmin && (
@@ -607,16 +691,66 @@ export default function Header({
                       {/* Tool Button for Guests as well */}
                       <div className="w-full pt-6 border-t border-natural-border space-y-2">
                         <h4 className="text-[10px] text-natural-muted font-bold uppercase tracking-widest text-right">الأدوات العامة</h4>
-                        <button
-                          onClick={() => {
-                            setIsSidebarOpen(false);
-                            setIsTranslatorOpen(true);
-                          }}
-                          className="flex w-full items-center gap-3 p-3 rounded-xl hover:bg-natural-secondary-bg text-natural-text transition-colors border border-dashed border-natural-border hover:border-natural-primary"
-                        >
-                          <Edit size={18} className="text-natural-primary animate-pulse" />
-                          <span className="text-sm font-bold">تعديل النص</span>
-                        </button>
+                        <div className="flex items-center justify-between gap-2 w-full">
+                          {/* Button 1: تعديل النص */}
+                          <button
+                            onClick={() => {
+                              setIsSidebarOpen(false);
+                              setIsTranslatorOpen(true);
+                            }}
+                            className="flex items-center gap-2 px-3 py-2.5 rounded-xl hover:bg-natural-secondary-bg text-natural-text transition-all border border-dashed border-natural-border hover:border-natural-primary text-xs font-bold cursor-pointer"
+                          >
+                            <Edit size={16} className="text-natural-primary animate-pulse" />
+                            <span className="whitespace-nowrap">تعديل النص</span>
+                          </button>
+
+                          {/* Button 2: حجم النصوص */}
+                          <div className="relative">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setIsTextSizeMenuOpen(!isTextSizeMenuOpen);
+                              }}
+                              className={`flex items-center gap-2 px-3 py-2.5 rounded-xl hover:bg-natural-secondary-bg text-natural-text transition-all border border-dashed hover:border-natural-primary text-xs font-bold cursor-pointer ${
+                                isTextSizeMenuOpen ? 'border-natural-primary bg-natural-secondary-bg' : 'border-natural-border'
+                              }`}
+                            >
+                              <Type size={16} className="text-natural-primary" />
+                              <span className="whitespace-nowrap">حجم النصوص</span>
+                            </button>
+
+                            <AnimatePresence>
+                              {isTextSizeMenuOpen && (
+                                <motion.div
+                                  initial={{ opacity: 0, scale: 0.95, y: 5 }}
+                                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                                  exit={{ opacity: 0, scale: 0.95, y: 5 }}
+                                  className="absolute left-0 mt-1.5 z-50 min-w-[130px] bg-white border border-natural-border rounded-xl shadow-md p-2 flex items-center justify-between gap-2"
+                                  onClick={(e) => e.stopPropagation()}
+                                  dir="ltr"
+                                >
+                                  <button
+                                    onClick={handleDecreaseFontSize}
+                                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-neutral-100 hover:bg-neutral-200 text-natural-text font-black transition-colors cursor-pointer text-sm"
+                                    title="تصغير"
+                                  >
+                                    -
+                                  </button>
+                                  <span className="text-xs font-bold text-natural-text font-mono">
+                                    {postFontSize}px
+                                  </span>
+                                  <button
+                                    onClick={handleIncreaseFontSize}
+                                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-neutral-100 hover:bg-neutral-200 text-natural-text font-black transition-colors cursor-pointer text-sm"
+                                    title="تكبير"
+                                  >
+                                    +
+                                  </button>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        </div>
                       </div>
 
                       {renderApiKeySection()}

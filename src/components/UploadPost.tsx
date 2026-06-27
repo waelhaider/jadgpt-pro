@@ -74,7 +74,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
       if (sharedText) {
         setText(sharedText);
         localStorage.removeItem('shared_incoming_post');
-        alert('📥 تم جلب النص المشارك بنجاح إلى حقل كتابة المنشور! ✍️');
+        alert('تم جلب النص بنجاح إلى حقل كتابة المنشور! ✍️');
       }
 
       // 2. Check Cache Storage for PWA Web Share Target (images & metadata)
@@ -120,7 +120,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
               await cache.delete('shared-file');
             }
             
-            alert('📥 تم جلب الصور والنصوص المشاركة بنجاح تلقائياً! 🎉');
+            alert('📥 تم جلب الصور والنصوص بنجاح');
           }
         } catch (err) {
           console.error('[PWA Share Target] Error checking cache:', err);
@@ -368,7 +368,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
       setSelectedModels([]);
       setImageCaptions([]);
       setStatus('');
-      alert('تم النشر ورفع الصور بكامل جودتها وابعادها الاصلية إلى Google Drive وحفظها بنجاح! 🎉');
+      alert('تم النشر ورفع الصور بكامل جودتهاإلى Google Drive وحفظها بنجاح! 🎉');
     } catch (error) {
       console.error('Final upload error track:', error);
       const msg = error instanceof Error ? error.message : String(error);
@@ -392,13 +392,13 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
     if (targetBoardId === null) return 'الرئيسية';
     return boards.find(b => b.id === targetBoardId)?.name || 'غير معروف';
   };
-
+   {/* كلاس لوحة النشر كاملا*/}
   return (
     <div className="mx-auto mt-1 w-full max-w-xl">
-      <div className="overflow-hidden rounded-2xl border border-natural-border bg-white shadow-[0_4px_12px_rgba(90,90,64,0.05)]">
+      <div className="overflow-hidden rounded-2xl border border-[#C1C3B8] bg-white shadow-[0_4px_12px_rgba(90,90,64,0.05)]">
         <form onSubmit={handleSubmit} className="p-3 sm:p-3 text-right">
           {isAdmin && (
-            <div className="mb-2 flex items-center justify-between rounded-xl bg-natural-bg/55 p-1 border border-natural-border/30" dir="rtl">
+            <div className="mb-2 flex items-center justify-between rounded-xl bg-natural-bg/55 p-1 border border-[#C1C3B8]" dir="rtl">
               <div className="flex items-center gap-1.5">
                 <span className="text-[13px] text-[#d93025] font-normal">تحديد لوحة النشر:</span>
                 <select
@@ -407,7 +407,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
                     const val = e.target.value;
                     setTargetBoardId(val === 'main-feed' ? null : val);
                   }}
-                  className="rounded-lg border border-natural-border/65 bg-white px-0.5 py-0.5 text-xs font-bold text-natural-text focus:outline-none focus:ring-1 focus:ring-natural-primary cursor-pointer"
+                  className="rounded-lg border border-[#C1C3B8] bg-white px-1.5 py-0.5 text-xs font-bold text-natural-text focus:outline-none focus:ring-1 focus:ring-natural-primary cursor-pointer"
                 >
                   <option value="user-board">لوحة المستخدم</option>
                   <option value="main-feed">الرئيسية</option>
@@ -447,8 +447,8 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
   <textarea
     value={text}
     onChange={(e) => setText(e.target.value)}
-    placeholder={`النشر في لوحة : ${getTargetBoardName()}`}
-    className="w-full resize-none rounded-xl border-none bg-natural-bg p-3 text-sm font-medium text-natural-text placeholder-[#A1A18E] focus:ring-1 focus:ring-natural-primary"
+    placeholder={` الصق النص للنشر في لوحة : ${getTargetBoardName()}`}
+    className="w-full resize-none rounded-xl border border-[#C1C3B8] bg-natural-bg px-2 py-4 text-sm font-medium text-natural-text placeholder-[#A1A18E] focus:ring-1 focus:ring-natural-primary"
     rows={3}
     dir={isRtl(text) ? 'rtl' : 'ltr'}
     style={{ textAlign: isRtl(text) ? 'right' : 'left' }}
@@ -462,7 +462,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                className="mt-4 grid grid-cols-2 gap-2"
+                className="mt-2 grid grid-cols-2 gap-2"
               >
                 {previews.map((prev, index) => {
                   const models = ['gpt-image-2', 'nano-banana2', 'wan 2.7', 'grok'];
@@ -485,7 +485,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
                         <span className="text-[10px] font-black text-[#4A4A35] select-none">العبارة التعريفية للصورة (اختياري):</span>
                         <input
                           type="text"
-                          placeholder="اكتب عبارة تعريفية لهذه الصورة"
+                          placeholder="اكتب تعريفاً لهذه الصورة"
                           value={imageCaptions[index] || ''}
                           onChange={(e) => {
                             const updated = [...imageCaptions];
@@ -532,7 +532,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
             )}
           </AnimatePresence>
 
-          <div className="mt-4 flex items-center justify-between border-t border-natural-border pt-4">
+          <div className="mt-1 flex items-center justify-between border-t border-natural-border pt-3">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}

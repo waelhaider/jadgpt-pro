@@ -176,6 +176,24 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
     ? boards.find(b => b.id === post.boardId)?.name || 'غير معروف'
     : 'عام';
   
+  const [fontSize, setFontSize] = useState<number>(() => {
+    const saved = localStorage.getItem('post_font_size');
+    return saved ? parseInt(saved, 10) : 14;
+  });
+
+  useEffect(() => {
+    const handleFontSizeChange = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && typeof customEvent.detail.size === 'number') {
+        setFontSize(customEvent.detail.size);
+      }
+    };
+    window.addEventListener('post_font_size_changed', handleFontSizeChange);
+    return () => {
+      window.removeEventListener('post_font_size_changed', handleFontSizeChange);
+    };
+  }, []);
+
   const [isEditing, setIsEditing] = useState(false);
   const [editedText, setEditedText] = useState(post.text);
   const [editedImageUrls, setEditedImageUrls] = useState<string[]>(post.imageUrls || (post.imageUrl ? [post.imageUrl] : []));
@@ -1021,12 +1039,15 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
               </div>
             </div>
           ) : (
-            <div className="group relative">
-              <div className={`cursor-pointer transition-all duration-300 ${!isTextExpanded ? 'line-clamp-3' : ''}`} onClick={() => setIsTextExpanded(!isTextExpanded)}>
+            <div className="group relative overflow-hidden max-w-full">
+              <div className={`cursor-pointer transition-all duration-300 ${!isTextExpanded ? 'line-clamp-3' : ''} overflow-hidden max-w-full`} onClick={() => setIsTextExpanded(!isTextExpanded)}>
                 <p 
-                  className="whitespace-pre-wrap text-sm leading-relaxed text-[#4A4A35]"
+                  className="whitespace-pre-wrap leading-relaxed text-[#4A4A35] break-words"
                   dir={isRtl(post.text) ? 'rtl' : 'ltr'}
-                  style={{ textAlign: isRtl(post.text) ? 'right' : 'left' }}
+                  style={{ 
+                    textAlign: isRtl(post.text) ? 'right' : 'left',
+                    fontSize: `${fontSize}px`
+                  }}
                 >
                   {renderTextWithLinks(post.text)}
                 </p>
