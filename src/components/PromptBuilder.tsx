@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, Copy, RefreshCw, Check, ArrowRight, UserPlus, Sliders, Eye, ChevronDown, Trash2, ArrowLeftRight, Plus, ExternalLink, Globe, X } from 'lucide-react';
 import { safeStorage } from '../lib/safe-storage';
 import { movePromptToRecycleBin } from '../lib/recycle-bin';
+import { showToast } from './Toast';
 
 interface CustomSelectorProps {
   label?: string;
@@ -143,6 +144,26 @@ export default function PromptBuilder() {
           const restoredOpts = localStorage.getItem('restored_prompt_options');
           if (restoredOpts) {
             const opts = JSON.parse(restoredOpts);
+            
+            // Set ignore flag and freeze selections with the restored options
+            ignoreAutoPrompt.current = true;
+            selectionSnapshot.current = {
+              aspectRatio: opts.aspectRatio || aspectRatio,
+              styleMode: opts.styleMode || styleMode,
+              shotType: opts.shotType || shotType,
+              shotAngle: opts.shotAngle || shotAngle,
+              gender: opts.gender || gender,
+              age: opts.age || age,
+              pose: opts.pose || pose,
+              outfit: opts.outfit || outfit,
+              expression: opts.expression || expression,
+              lighting: opts.lighting || lighting,
+              camera: opts.camera || camera,
+              outfitType: opts.outfitType || outfitType,
+              menOutfitSubCategory: opts.menOutfitSubCategory || menOutfitSubCategory,
+              womenOutfitSubCategory: opts.womenOutfitSubCategory || womenOutfitSubCategory
+            };
+
             if (opts.aspectRatio) setAspectRatio(opts.aspectRatio);
             if (opts.styleMode) setStyleMode(opts.styleMode);
             if (opts.shotType) setShotType(opts.shotType);
@@ -157,6 +178,10 @@ export default function PromptBuilder() {
             if (opts.outfitType) setOutfitType(opts.outfitType);
             if (opts.menOutfitSubCategory) setMenOutfitSubCategory(opts.menOutfitSubCategory);
             if (opts.womenOutfitSubCategory) setWomenOutfitSubCategory(opts.womenOutfitSubCategory);
+          } else {
+            // No options restored, just snapshot current ones
+            ignoreAutoPrompt.current = true;
+            selectionSnapshot.current = { ...currentSelectionsRef.current };
           }
         } catch (err) {
           console.error('Error restoring options:', err);
@@ -178,6 +203,26 @@ export default function PromptBuilder() {
         const restoredOpts = localStorage.getItem('restored_prompt_options');
         if (restoredOpts) {
           const opts = JSON.parse(restoredOpts);
+
+          // Set ignore flag and freeze selections with the restored options
+          ignoreAutoPrompt.current = true;
+          selectionSnapshot.current = {
+            aspectRatio: opts.aspectRatio || aspectRatio,
+            styleMode: opts.styleMode || styleMode,
+            shotType: opts.shotType || shotType,
+            shotAngle: opts.shotAngle || shotAngle,
+            gender: opts.gender || gender,
+            age: opts.age || age,
+            pose: opts.pose || pose,
+            outfit: opts.outfit || outfit,
+            expression: opts.expression || expression,
+            lighting: opts.lighting || lighting,
+            camera: opts.camera || camera,
+            outfitType: opts.outfitType || outfitType,
+            menOutfitSubCategory: opts.menOutfitSubCategory || menOutfitSubCategory,
+            womenOutfitSubCategory: opts.womenOutfitSubCategory || womenOutfitSubCategory
+          };
+
           if (opts.aspectRatio) setAspectRatio(opts.aspectRatio);
           if (opts.styleMode) setStyleMode(opts.styleMode);
           if (opts.shotType) setShotType(opts.shotType);
@@ -192,13 +237,17 @@ export default function PromptBuilder() {
           if (opts.outfitType) setOutfitType(opts.outfitType);
           if (opts.menOutfitSubCategory) setMenOutfitSubCategory(opts.menOutfitSubCategory);
           if (opts.womenOutfitSubCategory) setWomenOutfitSubCategory(opts.womenOutfitSubCategory);
+        } else {
+          // No options restored, just snapshot current ones
+          ignoreAutoPrompt.current = true;
+          selectionSnapshot.current = { ...currentSelectionsRef.current };
         }
       } catch (err) {
         console.error('Immediate restore options error:', err);
       }
       localStorage.removeItem('restored_prompt_text');
       localStorage.removeItem('restored_prompt_options');
-      alert('تم استرجاع النص والخيارات بنجاح إلى صانع البرومبت! ✍️');
+      showToast('تم استرجاع النص والخيارات بنجاح إلى صانع البرومبت! ✍️');
     }
 
     return () => {
@@ -211,9 +260,14 @@ export default function PromptBuilder() {
     const checkIncomingShare = () => {
       const shared = localStorage.getItem('shared_incoming_prompt');
       if (shared) {
+        // Freeze selection states to prevent auto-generation from wiping out this shared text
+        selectionSnapshot.current = { ...currentSelectionsRef.current };
+        ignoreAutoPrompt.current = true;
+
         setPromptText(shared);
+        setIsBuilderOpen(true);
         localStorage.removeItem('shared_incoming_prompt');
-        alert('📥 تم جلب النص المشارك بنجاح إلى صانع البرومبت! ✍️');
+        showToast('📥 تم جلب النص المشارك بنجاح إلى صانع البرومبت! ✍️');
       }
     };
 
@@ -317,6 +371,9 @@ export default function PromptBuilder() {
 
   // Is the custom prompt builder options & tools container open?
   const [isBuilderOpen, setIsBuilderOpen] = useState(false);
+  
+  // Track initial mount to prevent resetting promptText
+  const isInitialMount = React.useRef(true);
   
   // Custom states for adding new site
   const [newSiteUrl, setNewSiteUrl] = useState('');
@@ -434,6 +491,32 @@ export default function PromptBuilder() {
 
   // Women outfit subcategories: 'casual' (ملابس عصرية كاجوال), 'formal' (بليزر ورسمي أعمال), 'traditional' (فساتين ومناسبات)
   const [womenOutfitSubCategory, setWomenOutfitSubCategory] = useState<'casual' | 'formal' | 'traditional'>('casual');
+
+  // Snapshot/Lock refs to prevent auto-prompt from overwriting custom/shared/restored prompts
+  const ignoreAutoPrompt = React.useRef(false);
+  const selectionSnapshot = React.useRef<any>(null);
+
+  const currentSelections = {
+    aspectRatio,
+    styleMode,
+    shotType,
+    shotAngle,
+    gender,
+    age,
+    pose,
+    outfit,
+    expression,
+    lighting,
+    camera,
+    outfitType,
+    menOutfitSubCategory,
+    womenOutfitSubCategory
+  };
+
+  const currentSelectionsRef = React.useRef(currentSelections);
+  useEffect(() => {
+    currentSelectionsRef.current = currentSelections;
+  });
 
   // Helper variables for gender & age - automatically append "عام" if not written
   const cleanAge = age.trim();
@@ -610,6 +693,43 @@ ${outfitPrefix} :${displayOutfit}
 
   // Reset enhanced prompt and update textarea when any selection changes
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    if (ignoreAutoPrompt.current && selectionSnapshot.current) {
+      const current = {
+        aspectRatio,
+        styleMode,
+        shotType,
+        shotAngle,
+        gender,
+        age,
+        pose,
+        outfit,
+        expression,
+        lighting,
+        camera,
+        outfitType,
+        menOutfitSubCategory,
+        womenOutfitSubCategory
+      };
+
+      const hasChanged = Object.keys(current).some(
+        (key) => current[key as keyof typeof current] !== selectionSnapshot.current[key]
+      );
+
+      if (hasChanged) {
+        // The user manually interacted with the builder options, so we can stop ignoring changes
+        ignoreAutoPrompt.current = false;
+        selectionSnapshot.current = null;
+      } else {
+        // No changes to options, so we keep our custom imported text and don't overwrite it
+        return;
+      }
+    }
+
     if (isCleared) {
       setIsCleared(false);
       return;
@@ -634,7 +754,22 @@ ${outfitPrefix} :${displayOutfit}
       setPromptText(getStructuredPrompt());
     }
     setEnhancedPrompt(null);
-  }, [aspectRatio, styleMode, shotType, shotAngle, gender, age, pose, outfit, expression, lighting, camera]);
+  }, [
+    aspectRatio,
+    styleMode,
+    shotType,
+    shotAngle,
+    gender,
+    age,
+    pose,
+    outfit,
+    expression,
+    lighting,
+    camera,
+    outfitType,
+    menOutfitSubCategory,
+    womenOutfitSubCategory
+  ]);
 
   // Handle Clipboard Copy
   const handleCopyCustom = async (textToCopy: string, label: string) => {
@@ -1768,7 +1903,11 @@ ${originalPrompt}
             <div className="relative">
               <textarea
                 value={promptText}
-                onChange={(e) => setPromptText(e.target.value)}
+                onChange={(e) => {
+                  ignoreAutoPrompt.current = false;
+                  selectionSnapshot.current = null;
+                  setPromptText(e.target.value);
+                }}
                 placeholder="اكتب البرومبت هنا أو استخدم صانع البرومبت في الأعلى لإنشائه تلقائياً..."
                 className="w-full h-56 text-right rounded-2xl border border-natural-border bg-white px-4 py-3.5 text-xs font-medium text-natural-text leading-relaxed tracking-wide resize-y focus:outline-none focus:ring-1 focus:ring-natural-primary shadow-inner"
                 dir={isRtl(promptText) ? 'rtl' : 'ltr'}

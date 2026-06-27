@@ -11,6 +11,7 @@ import { uploadPostImage } from '../lib/upload-helper';
 import { ADMIN_CONFIG } from '../config';
 import { compressImage } from '../lib/imageCompressor';
 import { saveLocalUserPostsIndexedDB, getLocalUserPostsIndexedDB } from '../lib/indexedDbService';
+import { showToast } from './Toast';
 
 interface UploadPostProps {
   activeBoardId: string | null;
@@ -120,7 +121,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
               await cache.delete('shared-file');
             }
             
-            alert('📥 تم جلب الصور والنصوص بنجاح');
+            showToast('📥 تم جلب الصور والنصوص بنجاح!');
           }
         } catch (err) {
           console.error('[PWA Share Target] Error checking cache:', err);
@@ -368,7 +369,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
       setSelectedModels([]);
       setImageCaptions([]);
       setStatus('');
-      alert('تم النشر ورفع الصور بكامل جودتهاإلى Google Drive وحفظها بنجاح! 🎉');
+      showToast('🎉 تم النشر ورفع الصور بكامل جودتها وحفظها بنجاح!');
     } catch (error) {
       console.error('Final upload error track:', error);
       const msg = error instanceof Error ? error.message : String(error);
@@ -388,7 +389,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
   };
 
   const getTargetBoardName = () => {
-    if (targetBoardId === 'user-board') return 'لوحة المستخدم';
+    if (targetBoardId === 'user-board') return 'لوحة شخصية';
     if (targetBoardId === null) return 'الرئيسية';
     return boards.find(b => b.id === targetBoardId)?.name || 'غير معروف';
   };
@@ -409,7 +410,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
                   }}
                   className="rounded-lg border border-[#C1C3B8] bg-white px-1.5 py-0.5 text-xs font-bold text-natural-text focus:outline-none focus:ring-1 focus:ring-natural-primary cursor-pointer"
                 >
-                  <option value="user-board">لوحة المستخدم</option>
+                  <option value="user-board">لوحة شخصية</option>
                   <option value="main-feed">الرئيسية</option>
                   {boards && boards.map((b) => (
                     <option key={b.id} value={b.id}>
@@ -462,12 +463,12 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                className="mt-2 grid grid-cols-2 gap-2"
+                className="mt-2 grid grid-cols-2 gap-1"
               >
                 {previews.map((prev, index) => {
-                  const models = ['gpt-image-2', 'nano-banana2', 'wan 2.7', 'grok'];
+                  const models = ['gpt-2', 'grok', 'banana-2', 'flux', 'wan 2.7'];
                   return (
-                    <div key={index} className="flex flex-col gap-1.5 p-1.5 rounded-xl border border-natural-border/60 bg-natural-bg/30 relative">
+                    <div key={index} className="flex flex-col gap-1 p-1 rounded-xl border border-natural-border/60 bg-natural-bg/30 relative">
                       <div className="relative aspect-video overflow-hidden rounded-lg border border-natural-border/30 bg-natural-bg">
                         <img src={prev} alt={`Preview ${index + 1}`} className="h-full w-full object-cover" />
                         <button
@@ -500,9 +501,10 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
                       {/* Model Selector Pills */}
                       <div className="flex flex-col gap-1 text-right" dir="rtl">
                         <span className="text-[10px] font-black text-[#4A4A35] select-none">موديل توليد الصورة:</span>
-                        <div className="flex flex-wrap gap-1">
-                          {models.map((model) => {
+                        <div className="grid grid-cols-2 gap-1 w-full">
+                          {models.map((model, mIdx) => {
                             const isSelected = selectedModels[index] === model;
+                            const isLastOdd = mIdx === models.length - 1 && models.length % 2 !== 0;
                             return (
                               <button
                                 key={model}
@@ -513,11 +515,14 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
                                   updated[index] = isSelected ? '' : model;
                                   setSelectedModels(updated);
                                 }}
-                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-all border ${
+                                className={`px-1.5 py-1 rounded text-[9px] font-bold cursor-pointer transition-all border text-center truncate whitespace-nowrap overflow-hidden ${
+                                  isLastOdd ? 'col-span-2' : ''
+                                } ${
                                   isSelected
                                     ? 'bg-[#4A4A35] text-white border-transparent shadow-sm'
                                     : 'bg-white text-natural-muted border-natural-border/60 hover:bg-natural-bg/80'
                                 }`}
+                                title={model}
                               >
                                 {model}
                               </button>

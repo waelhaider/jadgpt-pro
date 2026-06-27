@@ -250,6 +250,19 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
 
   const [isTextExpanded, setIsTextExpanded] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [isCopyMenuOpen, setIsCopyMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const handleCloseCopyMenu = () => {
+      setIsCopyMenuOpen(false);
+    };
+    if (isCopyMenuOpen) {
+      window.addEventListener('click', handleCloseCopyMenu);
+    }
+    return () => {
+      window.removeEventListener('click', handleCloseCopyMenu);
+    };
+  }, [isCopyMenuOpen]);
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -397,12 +410,34 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
 
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    setIsCopyMenuOpen(!isCopyMenuOpen);
+  };
+
+  const handleCopyOnly = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(post.text);
+      setIsCopied(true);
+      setIsCopyMenuOpen(false);
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+    }
+  };
+
+  const handleCopyForEdit = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     try {
       await navigator.clipboard.writeText(post.text);
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
+      
+      localStorage.setItem('shared_incoming_prompt', post.text);
+      window.dispatchEvent(new Event('check_shared_prompt'));
+      window.dispatchEvent(new Event('switch_to_prompt_builder'));
+      setIsCopyMenuOpen(false);
     } catch (err) {
-      console.error('Failed to copy text: ', err);
+      console.error('Failed to copy for edit: ', err);
     }
   };
 
@@ -732,28 +767,28 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                   }
                   
                   return formatDistanceToNow(dateObj, { addSuffix: true, locale: ar });
-                })()} • {isLocalPost ? 'لوحة المستخدم' : boardName}
+                })()} • {isLocalPost ? 'لوحة شخصية' : boardName}
               </div>
             </div>
           </div>
 
           {hasManagePermissions && (
-            <div className="absolute top-3 left-3 flex gap-0.5 z-10">
+            <div className="absolute top-2.5 left-2.5 flex gap-0.5 z-10">
               {showDeleteConfirm ? (
-                <div className="flex items-center gap-1 bg-red-50 rounded-lg px-2 py-0.5 animate-in fade-in slide-in-from-right-4 border border-red-200/40 shadow-xs">
+                <div className="flex items-center gap-1 bg-red-50 rounded-lg px-2 py-1.5 animate-in fade-in slide-in-from-right-4 border border-red-200/40 shadow-xs">
                   <span className="text-[9px] font-bold text-red-600 ml-1">حذف؟</span>
                   <button
                     onClick={handleDelete}
                     disabled={isDeleting}
-                    className="p-1 hover:bg-red-100 rounded text-red-600 transition-colors disabled:opacity-50"
+                    className="p-1.5 hover:bg-red-100 rounded text-red-600 transition-colors disabled:opacity-50"
                   >
-                    {isDeleting ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                    {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
                   </button>
                   <button
                     onClick={() => setShowDeleteConfirm(false)}
-                    className="p-1 hover:bg-zinc-200 rounded text-natural-muted transition-colors"
+                    className="p-1.5 hover:bg-zinc-200 rounded text-natural-muted transition-colors"
                   >
-                    <X size={12} />
+                    <X size={14} />
                   </button>
                 </div>
               ) : (
@@ -864,7 +899,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                   <div className="grid grid-cols-2 gap-2">
                     {/* Pictures currently in the post */}
                     {editedImageUrls.map((url, index) => {
-                      const models = ['gpt-image-2', 'nano-banana2', 'wan 2.7', 'grok'];
+                      const models = ['gpt-2', 'grok', 'banana-2', 'flux', 'wan 2.7'];
                       return (
                         <div key={`edit-model-exist-${index}`} className="flex flex-col gap-1.5 p-2 rounded-lg border border-natural-border/40 bg-zinc-50">
                           <div className="relative aspect-video overflow-hidden rounded-md border border-natural-border/20 bg-natural-bg">
@@ -873,10 +908,10 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                           
                           {/* Caption Edit Field */}
                           <div className="flex flex-col gap-1 text-right">
-                            <span className="text-[9px] font-bold text-[#4A4A35]">العبارة التعريفية للصورة (اختياري):</span>
+                            <span className="text-[9px] font-bold text-[#4A4A35]">ملاحظة حول الصورة : </span>
                             <input
                               type="text"
-                              placeholder="اكتب عبارة تعريفية لهذه الصورة..."
+                              placeholder="اكتب عبارة تعريفية لهذه الصورة"
                               value={editedImageCaptions[index] || ''}
                               onChange={(e) => {
                                 const updated = [...editedImageCaptions];
@@ -889,9 +924,10 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
 
                           <div className="flex flex-col gap-1">
                             <span className="text-[9px] font-bold text-[#4A4A35]">موديل توليد الصورة:</span>
-                            <div className="flex flex-wrap gap-1">
-                              {models.map((model) => {
+                            <div className="grid grid-cols-2 gap-1 w-full">
+                              {models.map((model, mIdx) => {
                                 const isSelected = editedImageModels[index] === model;
+                                const isLastOdd = mIdx === models.length - 1 && models.length % 2 !== 0;
                                 return (
                                   <button
                                     key={model}
@@ -901,11 +937,14 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                                       updated[index] = isSelected ? '' : model;
                                       setEditedImageModels(updated);
                                     }}
-                                    className={`px-1.5 py-0.5 rounded text-[8px] font-black cursor-pointer transition-all border ${
+                                    className={`px-1.5 py-1 rounded text-[8px] font-black cursor-pointer transition-all border text-center truncate whitespace-nowrap overflow-hidden ${
+                                      isLastOdd ? 'col-span-2' : ''
+                                    } ${
                                       isSelected
                                         ? 'bg-[#4A4A35] text-white border-transparent'
                                         : 'bg-white text-natural-muted border-natural-border/60 hover:bg-natural-bg/80'
                                     }`}
+                                    title={model}
                                   >
                                     {model}
                                   </button>
@@ -919,9 +958,9 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
 
                     {/* Newly added images */}
                     {newPreviews.map((prev, index) => {
-                      const models = ['gpt-image-2', 'nano-banana2', 'wan 2.7', 'grok'];
+                      const models = ['gpt-2', 'grok', 'banana-2', 'flux', 'wan 2.7'];
                       return (
-                        <div key={`edit-model-new-${index}`} className="flex flex-col gap-1.5 p-2 rounded-lg border border-green-200 bg-green-50/20">
+                        <div key={`edit-model-new-${index}`} className="flex flex-col gap-1 p-1 rounded-lg border border-green-200 bg-green-50/20">
                           <div className="relative aspect-video overflow-hidden rounded-md border border-green-200/55 bg-white">
                             <img src={prev} alt="" className="h-full w-full object-cover" />
                             <div className="absolute bottom-1 left-1 bg-green-600 text-[8px] text-white px-1 rounded font-black">جديدة</div>
@@ -929,10 +968,10 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
 
                           {/* New Image Caption Edit Field */}
                           <div className="flex flex-col gap-1 text-right">
-                            <span className="text-[9px] font-bold text-green-700">العبارة التعريفية للصورة الجديدة (اختياري):</span>
+                            <span className="text-[9px] font-bold text-green-700"> ملاحظة حول الصورة : </span>
                             <input
                               type="text"
-                              placeholder="اكتب عبارة تعريفية لهذه الصورة..."
+                              placeholder="اكتب عبارة تعريفية لهذه الصورة"
                               value={newImageCaptions[index] || ''}
                               onChange={(e) => {
                                 const updated = [...newImageCaptions];
@@ -945,9 +984,10 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
 
                           <div className="flex flex-col gap-1">
                             <span className="text-[9px] font-bold text-green-700">الموديل للصورة الجديدة:</span>
-                            <div className="flex flex-wrap gap-1">
-                              {models.map((model) => {
+                            <div className="grid grid-cols-2 gap-1 w-full">
+                              {models.map((model, mIdx) => {
                                 const isSelected = newImageModels[index] === model;
+                                const isLastOdd = mIdx === models.length - 1 && models.length % 2 !== 0;
                                 return (
                                   <button
                                     key={model}
@@ -957,11 +997,14 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                                       updated[index] = isSelected ? '' : model;
                                       setNewImageModels(updated);
                                     }}
-                                    className={`px-1.5 py-0.5 rounded text-[8px] font-black cursor-pointer transition-all border ${
+                                    className={`px-1.5 py-1 rounded text-[8px] font-black cursor-pointer transition-all border text-center truncate whitespace-nowrap overflow-hidden ${
+                                      isLastOdd ? 'col-span-2' : ''
+                                    } ${
                                       isSelected
                                         ? 'bg-green-700 text-white border-transparent'
                                         : 'bg-white text-[#4A4A35] border-green-200 hover:bg-green-100/50'
                                     }`}
+                                    title={model}
                                   >
                                     {model}
                                   </button>
@@ -1061,7 +1104,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                 <div className="flex items-center gap-1 relative">
                   <button 
                     onClick={handleTestPromptClick} 
-                    className="flex items-center gap-1 rounded-md bg-natural-primary/10 px-1 py-1 text-[10px] font-black text-natural-primary transition-all hover:bg-natural-primary hover:text-white"
+                    className="flex items-center gap-1 rounded-md px-1 py-1 text-[10px] font-black text-[#15803d] bg-[#f0fdf4] hover:bg-[#dcfce7] hover:text-[#166534] border border-[#cbd5e1] transition-all"
                   >
                     <Sparkles size={11} className="text-natural-primary hover:text-white" />
                     <span>تجربة البرومبت</span>
@@ -1268,9 +1311,52 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                     )}
                   </AnimatePresence>
 
-                  <button onClick={handleCopy} className="flex items-center gap-1 rounded-md bg-natural-bg px-2 py-1 text-[10px] font-bold text-natural-muted transition-all hover:bg-natural-secondary-bg hover:text-natural-primary">
-                    {isCopied ? <><Check size={12} className="text-green-600" /><span className="text-green-600">تم النسخ</span></> : <><Copy size={12} /><span>نسخ النص</span></>}
-                  </button>
+                  <div className="relative">
+                    <button 
+                      onClick={handleCopy} 
+                      className="flex items-center gap-1 rounded-md bg-natural-bg px-1.5 py-1 text-[10px] font-black text-[#15803d] bg-[#f0fdf4] hover:bg-[#dcfce7] hover:text-[#166534] border border-[#cbd5e1] transition-all cursor-pointer"
+                    >
+                      {isCopied ? (
+                        <>
+                          <Check size={12} className="text-green-600" />
+                          <span className="text-green-600">تم النسخ</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={12} />
+                          <span>نسخ النص</span>
+                        </>
+                      )}
+                    </button>
+
+                    <AnimatePresence>
+                      {isCopyMenuOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.95, y: -5 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.95, y: -5 }}
+                          className="absolute bottom-full left-0 mb-1.5 z-50 min-w-[135px] bg-white border border-natural-border rounded-xl shadow-md p-1.5 flex flex-col gap-1 text-right"
+                          onClick={(e) => e.stopPropagation()}
+                          dir="rtl"
+                        >
+                          <button
+                            onClick={handleCopyOnly}
+                            className="w-full text-right px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-natural-text hover:bg-natural-secondary-bg transition-colors flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Copy size={12} className="text-[#15803d]" />
+                            <span className="whitespace-nowrap">نسخ النص فقط</span>
+                          </button>
+                          <button
+                            onClick={handleCopyForEdit}
+                            className="w-full text-right px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-[#15803d] bg-[#f0fdf4] hover:bg-[#dcfce7] border border-[#dcfce7] transition-colors flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Sparkles size={12} className="text-[#15803d]" />
+                            <span className="whitespace-nowrap">نسخ للتعديل</span>
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </div>
               </div>
             </div>

@@ -296,7 +296,7 @@ export default function Header({
   return (
     <>
       <header className="sticky top-0 z-40 w-full border-b border-natural-border bg-white/80 backdrop-blur-md shadow-sm shrink-0">
-        <div className="mx-auto flex h-12 max-w-5xl items-center justify-between px-2 relative">
+        <div className="mx-auto flex h-12 max-w-5xl items-center justify-between px-1 relative">
           
           {/* Left Side: Settings Menu Button */}
           <button 

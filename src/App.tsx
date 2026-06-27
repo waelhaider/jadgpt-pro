@@ -22,6 +22,7 @@ import { ADMIN_CONFIG } from './config';
 import { Share2, Sparkles, PlusCircle, X, FileText, Lock, LogIn } from 'lucide-react';
 import OwnerLicensePanel from './components/OwnerLicensePanel';
 import LockScreen from './components/LockScreen';
+import ToastContainer from './components/Toast';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -114,6 +115,16 @@ export default function App() {
       throw err;
     }
   };
+
+  useEffect(() => {
+    const handleSwitchToPromptBuilder = () => {
+      setActiveBoardId('prompt-builder');
+    };
+    window.addEventListener('switch_to_prompt_builder', handleSwitchToPromptBuilder);
+    return () => {
+      window.removeEventListener('switch_to_prompt_builder', handleSwitchToPromptBuilder);
+    };
+  }, []);
 
   useEffect(() => {
     // Check for shared content from Web Share Target
@@ -266,7 +277,7 @@ export default function App() {
         </div>
       )}
 
-      <main className="container mx-auto px-4 max-w-5xl">
+      <main className="container mx-auto px-1 max-w-5xl">
 
         <div className="sticky top-12 z-30 bg-natural-bg/95 backdrop-blur-sm pt-1.5 pb-0.5 border-b border-natural-border/20 mb-1">
           <BoardTabs 
@@ -390,6 +401,7 @@ export default function App() {
       </main>
 
       <ScrollToTop />
+      <ToastContainer />
 
       {/* Web Share Target Incoming Content Modal */}
       <AnimatePresence>

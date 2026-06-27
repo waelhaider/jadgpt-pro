@@ -36,11 +36,11 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
   
   // Responsive text sizes depending on whether we have 3 or 4 tabs
   const buttonTextClass = dynamicBoard
-    ? 'text-[13.5px] sm:text-[14px] md:text-[15px] px-0.1 py-0.5 sm:py-1 font-normal'
-    : 'text-[14.5px] sm:text-[15.5px] md:text-[16.5px] px-1 py-0.5 sm:py-1 font-normal';
+    ? 'text-[13.5px] sm:text-[14px] md:text-[15px] px-1.5 py-0.5 sm:py-1 font-normal'
+    : 'text-[14.5px] sm:text-[15.5px] md:text-[16.5px] px-1.5 py-0.5 sm:py-1 font-normal';
 
   return (
-    <div className="w-full max-w-xl mx-auto py-0.5 select-none px-0.5" dir="rtl">
+    <div className="w-full max-w-xl mx-auto py-0.5 select-none px-1.5" dir="rtl">
       <div className={`grid ${dynamicBoard ? 'grid-cols-4' : 'grid-cols-3'} gap-1 w-full`}>
         {/* 1. صانع البرومبت */}
         <button
@@ -54,7 +54,7 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
           صانع البرومبت
         </button>
 
-        {/* 2. لوحة المستخدم */}
+        {/* 2. لوحة شخصية */}
         <button
           onClick={() => handleTabClick('user-board')}
           className={`relative flex items-center justify-center rounded-full transition-all shadow-xs cursor-pointer ${buttonTextClass} ${
@@ -63,7 +63,7 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
               : 'bg-white text-natural-text hover:bg-natural-secondary-bg border border-[#B5B8AB]'
           }`}
         >
-          <span>لوحة المستخدم</span>
+          <span> لوحة شخصية </span>
           {localCount > 0 && (
             <span className="absolute -top-1 -left-1 flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-red-500 text-[9px] sm:text-[10px] font-normal text-white border border-white shadow-xs">
               {localCount}
