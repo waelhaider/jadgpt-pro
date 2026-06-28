@@ -123,6 +123,24 @@ export default function PromptBuilder() {
     localStorage.setItem('user_trial_visited_sites_v2', JSON.stringify(visitedTrialUrls));
   }, [visitedTrialUrls]);
 
+  const [fontSize, setFontSize] = useState<number>(() => {
+    const saved = localStorage.getItem('post_font_size');
+    return saved ? parseInt(saved, 10) : 14;
+  });
+
+  useEffect(() => {
+    const handleFontSizeChange = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && typeof customEvent.detail.size === 'number') {
+        setFontSize(customEvent.detail.size);
+      }
+    };
+    window.addEventListener('post_font_size_changed', handleFontSizeChange);
+    return () => {
+      window.removeEventListener('post_font_size_changed', handleFontSizeChange);
+    };
+  }, []);
+
   // Lock body scroll when execution dropdown is open to prevent background scrolling/jitter
   useEffect(() => {
     if (showExecutionDropdown) {
@@ -1909,9 +1927,9 @@ ${originalPrompt}
                   setPromptText(e.target.value);
                 }}
                 placeholder="اكتب البرومبت هنا أو استخدم صانع البرومبت في الأعلى لإنشائه تلقائياً..."
-                className="w-full h-56 text-right rounded-2xl border border-natural-border bg-white px-4 py-3.5 text-xs font-medium text-natural-text leading-relaxed tracking-wide resize-y focus:outline-none focus:ring-1 focus:ring-natural-primary shadow-inner"
+                className="w-full h-56 text-right rounded-2xl border border-natural-border bg-white px-4 py-3.5 font-medium text-natural-text leading-relaxed tracking-wide resize-y focus:outline-none focus:ring-1 focus:ring-natural-primary shadow-inner"
                 dir={isRtl(promptText) ? 'rtl' : 'ltr'}
-                style={{ textAlign: isRtl(promptText) ? 'right' : 'left' }}
+                style={{ textAlign: isRtl(promptText) ? 'right' : 'left', fontSize: `${fontSize}px` }}
               />
             </div>
           </div>
@@ -1928,8 +1946,8 @@ ${originalPrompt}
                 readOnly
                 value={translatedPromptText}
                 placeholder="الترجمة اللحظية ستظهر هنا تلقائياً..."
-                className="w-full h-56 text-right rounded-2xl border border-natural-border bg-neutral-50 px-4 py-3.5 text-xs font-medium text-natural-text leading-relaxed tracking-wide resize-y focus:outline-none shadow-inner"
-                style={{ textAlign: isRtl(translatedPromptText) ? 'right' : 'left' }}
+                className="w-full h-56 text-right rounded-2xl border border-natural-border bg-neutral-50 px-4 py-3.5 font-medium text-natural-text leading-relaxed tracking-wide resize-y focus:outline-none shadow-inner"
+                style={{ textAlign: isRtl(translatedPromptText) ? 'right' : 'left', fontSize: `${fontSize}px` }}
                 dir={isRtl(translatedPromptText) ? 'rtl' : 'ltr'}
               />
               {/* Translating loader indicator inside field */}

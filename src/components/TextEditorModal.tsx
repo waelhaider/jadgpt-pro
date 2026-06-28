@@ -16,6 +16,24 @@ export default function TextEditorModal({ isOpen, onClose }: TextEditorModalProp
   const [tgtLang, setTgtLang] = useState('en');
   const [isTranslating, setIsTranslating] = useState(false);
 
+  const [fontSize, setFontSize] = useState<number>(() => {
+    const saved = localStorage.getItem('post_font_size');
+    return saved ? parseInt(saved, 10) : 14;
+  });
+
+  useEffect(() => {
+    const handleFontSizeChange = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && typeof customEvent.detail.size === 'number') {
+        setFontSize(customEvent.detail.size);
+      }
+    };
+    window.addEventListener('post_font_size_changed', handleFontSizeChange);
+    return () => {
+      window.removeEventListener('post_font_size_changed', handleFontSizeChange);
+    };
+  }, []);
+
   // Auto-detect direction helper: returns true if Arabic/RTL is matched
   const isRtl = (text: string): boolean => {
     if (!text) return true; // Default to natural Arabic direction
@@ -226,10 +244,11 @@ export default function TextEditorModal({ isOpen, onClose }: TextEditorModalProp
                 onChange={(e) => setOriginalText(e.target.value)}
                 placeholder="لصق أو كتابة النص الأصلي هنا..."
                 dir={isOriginalRtl ? 'rtl' : 'ltr'}
-                className={`w-full flex-1 p-3 rounded-lg border border-natural-border focus:outline-none focus:ring-1 focus:ring-natural-primary text-sm md:text-base font-medium leading-relaxed bg-neutral-50/50 resize-none ${
+                className={`w-full flex-1 p-3 rounded-lg border border-natural-border focus:outline-none focus:ring-1 focus:ring-natural-primary font-medium leading-relaxed bg-neutral-50/50 resize-none ${
                   isOriginalRtl ? 'text-right' : 'text-left'
                 }`}
                 maxLength={20000}
+                style={{ fontSize: `${fontSize}px` }}
               />
             </div>
 
@@ -241,9 +260,10 @@ export default function TextEditorModal({ isOpen, onClose }: TextEditorModalProp
                   value={translatedText}
                   placeholder="الترجمة اللحظية ستظهر هنا..."
                   dir={isTranslatedRtl ? 'rtl' : 'ltr'}
-                  className={`w-full flex-1 p-3 rounded-lg border border-natural-border bg-neutral-100/50 text-sm md:text-base font-medium leading-relaxed resize-none focus:outline-none ${
+                  className={`w-full flex-1 p-3 rounded-lg border border-natural-border bg-neutral-100/50 font-medium leading-relaxed resize-none focus:outline-none ${
                     isTranslatedRtl ? 'text-right' : 'text-left'
                   }`}
+                  style={{ fontSize: `${fontSize}px` }}
                 />
 
                 {/* Loading indicator inside translation field */}

@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -13,8 +13,12 @@ console.log('[Firebase] Database ID:', dbId);
 
 const app = initializeApp(config);
 
-// Initialize Firestore with the specific database ID
-export const db = getFirestore(app, dbId);
+// Initialize Firestore with robust multi-tab persistent offline cache
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager(),
+  }),
+}, dbId);
 
 export const auth = getAuth(app);
 export const storage = getStorage(app);

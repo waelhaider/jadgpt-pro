@@ -12,8 +12,55 @@ import { movePostToRecycleBin } from '../lib/recycle-bin';
 import { getAccessToken, googleSignIn } from '../lib/auth';
 import { compressImage } from '../lib/imageCompressor';
 import { getLocalUserPostsIndexedDB, saveLocalUserPostsIndexedDB } from '../lib/indexedDbService';
+import { showToast } from './Toast';
 import Lightbox from "yet-another-react-lightbox";
 import Zoom from "yet-another-react-lightbox/plugins/zoom";
+
+function isImageUrl(url: string): boolean {
+  try {
+    const cleanUrl = url.split('?')[0].split('#')[0];
+    return /\.(jpeg|jpg|gif|png|webp|bmp|svg|tiff)$/i.test(cleanUrl);
+  } catch {
+    return false;
+  }
+}
+
+function LinkImage({ src, originalText, href }: { src: string; originalText: string; href: string }) {
+  const [failed, setFailed] = useState(false);
+
+  if (failed) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-600 hover:underline break-all font-semibold inline cursor-pointer"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {originalText}
+      </a>
+    );
+  }
+
+  return (
+    <span className="block my-2" onClick={(e) => e.stopPropagation()}>
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-block relative overflow-hidden rounded-xl border border-natural-border/60 bg-neutral-100 hover:opacity-95 transition-opacity"
+      >
+        <img
+          src={src}
+          alt="Shared content"
+          referrerPolicy="no-referrer"
+          className="max-h-72 max-w-full rounded-xl object-contain shadow-sm"
+          onError={() => setFailed(true)}
+        />
+      </a>
+    </span>
+  );
+}
 
 function renderTextWithLinks(text: string) {
   if (!text) return '';
@@ -22,6 +69,13 @@ function renderTextWithLinks(text: string) {
   return parts.map((part, i) => {
     if (part.match(urlRegex)) {
       const href = part.toLowerCase().startsWith('www.') ? `https://${part}` : part;
+      if (isImageUrl(href)) {
+        return (
+          <React.Fragment key={i}>
+            <LinkImage src={href} originalText={part} href={href} />
+          </React.Fragment>
+        );
+      }
       return (
         <a
           key={i}
@@ -198,7 +252,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
   const [editedText, setEditedText] = useState(post.text);
   const [editedImageUrls, setEditedImageUrls] = useState<string[]>(post.imageUrls || (post.imageUrl ? [post.imageUrl] : []));
   const [editedBoardId, setEditedBoardId] = useState<string | null>(post.boardId || null);
-  const [newImages, setNewImages] = useState<File[]>([]);
+  const [newImages, setNewImages] = useState<(File | string)[]>([]);
   const [newPreviews, setNewPreviews] = useState<string[]>([]);
   const [removedImageUrls, setRemovedImageUrls] = useState<string[]>([]);
   const [editedImageModels, setEditedImageModels] = useState<string[]>([]);
@@ -209,6 +263,45 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
   const [status, setStatus] = useState('');
   
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const processEditedTextForImageUrls = (inputText: string) => {
+    const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+    const matches = inputText.match(urlRegex);
+    if (!matches) {
+      setEditedText(inputText);
+      return;
+    }
+
+    let cleanText = inputText;
+    const detectedUrls: string[] = [];
+
+    for (const match of matches) {
+      const href = match.toLowerCase().startsWith('www.') ? `https://${match}` : match;
+      const cleanUrl = href.split('?')[0].split('#')[0];
+      const isImg = /\.(jpeg|jpg|gif|png|webp|bmp|svg|tiff)$/i.test(cleanUrl);
+      
+      if (isImg && editedImageUrls.length + newImages.length + detectedUrls.length < 6) {
+        detectedUrls.push(href);
+        cleanText = cleanText.replace(match, '');
+      }
+    }
+
+    if (detectedUrls.length > 0) {
+      cleanText = cleanText
+        .replace(/[ \t]+/g, ' ')
+        .replace(/\n\s*\n/g, '\n')
+        .trim();
+
+      setNewImages(prev => [...prev, ...detectedUrls]);
+      setNewPreviews(prev => [...prev, ...detectedUrls]);
+      setNewImageModels(prev => [...prev, ...Array(detectedUrls.length).fill('')]);
+      setNewImageCaptions(prev => [...prev, ...Array(detectedUrls.length).fill('')]);
+      setEditedText(cleanText);
+      showToast('📸 تم التعرف على رابط الصورة وإضافتها للمرفقات تلقائياً!');
+    } else {
+      setEditedText(inputText);
+    }
+  };
   
   const hasManagePermissions = isAdmin || isLocalPost;
   
@@ -451,17 +544,17 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
         const filtered = parsed.filter((p: any) => p.id !== post.id);
         await saveLocalUserPostsIndexedDB(filtered);
         window.dispatchEvent(new Event('reload_local_posts'));
-        alert('تم حذف المنشور من لوحتك بنجاح! 🗑️');
+        showToast('تم حذف المنشور من لوحتك بنجاح! 🗑️');
         setIsDeleting(false);
         setShowDeleteConfirm(false);
         return;
       }
       const boardName = boards.find(b => b.id === post.boardId)?.name || 'غير معروف';
       await movePostToRecycleBin(post, boardName);
-      alert('تم نقل المنشور إلى سلة المحذوفات بنجاح! 🗑️');
+      showToast('تم نقل المنشور إلى سلة المحذوفات بنجاح! 🗑️');
     } catch (err) {
       console.error('Delete error:', err);
-      alert('حدث خطأ أثناء الحذف: ' + (err instanceof Error ? err.message : String(err)));
+      showToast('حدث خطأ أثناء الحذف: ' + (err instanceof Error ? err.message : String(err)));
       handleFirestoreError(err, OperationType.DELETE, postPath);
     } finally {
       setIsDeleting(false);
@@ -478,7 +571,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
       await googleSignIn();
     } catch (err) {
       console.error('[PostCard] Authorization failed:', err);
-      alert('فشل الحصول على صلاحية الوصول. يرجى التأكد من السماح بالنوافذ المنبثقة.');
+      showToast('فشل الحصول على صلاحية الوصول. يرجى التأكد من السماح بالنوافذ المنبثقة.');
     } finally {
       if (shouldSetLoadingState) {
         setIsSaving(false);
@@ -492,7 +585,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
     const totalCount = editedImageUrls.length + newImages.length;
     
     if (!editedText.trim() && totalCount === 0) {
-      alert('لا يمكن حفظ منشور فارغ (برجاء كتابة نص أو إضافة صورة)');
+      showToast('لا يمكن حفظ منشور فارغ (برجاء كتابة نص أو إضافة صورة)');
       return;
     }
 
@@ -504,8 +597,12 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
         setStatus('جاري حفظ التعديلات محلياً...');
         const newUrls: string[] = [];
         for (const file of newImages) {
-          const base64 = await compressImage(file);
-          newUrls.push(base64);
+          if (typeof file === 'string') {
+            newUrls.push(file);
+          } else {
+            const base64 = await compressImage(file);
+            newUrls.push(base64);
+          }
         }
 
         const remainingOldUrls = editedImageUrls.filter(url => !removedImageUrls.includes(url));
@@ -532,7 +629,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
         const isSaved = await saveLocalUserPostsIndexedDB(updated);
         if (isSaved) {
           window.dispatchEvent(new Event('reload_local_posts'));
-          alert('تم تحديث المنشور محلياً بنجاح! ✅');
+          showToast('تم تحديث المنشور محلياً بنجاح! ✅');
         }
 
         setIsEditing(false);
@@ -548,10 +645,15 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
       const finalImageUrls = [...editedImageUrls];
       
       // 1. Upload new images if any
-      if (newImages.length > 0) {
+      const filesToUpload = newImages.filter(img => typeof img !== 'string') as File[];
+      const remoteUrls = newImages.filter(img => typeof img === 'string') as string[];
+      
+      finalImageUrls.push(...remoteUrls);
+
+      if (filesToUpload.length > 0) {
         const activeToken = getAccessToken();
         if (!activeToken || activeToken === 'local-dummy-token') {
-          alert('يتطلب رفع صور جديدة تسجيل الدخول إلى Google Drive.');
+          showToast('يتطلب رفع صور جديدة تسجيل الدخول إلى Google Drive.');
           await handleAuthorize(false);
           const freshToken = getAccessToken();
           if (!freshToken || freshToken === 'local-dummy-token') {
@@ -561,10 +663,10 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
           }
         }
 
-        for (let i = 0; i < newImages.length; i++) {
-          setStatus(`جاري رفع الصورة ${i + 1}/${newImages.length} إلى Google Drive...`);
+        for (let i = 0; i < filesToUpload.length; i++) {
+          setStatus(`جاري رفع الصورة ${i + 1}/${filesToUpload.length} إلى Google Drive...`);
           try {
-            const url = await uploadPostImage(newImages[i], post.authorId);
+            const url = await uploadPostImage(filesToUpload[i], post.authorId);
             finalImageUrls.push(url);
           } catch (uploadErr: any) {
             console.warn('[PostCard] Image upload error:', uploadErr);
@@ -576,7 +678,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                 setStatus('');
                 return;
               }
-              const url = await uploadPostImage(newImages[i], post.authorId);
+              const url = await uploadPostImage(filesToUpload[i], post.authorId);
               finalImageUrls.push(url);
               continue;
             }
@@ -617,11 +719,11 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
       setNewImages([]);
       setNewPreviews([]);
       setRemovedImageUrls([]);
-      alert('تم تحديث المنشور بنجاح! ✅');
+      showToast('تم تحديث المنشور بنجاح! ✅');
     } catch (err) {
       console.error('[PostCard] Fatal update error:', err);
       handleFirestoreError(err, OperationType.UPDATE, `posts/${post.id}`);
-      alert('حدث خطأ أثناء التحديث: ' + (err instanceof Error ? err.message : String(err)));
+      showToast('حدث خطأ أثناء التحديث: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setIsSaving(false);
       setStatus('');
@@ -633,7 +735,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
     const totalCount = editedImageUrls.length + newImages.length + files.length;
     
     if (totalCount > 6) {
-      alert('يمكنك إضافة 6 صور كحد أقصى.');
+      showToast('يمكنك إضافة 6 صور كحد أقصى.');
       return;
     }
 
@@ -835,7 +937,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
             <div className="space-y-4">
               <textarea
                 value={editedText}
-                onChange={(e) => setEditedText(e.target.value)}
+                onChange={(e) => processEditedTextForImageUrls(e.target.value)}
                 className="w-full resize-none rounded-xl border border-natural-border bg-natural-bg p-3 text-sm focus:ring-1 focus:ring-natural-primary"
                 rows={4}
                 autoFocus
@@ -1034,7 +1136,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                         : 'bg-white text-natural-muted border-natural-border/40 hover:bg-natural-bg'
                     }`}
                   >
-                    اللوحة العامة (الرئيسية)
+                    الرئيسية
                   </button>
 
                   {boards && boards.map((board) => {
@@ -1058,19 +1160,24 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
               </div>
 
               <div className="flex gap-2 justify-start pt-2 border-t border-natural-border">
-                <button 
-                  type="button"
-                  onClick={newImages.length > 0 && !getAccessToken() ? handleAuthorize : handleUpdate} 
-                  disabled={isSaving}
-                  className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold text-white transition-colors disabled:opacity-50 ${
-                    newImages.length > 0 && !getAccessToken() 
-                      ? 'bg-amber-600 hover:bg-amber-700' 
-                      : 'bg-natural-primary hover:bg-[#4A4A35]'
-                  }`}
-                >
-                  {isSaving ? <Loader2 size={14} className="animate-spin" /> : (newImages.length > 0 && !getAccessToken() ? <ImageIcon size={14} /> : <Check size={14} />)}
-                  {isSaving ? (status || 'جاري الحفظ...') : (newImages.length > 0 && !getAccessToken() ? 'تفعيل Drive للحفظ' : 'حفظ التغييرات')}
-                </button>
+                {(() => {
+                  const hasNewFilesToUpload = newImages.some(img => typeof img !== 'string');
+                  return (
+                    <button 
+                      type="button"
+                      onClick={hasNewFilesToUpload && !getAccessToken() ? handleAuthorize : handleUpdate} 
+                      disabled={isSaving}
+                      className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold text-white transition-colors disabled:opacity-50 ${
+                        hasNewFilesToUpload && !getAccessToken() 
+                          ? 'bg-amber-600 hover:bg-amber-700' 
+                          : 'bg-natural-primary hover:bg-[#4A4A35]'
+                      }`}
+                    >
+                      {isSaving ? <Loader2 size={14} className="animate-spin" /> : (hasNewFilesToUpload && !getAccessToken() ? <ImageIcon size={14} /> : <Check size={14} />)}
+                      {isSaving ? (status || 'جاري الحفظ...') : (hasNewFilesToUpload && !getAccessToken() ? 'تفعيل Drive للحفظ' : 'حفظ التغييرات')}
+                    </button>
+                  );
+                })()}
                 <button 
                   type="button"
                   onClick={() => setIsEditing(false)} 

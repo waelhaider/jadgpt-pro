@@ -61,12 +61,51 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
     const rtlChar = /[\u0600-\u06FF\u0750-\u077F\u0590-\u05FF\uFE70-\uFEFC]/;
     return rtlChar.test(val);
   };
-  const [images, setImages] = useState<File[]>([]);
+  const [images, setImages] = useState<(File | string)[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [imageCaptions, setImageCaptions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const processTextForImageUrls = (inputText: string) => {
+    const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+    const matches = inputText.match(urlRegex);
+    if (!matches) {
+      setText(inputText);
+      return;
+    }
+
+    let cleanText = inputText;
+    const detectedUrls: string[] = [];
+
+    for (const match of matches) {
+      const href = match.toLowerCase().startsWith('www.') ? `https://${match}` : match;
+      const cleanUrl = href.split('?')[0].split('#')[0];
+      const isImg = /\.(jpeg|jpg|gif|png|webp|bmp|svg|tiff)$/i.test(cleanUrl);
+      
+      if (isImg && images.length + detectedUrls.length < 6) {
+        detectedUrls.push(href);
+        cleanText = cleanText.replace(match, '');
+      }
+    }
+
+    if (detectedUrls.length > 0) {
+      cleanText = cleanText
+        .replace(/[ \t]+/g, ' ')
+        .replace(/\n\s*\n/g, '\n')
+        .trim();
+
+      setImages(prev => [...prev, ...detectedUrls]);
+      setPreviews(prev => [...prev, ...detectedUrls]);
+      setSelectedModels(prev => [...prev, ...Array(detectedUrls.length).fill('')]);
+      setImageCaptions(prev => [...prev, ...Array(detectedUrls.length).fill('')]);
+      setText(cleanText);
+      showToast('📸 تم التعرف على رابط الصورة وإضافتها للمرفقات تلقائياً!');
+    } else {
+      setText(inputText);
+    }
+  };
 
   React.useEffect(() => {
     const checkIncomingShare = async () => {
@@ -75,7 +114,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
       if (sharedText) {
         setText(sharedText);
         localStorage.removeItem('shared_incoming_post');
-        alert('تم جلب النص بنجاح إلى حقل كتابة المنشور! ✍️');
+        showToast('تم جلب النص بنجاح إلى حقل كتابة المنشور! ✍️');
       }
 
       // 2. Check Cache Storage for PWA Web Share Target (images & metadata)
@@ -145,7 +184,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
     if (files.length === 0) return;
 
     if (images.length + files.length > 6) {
-      alert('يمكنك إضافة 6 صور كحد أقصى في المنشور الواحد.');
+      showToast('يمكنك إضافة 6 صور كحد أقصى في المنشور الواحد.');
       return;
     }
 
@@ -198,7 +237,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
         message: 'فشل الحصول على صلاحية الوصول إلى Google Drive. يرجى التأكد من السماح بالنوافذ المنبثقة من المتصفح والموافقة.',
         showRefresh: true
       });
-      alert('فشل الحصول على صلاحية الوصول. يرجى التأكد من السماح بالنوافذ المنبثقة.');
+      showToast('فشل الحصول على صلاحية الوصول. يرجى التأكد من السماح بالنوافذ المنبثقة.');
       return false;
     } finally {
       if (shouldSetLoadingState) {
@@ -216,7 +255,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
     const hasImages = images.length > 0;
 
     if (!hasText && !hasImages) {
-      alert('لا يمكن نشر منشور فارغ (برجاء كتابة نص أو إضافة صورة)');
+      showToast('لا يمكن نشر منشور فارغ (برجاء كتابة نص أو إضافة صورة)');
       return;
     }
 
@@ -229,8 +268,12 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
         const imageUrls: string[] = [];
         for (let i = 0; i < images.length; i++) {
           const file = images[i];
-          const base64 = await compressImage(file);
-          imageUrls.push(base64);
+          if (typeof file === 'string') {
+            imageUrls.push(file);
+          } else {
+            const base64 = await compressImage(file);
+            imageUrls.push(base64);
+          }
         }
 
         const payload = {
@@ -261,11 +304,11 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
           if (onUploadSuccess) {
             onUploadSuccess('user-board');
           }
-          alert('تم الحفظ والنشر في لوحتك الشخصية بنجاح! 🎉');
+          showToast('تم الحفظ والنشر في لوحتك الشخصية بنجاح! 🎉');
         }
       } catch (err: any) {
         console.error(err);
-        alert('حدث خطأ أثناء الحفظ محلياً: ' + err.message);
+        showToast('حدث خطأ أثناء الحفظ محلياً: ' + err.message);
       } finally {
         setLoading(false);
       }
@@ -273,13 +316,14 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
     }
 
     if (!currentUser) {
-      alert('يجب تسجيل الدخول لنشر منشور في اللوحات العامة.');
+      showToast('يجب تسجيل الدخول لنشر منشور في اللوحات العامة.');
       setLoading(false);
       return;
     }
 
     // If we have images, check if we need to request authorization
-    if (hasImages) {
+    const hasFilesToUpload = images.some(img => typeof img !== 'string');
+    if (hasFilesToUpload) {
       const activeToken = getAccessToken();
       if (!activeToken || activeToken === 'local-dummy-token') {
         const authorized = await handleAuthorize(false);
@@ -302,6 +346,10 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
       if (images.length > 0) {
         for (let i = 0; i < images.length; i++) {
           const file = images[i];
+          if (typeof file === 'string') {
+            imageUrls.push(file);
+            continue;
+          }
           const currentStatus = `جاري رفع الصورة ${i + 1} من ${images.length} إلى Google Drive...`;
           console.log(`[UploadPost] Status: ${currentStatus}`);
           setStatus(currentStatus);
@@ -381,7 +429,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
           : `حدث خطأ أثناء النشر والرفع: ${msg}`,
         showRefresh: isAuthErr
       });
-      alert(`حدث خطأ أثناء النشر: ${msg}`);
+      showToast(`حدث خطأ أثناء النشر: ${msg}`);
     } finally {
       setLoading(false);
       setStatus('');
@@ -447,9 +495,9 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
         <div className="w-full">
   <textarea
     value={text}
-    onChange={(e) => setText(e.target.value)}
+    onChange={(e) => processTextForImageUrls(e.target.value)}
     placeholder={` الصق النص للنشر في لوحة : ${getTargetBoardName()}`}
-    className="w-full resize-none rounded-xl border border-[#C1C3B8] bg-natural-bg px-2 py-4 text-sm font-medium text-natural-text placeholder-[#A1A18E] focus:ring-1 focus:ring-natural-primary"
+    className="w-full resize-none rounded-xl border border-[#C1C3B8] bg-natural-bg px-4 py-4 text-sm font-medium text-natural-text placeholder-[#A1A18E] focus:ring-1 focus:ring-natural-primary"
     rows={3}
     dir={isRtl(text) ? 'rtl' : 'ltr'}
     style={{ textAlign: isRtl(text) ? 'right' : 'left' }}

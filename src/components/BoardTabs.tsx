@@ -51,7 +51,7 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
               : 'bg-white text-natural-text hover:bg-natural-secondary-bg border border-[#B5B8AB]'
           }`}
         >
-          صانع البرومبت
+          <span className="text-center break-words leading-tight">صانع البرومبت</span>
         </button>
 
         {/* 2. لوحة شخصية */}
@@ -63,7 +63,7 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
               : 'bg-white text-natural-text hover:bg-natural-secondary-bg border border-[#B5B8AB]'
           }`}
         >
-          <span> لوحة شخصية </span>
+          <span className="text-center break-words leading-tight">لوحة شخصية</span>
           {localCount > 0 && (
             <span className="absolute -top-1 -left-1 flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-red-500 text-[9px] sm:text-[10px] font-normal text-white border border-white shadow-xs">
               {localCount}
@@ -80,7 +80,7 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
               : 'bg-white text-natural-text hover:bg-natural-secondary-bg border border-[#B5B8AB]'
           }`}
         >
-          <span>الرئيسية</span>
+          <span className="text-center break-words leading-tight">الرئيسية</span>
           {postCounts['null'] > 0 && (
             <span className="absolute -top-1 -left-1 flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-red-500 text-[9px] sm:text-[10px] font-normal text-white border border-white shadow-xs">
               {postCounts['null']}
@@ -98,7 +98,7 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
                 : 'bg-[#FCFAF2] text-natural-text hover:bg-[#F5F2E6] border border-[#A2A598]'
             }`}
           >
-            <span className="truncate">{dynamicBoard.name}</span>
+            <span className="text-center break-words leading-tight">{dynamicBoard.name}</span>
             {postCounts[dynamicBoard.id] > 0 && (
               <span className="absolute -top-1 -left-1 flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-red-500 text-[9px] sm:text-[10px] font-normal text-white border border-white shadow-xs">
                 {postCounts[dynamicBoard.id]}

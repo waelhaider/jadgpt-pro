@@ -22,7 +22,7 @@ import { ADMIN_CONFIG } from './config';
 import { Share2, Sparkles, PlusCircle, X, FileText, Lock, LogIn } from 'lucide-react';
 import OwnerLicensePanel from './components/OwnerLicensePanel';
 import LockScreen from './components/LockScreen';
-import ToastContainer from './components/Toast';
+import ToastContainer, { showToast } from './components/Toast';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -301,7 +301,7 @@ export default function App() {
                 setUserLicense(null);
               }}
               onActivationSuccess={() => {
-                alert('🎉 مبارك! تم تفعيل النسخة الكاملة بنجاح!');
+                showToast('🎉 مبارك! تم تفعيل النسخة الكاملة بنجاح!');
               }}
             />
           </div>
@@ -323,7 +323,7 @@ export default function App() {
                   googleSignIn().then(res => {
                     if (res) window.location.reload();
                   }).catch(err => {
-                    alert('فشل الدخول، يرجى استخدام زر تسجيل الدخول في القائمة الجانبية.');
+                    showToast('فشل الدخول، يرجى استخدام زر تسجيل الدخول في القائمة الجانبية.');
                   });
                 }}
                 className="w-full bg-natural-primary text-white py-3 rounded-2xl text-xs font-black shadow-md hover:bg-[#3d3d2a] transition-all cursor-pointer flex items-center justify-center gap-2"
@@ -507,7 +507,7 @@ export default function App() {
             }}
             onActivationSuccess={() => {
               setShowActivationForce(false);
-              alert('🎉 مبارك! تم تفعيل النسخة الكاملة بنجاح!');
+              showToast('🎉 مبارك! تم تفعيل النسخة الكاملة بنجاح!');
             }}
             onClose={() => setShowActivationForce(false)}
           />
