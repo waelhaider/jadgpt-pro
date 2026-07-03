@@ -159,6 +159,7 @@ interface PostCardProps {
   isAdmin: boolean;
   boards: Board[];
   onTestPrompt: (text: string) => void;
+  isDarkMode?: boolean;
 }
 
 import { ADMIN_CONFIG } from '../config';
@@ -177,7 +178,7 @@ const DEFAULT_SITES = [
 
 ];
 
-export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCardProps) {
+export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMode }: PostCardProps) {
   const isRtl = (val: string): boolean => {
     if (!val) return true; // Default to natural Arabic direction
     let arabicCount = 0;
@@ -228,7 +229,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
 
   const boardName = post.boardId 
     ? boards.find(b => b.id === post.boardId)?.name || 'غير معروف'
-    : 'عام';
+    : 'الرئيسية';
   
   const [fontSize, setFontSize] = useState<number>(() => {
     const saved = localStorage.getItem('post_font_size');
@@ -789,32 +790,50 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className={`relative mx-auto mb-2.5 w-full max-w-xl rounded-2xl border border-[#C1C3B8] bg-white transition-shadow hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] ${isDeleting ? 'opacity-50 grayscale pointer-events-none' : ''}`}
+        className={`relative mx-auto mb-2.5 w-full max-w-xl rounded-2xl border transition-all ${
+          isDarkMode 
+            ? 'border-[#6980b0] bg-[#111822] shadow-[0_4px_12px_rgba(0,0,0,0.15)]' 
+            : 'border-[#C1C3B8] bg-white shadow-[0_4px_12px_rgba(90,90,64,0.03)]'
+        } ${isDeleting ? 'opacity-50 grayscale pointer-events-none' : ''}`}
       >
         {/* Post Header */}
         <div className="flex items-center justify-between px-4 pt-4 pb-1" dir="rtl">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-natural-primary to-natural-muted border border-natural-border shadow-md">
+            <div className={`flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border shadow-md ${
+              isDarkMode 
+                ? 'bg-gradient-to-br from-[#008D75] to-[#414C5D] border-[#2C374E]' 
+                : 'bg-gradient-to-br from-natural-primary to-natural-muted border-natural-border'
+            }`}>
               {isPostFromAdmin && !isLocalPost ? (
                 <img src={ADMIN_CONFIG.photoUrl} alt={displayName} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
               ) : (
                 <span className="font-bold text-white uppercase">{avatarChar}</span>
               )}
             </div>
-            {/* حجم الايميل للمستخدم */}
+            {/* حجم الايميل للمستخدم وماتحته */}
             <div className="text-right">
               <div className="flex items-center gap-1">
-                <span className={`${isLocalPost ? 'text-[10px] font-semibold break-all' : 'text-sm font-bold'} text-natural-text`}>{displayName}</span>
+                <span className={`${isLocalPost ? 'text-[10px] font-semibold break-all' : 'text-sm font-bold'} ${
+                  isDarkMode ? 'text-white' : 'text-natural-text'
+                }`}>{displayName}</span>
               </div>
               
               {isLocalPost ? (
                 <div className="flex flex-col gap-0.5 mt-0.5 mb-1">
-                  <div className="text-[10px] font-medium text-[#7A7C73] bg-natural-secondary-bg px-1.5 py-0.5 rounded leading-none border border-natural-border/30 w-fit">
+                  <div className={`text-[10px] font-medium px-1.5 py-0.5 rounded leading-none border w-fit ${
+                    isDarkMode 
+                      ? 'text-[#16af75] bg-[#1A212E] border-[#2C374E]' 
+                      : 'text-[#ca3500] bg-natural-secondary-bg border border-natural-border/30'
+                  }`}>
                     المسؤول: {personName}
                   </div>
                   {post.isPinned && (
-                    <span className="flex items-center gap-1 text-[10px] font-medium text-red-600 bg-red-50 px-1.5 py-0.5 rounded leading-none border border-red-100/40 w-fit">
-                      <Pin size={10} className="fill-red-500 text-red-600 shrink-0 select-none" />
+                    <span className={`flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded leading-none border w-fit ${
+                      isDarkMode 
+                        ? 'text-[#ca3500] bg-[#1A212E] border-[#2C374E]' 
+                        : 'text-[#ca3500] bg-red-50 border border-red-100/40'
+                    }`}>
+                      <Pin size={10} className={`shrink-0 select-none ${isDarkMode ? 'fill-[#EEA396] text-[#EEA396]' : 'fill-red-500 text-red-600'}`} />
                     </span>
                   )}
                 </div>
@@ -823,21 +842,30 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                 (isPostFromAdmin || post.isPinned) && (
                   <div className="flex items-center gap-1.5 mt-0.5 mb-1">
                     {isPostFromAdmin && (
-                      <span className="text-[10px] font-medium text-red-600 bg-red-50 px-1.5 py-0.5 rounded leading-none border border-red-100/40">
+                      <span className={`text-[10px] font-normal px-1.5 py-0.5 rounded leading-none border ${
+                        isDarkMode 
+                          ? 'text-[#ca3500] bg-[#F9F3DC] border-transparent font-normal' 
+                          : 'text-[#ca3500] bg-red-50 border border-red-100/40'
+                      }`}>
                         المسؤول
                       </span>
                     )}
                     {post.isPinned && (
-                      <span className="flex items-center gap-1 text-[10px] font-medium text-red-600 bg-red-50 px-1.5 py-0.5 rounded leading-none border border-red-100/40">
-                        <Pin size={10} className="fill-red-500 text-red-600 shrink-0 select-none" />
-                     {/*كلمة مثبت كانت هنا*/}
+                      <span className={`flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded leading-none border ${
+                        isDarkMode 
+                          ? 'text-[#EEA396] bg-[#1A212E] border-[#2C374E]' 
+                          : 'text-red-600 bg-red-50 border border-red-100/40'
+                      }`}>
+                        <Pin size={10} className={`shrink-0 select-none ${isDarkMode ? 'fill-[#EEA396] text-[#EEA396]' : 'fill-red-500 text-red-600'}`} />
                       </span>
                     )}
                   </div>
                 )
               )}
 
-              <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-natural-muted mt-0.5">
+              <div className={`flex items-center gap-1 text-[10px] uppercase tracking-wide mt-0.5 ${
+                isDarkMode ? 'text-[#B4C6D8]' : 'text-natural-muted'
+              }`}>
                 {(() => {
                   if (isLocalPost && post.createdAtMillis) {
                     const dateObj = new Date(post.createdAtMillis);
@@ -1189,10 +1217,12 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
               </div>
             </div>
           ) : (
-            <div className="group relative overflow-hidden max-w-full">
+            <div className="group relative max-w-full">
               <div className={`cursor-pointer transition-all duration-300 ${!isTextExpanded ? 'line-clamp-3' : ''} overflow-hidden max-w-full`} onClick={() => setIsTextExpanded(!isTextExpanded)}>
                 <p 
-                  className="whitespace-pre-wrap leading-relaxed text-[#4A4A35] break-words"
+                  className={`whitespace-pre-wrap leading-relaxed break-words transition-colors ${
+                    isDarkMode ? 'text-[#B4C6D8]' : 'text-[#4A4A35]'
+                  }`}
                   dir={isRtl(post.text) ? 'rtl' : 'ltr'}
                   style={{ 
                     textAlign: isRtl(post.text) ? 'right' : 'left',
@@ -1204,16 +1234,22 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
               </div>
               <div className="mt-2 flex items-center justify-between">
                 {post.text.split('\n').length > 3 || post.text.length > 200 ? (
-                  <button onClick={() => setIsTextExpanded(!isTextExpanded)} className="text-[10px] font-bold text-natural-primary hover:underline">
+                  <button onClick={() => setIsTextExpanded(!isTextExpanded)} className={`text-[10px] font-black hover:underline ${
+                    isDarkMode ? 'text-[#EEA396]' : 'text-natural-primary'
+                  }`}>
                     {isTextExpanded ? 'عرض أقل ↑' : 'عرض المزيد ↓'}
                   </button>
                 ) : <div />}
                 <div className="flex items-center gap-1 relative">
                   <button 
                     onClick={handleTestPromptClick} 
-                    className="flex items-center gap-1 rounded-md px-1 py-1 text-[10px] font-black text-[#15803d] bg-[#f0fdf4] hover:bg-[#dcfce7] hover:text-[#166534] border border-[#cbd5e1] transition-all"
+                    className={`flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold transition-all ${
+                      isDarkMode 
+                        ? 'text-[#16af75] bg-[#111822] hover:bg-[#111822] hover:border-[#16af75]/50 border border-[#656c74] shadow-md pulsate-prompt-dark' 
+                        : 'text-[#c26700] bg-[#fffaf5] shadow-md hover:bg-[#fef3e6] hover:border-[#c26700]/40 border border-[#cbd5e1] pulsate-prompt-light'
+                    }`}
                   >
-                    <Sparkles size={11} className="text-natural-primary hover:text-white" />
+                    <Sparkles size={12} className="text-[#c26700]" />
                     <span>تجربة البرومبت</span>
                   </button>
 
@@ -1234,19 +1270,25 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                           animate={{ opacity: 1, scale: 1, y: 0 }}
                           exit={{ opacity: 0, scale: 0.95, y: 15 }}
                           transition={{ duration: 0.2 }}
-                          className="relative w-full max-w-[500px] rounded-3xl border border-natural-border bg-white p-6 shadow-2xl text-right z-50 overflow-hidden my-2 flex flex-col max-h-[80vh]"
+                          className={`relative w-full max-w-[500px] rounded-3xl border p-6 shadow-2xl text-right z-50 overflow-hidden my-2 flex flex-col max-h-[80vh] transition-colors ${
+                            isDarkMode 
+                              ? 'border-[#2C374E] bg-[#111822]' 
+                              : 'border-natural-border bg-white'
+                          }`}
                           dir="rtl"
                         >
-                          <div className="flex items-center justify-between border-b border-natural-border/40 pb-3 mb-3 shrink-0">
+                          <div className={`flex items-center justify-between border-b pb-3 mb-3 shrink-0 ${
+                            isDarkMode ? 'border-[#2C374E]' : 'border-natural-border/40'
+                          }`}>
                             <div className="flex items-center gap-3">
                               <div className="h-7 w-7 rounded-lg bg-green-500/10 flex items-center justify-center text-green-600 shrink-0">
                                 <Check size={16} className="animate-bounce" />
                               </div>
                               <div>
-                                <h4 className="text-sm font-normal text-natural-text text-right leading-tight">
+                                <h4 className={`text-sm font-black text-right leading-tight ${isDarkMode ? 'text-white' : 'text-natural-text'}`}>
                                   البرومبت جاهز لتوليد الصورة
                                 </h4>
-                                <p className="text-xs text-green-600 font-bold text-center mt-0.5 leading-normal">
+                                <p className="text-xs text-green-500 font-bold text-center mt-0.5 leading-normal">
                                   تم نسخ النص للحافظة بنجاح
                                 </p>
                               </div>
@@ -1254,14 +1296,22 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                             <button
                               type="button"
                               onClick={() => setShowDropdown(false)}
-                              className="p-1.5 px-2 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-500 transition-colors cursor-pointer shrink-0"
+                              className={`p-1.5 px-2 rounded-lg transition-colors cursor-pointer shrink-0 ${
+                                isDarkMode 
+                                  ? 'bg-[#1A212E] hover:bg-[#253042] text-zinc-400' 
+                                  : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-500'
+                              }`}
                             >
                               <X size={14} />
                             </button>
                           </div>
 
                           {/* Copied text display frame (Read Only, Small) */}
-                          <div className="mb-3 bg-neutral-50 rounded-xl p-3 border border-natural-border/50 text-xs text-[#4A4A35] font-mono whitespace-pre-wrap break-words max-h-24 overflow-y-auto shrink-0 leading-relaxed text-left" dir="ltr">
+                          <div className={`mb-3 rounded-xl p-3 border text-xs font-mono whitespace-pre-wrap break-words max-h-24 overflow-y-auto shrink-0 leading-relaxed text-left ${
+                            isDarkMode 
+                              ? 'bg-[#1A212E] border-[#2C374E] text-[#B4C6D8]' 
+                              : 'bg-neutral-50 border-natural-border/50 text-[#4A4A35]'
+                          }`} dir="ltr">
                             {post.text}
                           </div>
 
@@ -1275,13 +1325,19 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                                 <div
                                   key={`default-${index}`}
                                   className={`flex items-start justify-between gap-2.5 p-2 md:p-2.5 rounded-xl border transition-all ${
-                                    isVisited
-                                      ? 'bg-neutral-50/50 border-natural-border/80 opacity-90'
-                                      : 'bg-green-50/5 border-natural-border/90 hover:bg-green-50/10'
+                                    isDarkMode 
+                                      ? isVisited
+                                        ? 'bg-[#1A212E]/40 border-[#2C374E]/80 opacity-80'
+                                        : 'bg-[#008D75]/5 border-[#2C374E] hover:bg-[#008D75]/10'
+                                      : isVisited
+                                        ? 'bg-neutral-50/50 border-natural-border/80 opacity-90'
+                                        : 'bg-green-50/5 border-natural-border/90 hover:bg-green-50/10'
                                   }`}
                                 >
                                   <div className="flex items-start gap-2.5 flex-1 min-w-0 text-right">
-                                    <span className="text-xs font-black text-[#4A4A35] w-5 h-5 flex items-center justify-center shrink-0 select-none bg-natural-primary/10 rounded-md">
+                                    <span className={`text-xs font-black w-5 h-5 flex items-center justify-center shrink-0 select-none rounded-md ${
+                                      isDarkMode ? 'bg-[#4DD0E1]/10 text-[#4DD0E1]' : 'bg-natural-primary/10 text-[#4A4A35]'
+                                    }`}>
                                       {index + 1}
                                     </span>
                                     <div className="flex-1 min-w-0 space-y-1.5 text-right overflow-hidden">
@@ -1296,18 +1352,26 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                                           setShowDropdown(false);
                                         }}
                                         className={`block text-[14px] md:text-[14px] font-black hover:underline whitespace-nowrap overflow-hidden text-ellipsis text-left w-full transition-colors leading-normal cursor-pointer font-mono ${
-                                          isVisited
-                                            ? 'text-red-700 hover:text-red-800'
-                                            : 'text-emerald-950 hover:text-emerald-950'
+                                          isDarkMode
+                                            ? isVisited
+                                              ? 'text-red-400 hover:text-red-300'
+                                              : 'text-[#4DD0E1] hover:text-[#5ce0f1]'
+                                            : isVisited
+                                              ? 'text-red-700 hover:text-red-800'
+                                              : 'text-emerald-950 hover:text-emerald-950'
                                         }`}
                                         title={`اضغط لزيارة: ${site.url}`}
                                         dir="ltr"
                                       >
                                         {cleanDisplayUrl}
                                       </a>
-                                      <div className="flex items-center gap-1 opacity-90 w-full bg-[#4A4A35]/5 border border-natural-border/50 rounded-lg px-1 py-1 text-right">
-                                        <span className="text-[10px] text-[#4A4A35] font-black shrink-0 select-none"> الميزة : </span>
-                                        <span className="text-[11px] font-bold text-[#3A3A28] py-0 text-right truncate select-all flex-1 min-w-0">{site.label}</span>
+                                      <div className={`flex items-center gap-1 opacity-90 w-full border rounded-lg px-1 py-1 text-right ${
+                                        isDarkMode 
+                                          ? 'bg-[#1A212E] border-[#2C374E]' 
+                                          : 'bg-[#4A4A35]/5 border-natural-border/50'
+                                      }`}>
+                                        <span className={`text-[10px] font-black shrink-0 select-none ${isDarkMode ? 'text-[#B4C6D8]' : 'text-[#4A4A35]'}`}> الميزة : </span>
+                                        <span className={`text-[11px] font-bold py-0 text-right truncate select-all flex-1 min-w-0 ${isDarkMode ? 'text-white' : 'text-[#3A3A28]'}`}>{site.label}</span>
                                       </div>
                                     </div>
                                   </div>
@@ -1324,13 +1388,19 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                                 <div
                                   key={`custom-${index}`}
                                   className={`flex items-start justify-between gap-2.5 p-2 md:p-2.5 rounded-xl border transition-all ${
-                                    isVisited
-                                      ? 'bg-neutral-50/50 border-natural-border/80 opacity-90'
-                                      : 'bg-green-50/5 border-natural-border/90 hover:bg-green-50/10'
+                                    isDarkMode 
+                                      ? isVisited
+                                        ? 'bg-[#1A212E]/40 border-[#2C374E]/80 opacity-80'
+                                        : 'bg-[#008D75]/5 border-[#2C374E] hover:bg-[#008D75]/10'
+                                      : isVisited
+                                        ? 'bg-neutral-50/50 border-natural-border/80 opacity-90'
+                                        : 'bg-green-50/5 border-natural-border/90 hover:bg-green-50/10'
                                   }`}
                                 >
                                   <div className="flex items-start gap-2.5 flex-1 min-w-0 text-right">
-                                    <span className="text-xs font-black text-[#4A4A35] w-5 h-5 flex items-center justify-center shrink-0 select-none bg-natural-primary/10 rounded-md">
+                                    <span className={`text-xs font-black w-5 h-5 flex items-center justify-center shrink-0 select-none rounded-md ${
+                                      isDarkMode ? 'bg-[#4DD0E1]/10 text-[#4DD0E1]' : 'bg-natural-primary/10 text-[#4A4A35]'
+                                    }`}>
                                       {offsetIndex + 1}
                                     </span>
                                     <div className="flex-1 min-w-0 space-y-1.5 text-right overflow-hidden">
@@ -1345,23 +1415,33 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                                           setShowDropdown(false);
                                         }}
                                         className={`block text-[14px] md:text-[14px] font-black hover:underline whitespace-nowrap overflow-hidden text-ellipsis text-left w-full transition-colors leading-normal cursor-pointer font-mono ${
-                                          isVisited
-                                            ? 'text-red-700 hover:text-red-800'
-                                            : 'text-emerald-950 hover:text-emerald-950'
+                                          isDarkMode
+                                            ? isVisited
+                                              ? 'text-red-400 hover:text-red-300'
+                                              : 'text-[#4DD0E1] hover:text-[#5ce0f1]'
+                                            : isVisited
+                                              ? 'text-red-700 hover:text-red-800'
+                                              : 'text-emerald-950 hover:text-emerald-950'
                                         }`}
                                         title={`اضغط لزيارة: ${site.url}`}
                                         dir="ltr"
                                       >
                                         {cleanDisplayUrl}
                                       </a>
-                                      <div className="flex items-center gap-1 opacity-90 w-full bg-[#4A4A35]/5 border border-natural-border/50 rounded-lg px-1 py-1 text-right">
-                                        <span className="text-[10px] text-[#4A4A35] font-black shrink-0 select-none"> الميزة : </span>
+                                      <div className={`flex items-center gap-1 opacity-90 w-full border rounded-lg px-1 py-1 text-right ${
+                                        isDarkMode 
+                                          ? 'bg-[#1A212E] border-[#2C374E]' 
+                                          : 'bg-[#4A4A35]/5 border-natural-border/50'
+                                      }`}>
+                                        <span className={`text-[10px] font-black shrink-0 select-none ${isDarkMode ? 'text-[#B4C6D8]' : 'text-[#4A4A35]'}`}> الميزة : </span>
                                         <input
                                           type="text"
                                           value={site.label || ''}
                                           onChange={(e) => handleEditCustomSiteLabel(site.url, e.target.value)}
                                           placeholder="اضغط لتسمية الموقع..."
-                                          className="w-full bg-transparent text-[11px] font-bold text-[#3A3A28] focus:outline-none text-right border-none p-0 flex-1 min-w-0"
+                                          className={`w-full bg-transparent text-[11px] font-bold focus:outline-none text-right border-none p-0 flex-1 min-w-0 ${
+                                            isDarkMode ? 'text-white placeholder-zinc-500' : 'text-[#3A3A28] placeholder-zinc-400'
+                                          }`}
                                         />
                                       </div>
                                     </div>
@@ -1372,7 +1452,11 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                                       e.stopPropagation();
                                       handleDeleteCustomSite(site.url);
                                     }}
-                                    className="p-1 px-1.5 text-red-600 hover:bg-red-50 rounded-md transition-colors border border-red-200/60 shrink-0 self-start mt-0.5 cursor-pointer"
+                                    className={`p-1 px-1.5 rounded-md transition-colors border shrink-0 self-start mt-0.5 cursor-pointer ${
+                                      isDarkMode 
+                                        ? 'text-red-400 hover:bg-red-900/20 border-red-900/40' 
+                                        : 'text-red-600 hover:bg-red-50 border border-red-200/60'
+                                    }`}
                                     title="حذف هذا الموقع المخصص"
                                   >
                                     <Trash2 size={11} />
@@ -1383,8 +1467,10 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                           </div>
 
                           {/* Add custom site form */}
-                          <div className="mt-3 border-t border-natural-border/50 pt-3 space-y-2 shrink-0">
-                            <div className="text-xs font-black text-natural-primary">
+                          <div className={`mt-3 border-t pt-3 space-y-2 shrink-0 ${
+                            isDarkMode ? 'border-[#2C374E]' : 'border-natural-border/50'
+                          }`}>
+                            <div className={`text-xs font-black ${isDarkMode ? 'text-[#B4C6D8]' : 'text-natural-primary'}`}>
                               ➕ إضافة موقع تجريبي مخصص لملفك:
                             </div>
                             <div className="grid grid-cols-1 gap-1.5 text-right">
@@ -1393,7 +1479,11 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                                 value={newSiteName}
                                 onChange={(e) => setNewSiteName(e.target.value)}
                                 placeholder="اسم الموقع المخصص (اختياري)"
-                                className="w-full text-right rounded-xl border border-natural-border bg-natural-bg/30 px-3 py-2 text-xs font-bold focus:ring-1 focus:ring-natural-primary focus:outline-none"
+                                className={`w-full text-right rounded-xl border px-3 py-2 text-xs font-black focus:ring-1 focus:outline-none transition-all ${
+                                  isDarkMode
+                                    ? 'border-[#2C374E] bg-[#1A212E] text-white focus:ring-[#008D75] placeholder-[#B4C6D8]/40'
+                                    : 'border-natural-border bg-natural-bg/30 focus:ring-natural-primary placeholder:text-natural-muted/50'
+                                }`}
                               />
                               <div className="flex gap-1.5">
                                 <input
@@ -1401,12 +1491,20 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                                   value={newSiteUrl}
                                   onChange={(e) => setNewSiteUrl(e.target.value)}
                                   placeholder="رابط الموقع (example.com)"
-                                  className="flex-1 text-right rounded-xl border border-natural-border bg-natural-bg/30 px-3 py-2 text-xs font-bold focus:ring-1 focus:ring-natural-primary focus:outline-none"
+                                  className={`flex-1 text-right rounded-xl border px-3 py-2 text-xs font-black focus:ring-1 focus:outline-none transition-all ${
+                                    isDarkMode
+                                      ? 'border-[#2C374E] bg-[#1A212E] text-white focus:ring-[#008D75] placeholder-[#B4C6D8]/40'
+                                      : 'border-natural-border bg-natural-bg/30 focus:ring-natural-primary placeholder:text-natural-muted/50'
+                                  }`}
                                   dir="ltr"
                                 />
                                 <button
                                   onClick={handleSaveCustomSite}
-                                  className="rounded-xl bg-natural-primary text-white px-4 py-2 text-xs font-black hover:bg-[#4A4A35] transition-all whitespace-nowrap shadow-sm hover:shadow active:scale-95 cursor-pointer"
+                                  className={`rounded-xl px-4 py-2 text-xs font-black transition-all whitespace-nowrap shadow-sm hover:shadow active:scale-95 cursor-pointer ${
+                                    isDarkMode
+                                      ? 'bg-[#008D75] text-white hover:bg-[#007460]'
+                                      : 'bg-natural-primary text-white hover:bg-[#4A4A35]'
+                                  }`}
                                 >
                                   حفظ الموقع
                                 </button>
@@ -1421,16 +1519,20 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                   <div className="relative">
                     <button 
                       onClick={handleCopy} 
-                      className="flex items-center gap-1 rounded-md bg-natural-bg px-1.5 py-1 text-[10px] font-black text-[#15803d] bg-[#f0fdf4] hover:bg-[#dcfce7] hover:text-[#166534] border border-[#cbd5e1] transition-all cursor-pointer"
+                      className={`flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold transition-all cursor-pointer ${
+                        isDarkMode 
+                          ? 'text-[#16af75] bg-[#111822] hover:bg-[#111822] hover:border-[#16af75]/50 border border-[#656c74] shadow-md' 
+                          : 'text-[#c26700] bg-[#fffaf5] shadow-md hover:bg-[#fef3e6] hover:border-[#c26700]/40 border border-[#cbd5e1]'
+                      }`}
                     >
                       {isCopied ? (
                         <>
-                          <Check size={12} className="text-green-600" />
-                          <span className="text-green-600">تم النسخ</span>
+                          <Check size={12} className={isDarkMode ? 'text-green-400' : 'text-green-600'} />
+                          <span className={isDarkMode ? 'text-green-400' : 'text-green-600'}>تم النسخ</span>
                         </>
                       ) : (
                         <>
-                          <Copy size={12} />
+                          <Copy size={12} className="text-[#c26700]" />
                           <span>نسخ النص</span>
                         </>
                       )}
@@ -1442,22 +1544,34 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
                           initial={{ opacity: 0, scale: 0.95, y: -5 }}
                           animate={{ opacity: 1, scale: 1, y: 0 }}
                           exit={{ opacity: 0, scale: 0.95, y: -5 }}
-                          className="absolute bottom-full left-0 mb-1.5 z-50 min-w-[135px] bg-white border border-natural-border rounded-xl shadow-md p-1.5 flex flex-col gap-1 text-right"
+                          className={`absolute bottom-full left-0 mb-1.5 z-[100] min-w-[135px] border rounded-xl shadow-md p-1.5 flex flex-col gap-1 text-right transition-colors ${
+                            isDarkMode 
+                              ? 'bg-[#111822] border-[#656c74]' 
+                              : 'bg-[#fffaf5] border-[#cbd5e1]'
+                          }`}
                           onClick={(e) => e.stopPropagation()}
                           dir="rtl"
                         >
                           <button
                             onClick={handleCopyOnly}
-                            className="w-full text-right px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-natural-text hover:bg-natural-secondary-bg transition-colors flex items-center gap-1.5 cursor-pointer"
+                            className={`w-full text-right px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                              isDarkMode 
+                                ? 'text-[#16af75] bg-[#111822] border-[#656c74]/40 hover:bg-[#16af75]/10 hover:border-[#16af75]/50 shadow-sm' 
+                                : 'text-[#c26700] bg-[#fffaf5] border-[#cbd5e1]/40 hover:bg-[#fef3e6] hover:border-[#c26700]/50 shadow-sm'
+                            }`}
                           >
-                            <Copy size={12} className="text-[#15803d]" />
+                            <Copy size={12} className="text-[#c26700]" />
                             <span className="whitespace-nowrap">نسخ النص فقط</span>
                           </button>
                           <button
                             onClick={handleCopyForEdit}
-                            className="w-full text-right px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-[#15803d] bg-[#f0fdf4] hover:bg-[#dcfce7] border border-[#dcfce7] transition-colors flex items-center gap-1.5 cursor-pointer"
+                            className={`w-full text-right px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                              isDarkMode 
+                                ? 'text-[#16af75] bg-[#111822] border-[#656c74]/40 hover:bg-[#16af75]/10 hover:border-[#16af75]/50 shadow-sm' 
+                                : 'text-[#c26700] bg-[#fffaf5] border-[#cbd5e1]/40 hover:bg-[#fef3e6] hover:border-[#c26700]/50 shadow-sm'
+                            }`}
                           >
-                            <Sparkles size={12} className="text-[#15803d]" />
+                            <Sparkles size={12} className="text-[#c26700]" />
                             <span className="whitespace-nowrap">نسخ للتعديل</span>
                           </button>
                         </motion.div>
@@ -1471,7 +1585,9 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt }: PostCa
         </div>
 
         {/* Image Grid/Gallery */}
-        <div className="grid gap-0.5 overflow-hidden bg-natural-border rounded-b-2xl">
+        <div className={`grid gap-0.5 overflow-hidden rounded-b-2xl transition-colors ${
+          isDarkMode ? 'bg-[#2C374E]' : 'bg-natural-border'
+        }`}>
           {imageUrls.length === 1 && (
             <div 
               className="relative aspect-video w-full bg-natural-secondary-bg overflow-hidden cursor-pointer"

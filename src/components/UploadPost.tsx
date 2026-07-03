@@ -18,9 +18,10 @@ interface UploadPostProps {
   activeBoardName?: string;
   boards?: Board[];
   onUploadSuccess?: (boardId: string | null) => void;
+  isDarkMode?: boolean;
 }
 
-export default function UploadPost({ activeBoardId, activeBoardName, boards = [], onUploadSuccess }: UploadPostProps) {
+export default function UploadPost({ activeBoardId, activeBoardName, boards = [], onUploadSuccess, isDarkMode }: UploadPostProps) {
   const [text, setText] = useState('');
   const [targetBoardId, setTargetBoardId] = useState<string | null>(activeBoardId);
 
@@ -444,19 +445,29 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
    {/* كلاس لوحة النشر كاملا*/}
   return (
     <div className="mx-auto mt-1 w-full max-w-xl">
-      <div className="overflow-hidden rounded-2xl border border-[#C1C3B8] bg-white shadow-[0_4px_12px_rgba(90,90,64,0.05)]">
-        <form onSubmit={handleSubmit} className="p-3 sm:p-3 text-right">
+      <div className={`overflow-hidden rounded-2xl border transition-colors ${
+        isDarkMode 
+          ? 'border-[#6980b0] bg-[#111822] shadow-[0_4px_12px_rgba(0,0,0,0.2)]' 
+          : 'border-[#C1C3B8] bg-white shadow-[0_4px_12px_rgba(90,90,64,0.05)]'
+      }`}>
+        <form onSubmit={handleSubmit} className="p-2 sm:p-2 text-right">
           {isAdmin && (
-            <div className="mb-2 flex items-center justify-between rounded-xl bg-natural-bg/55 p-1 border border-[#C1C3B8]" dir="rtl">
+            <div className={`mb-1 flex items-center justify-between rounded-xl p-1 ${
+              isDarkMode ? 'bg-[#111822]' : 'bg-natural-bg/55'
+            }`} dir="rtl">
               <div className="flex items-center gap-1.5">
-                <span className="text-[13px] text-[#d93025] font-normal">تحديد لوحة النشر:</span>
+                <span className={`text-[13px] font-normal ${isDarkMode ? 'text-[#edf0c1]' : 'text-[#d93025]'}`}>تحديد لوحة النشر:</span>
                 <select
                   value={targetBoardId === null ? 'main-feed' : targetBoardId}
                   onChange={(e) => {
                     const val = e.target.value;
                     setTargetBoardId(val === 'main-feed' ? null : val);
                   }}
-                  className="rounded-lg border border-[#C1C3B8] bg-white px-1.5 py-0.5 text-xs font-bold text-natural-text focus:outline-none focus:ring-1 focus:ring-natural-primary cursor-pointer"
+                  className={`rounded-lg border px-1.5 py-0.5 text-xs font-bold focus:outline-none cursor-pointer ${
+                    isDarkMode 
+                      ? 'border-[#6980b0] bg-[#1A212E] text-white focus:ring-1 focus:ring-[#008D75]' 
+                      : 'border-[#C1C3B8] bg-white text-natural-text focus:ring-1 focus:ring-natural-primary'
+                  }`}
                 >
                   <option value="user-board">لوحة شخصية</option>
                   <option value="main-feed">الرئيسية</option>
@@ -467,8 +478,6 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
                   ))}
                 </select>
               </div>
-              
-              
             </div>
           )}
 
@@ -497,10 +506,14 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
     value={text}
     onChange={(e) => processTextForImageUrls(e.target.value)}
     placeholder={` الصق النص للنشر في لوحة : ${getTargetBoardName()}`}
-    className="w-full resize-none rounded-xl border border-[#C1C3B8] bg-natural-bg px-4 py-4 text-sm font-medium text-natural-text placeholder-[#A1A18E] focus:ring-1 focus:ring-natural-primary"
+    className={`w-full resize-none rounded-xl border px-4 py-4 text-sm leading-normal focus:ring-1 focus:outline-none transition-all ${
+      isDarkMode
+        ? 'font-normal border-[#2C374E] bg-[#FCFAF2] text-[#1A212E] placeholder-[#8E8B7A] focus:ring-[#008D75]'
+        : 'font-normal border-[#C1C3B8] bg-natural-bg text-natural-text placeholder-[#A1A18E] focus:ring-natural-primary'
+    }`}
     rows={3}
     dir={isRtl(text) ? 'rtl' : 'ltr'}
-    style={{ textAlign: isRtl(text) ? 'right' : 'left' }}
+    style={{ textAlign: isRtl(text) ? 'right' : 'left', lineHeight: '1.8' }}
     disabled={loading}
   />
 </div>
@@ -585,14 +598,18 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
             )}
           </AnimatePresence>
 
-          <div className="mt-1 flex items-center justify-between border-t border-natural-border pt-3">
+          <div className={`mt-1 flex items-center justify-between border-t pt-3 transition-colors ${isDarkMode ? 'border-[#2C374E]' : 'border-natural-border'}`}>
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={loading || images.length >= 6}
-              className="group flex items-center gap-2 rounded-lg border border-natural-border px-3 py-1.5 text-xs font-medium text-natural-primary transition-all hover:bg-natural-bg disabled:opacity-50"
+              className={`group flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-bold transition-all disabled:opacity-50 cursor-pointer ${
+                isDarkMode 
+                  ? 'border border-[#656c74] text-[#16af75] bg-[#111822] hover:bg-[#1a212e]' 
+                  : 'text-[#c26700] bg-[#fffaf5] shadow-md hover:bg-[#fef3e6] hover:border-[#c26700]/40 border border-[#cbd5e1]'
+              }`}
             >
-              <ImageIcon size={16} />
+              <ImageIcon size={16} className={isDarkMode ? "text-[#16af75]" : "text-[#c26700]"} />
               إضافة صور ({images.length}/6)
             </button>
             <input
@@ -608,7 +625,11 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
             <button
               type="submit"
               disabled={loading || (!text.trim() && images.length === 0)}
-              className="px-6 py-1.5 rounded-lg text-sm font-bold shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-natural-primary hover:bg-[#4A4A35] text-white"
+              className={`px-6 py-1.5 rounded-lg text-sm font-bold transition-all disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer ${
+                isDarkMode 
+                  ? 'border border-[#656c74] text-[#16af75] bg-[#111822] hover:bg-[#1a212e] shadow-md' 
+                  : 'text-[#c26700] bg-[#fffaf5] shadow-md hover:bg-[#fef3e6] hover:border-[#c26700]/40 border border-[#cbd5e1]'
+              }`}
             >
               {loading ? (
                 <div className="flex items-center gap-2">

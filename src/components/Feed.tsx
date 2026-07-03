@@ -13,9 +13,10 @@ interface FeedProps {
   boardId: string | null;
   boards: Board[];
   onTestPrompt: (text: string) => void;
+  isDarkMode?: boolean;
 }
 
-export default function Feed({ isAdmin, boardId, boards, onTestPrompt }: FeedProps) {
+export default function Feed({ isAdmin, boardId, boards, onTestPrompt, isDarkMode }: FeedProps) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -110,21 +111,27 @@ export default function Feed({ isAdmin, boardId, boards, onTestPrompt }: FeedPro
 
   if (loading) {
     return (
-      <div className="flex h-64 flex-col items-center justify-center gap-3 text-natural-muted">
+      <div className={`flex h-64 flex-col items-center justify-center gap-3 transition-colors ${isDarkMode ? 'text-[#B4C6D8]' : 'text-natural-muted'}`}>
         <Loader2 className="animate-spin" size={32} />
-        <p className="text-sm font-medium">جاري تحميل الخلاصة...</p>
+        <p className="text-sm font-black">جاري تحميل الخلاصة...</p>
       </div>
     );
   }
 
   if (posts.length === 0) {
     return (
-      <div className="mx-auto mt-12 flex max-w-sm flex-col items-center justify-center rounded-3xl border-2 border-dashed border-natural-border bg-white p-12 text-center" dir="rtl">
-        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-natural-bg text-natural-muted">
+      <div className={`mx-auto mt-12 flex max-w-sm flex-col items-center justify-center rounded-3xl border-2 border-dashed p-12 text-center transition-colors ${
+        isDarkMode 
+          ? 'border-[#2C374E] bg-[#111822]' 
+          : 'border-natural-border bg-white'
+      }`} dir="rtl">
+        <div className={`mb-4 flex h-16 w-16 items-center justify-center rounded-full ${
+          isDarkMode ? 'bg-[#1A212E] text-[#B4C6D8]' : 'bg-natural-bg text-natural-muted'
+        }`}>
           <CameraOff size={32} />
         </div>
-        <h3 className="mb-1 text-lg font-bold text-natural-text">لا توجد منشورات بعد</h3>
-        <p className="text-sm text-natural-muted">
+        <h3 className={`mb-1 text-lg font-black ${isDarkMode ? 'text-white' : 'text-natural-text'}`}>لا توجد منشورات بعد</h3>
+        <p className={`text-sm ${isDarkMode ? 'text-[#B4C6D8]' : 'text-natural-muted'}`}>
           {isAdmin 
             ? "لم تقم بمشاركة أي شيء بعد. ابدأ بإنشاء منشورك الأول أعلاه!" 
             : "لم يقم المسؤول بمشاركة أي تحديثات مؤخراً. عُد لاحقاً!"}
@@ -138,7 +145,7 @@ export default function Feed({ isAdmin, boardId, boards, onTestPrompt }: FeedPro
       <AnimatePresence mode="popLayout">
         {posts.map((post) => (
           <div key={post.id}>
-            <PostCard post={post} isAdmin={isAdmin} boards={boards} onTestPrompt={onTestPrompt} />
+            <PostCard post={post} isAdmin={isAdmin} boards={boards} onTestPrompt={onTestPrompt} isDarkMode={isDarkMode} />
           </div>
         ))}
       </AnimatePresence>

@@ -3,7 +3,7 @@ import { auth, googleProvider } from '../lib/firebase';
 import { googleSignIn, emailSignIn, logout as authLogout, saveUserKeyToFirestore } from '../lib/auth';
 import { safeStorage } from '../lib/safe-storage';
 import { User } from 'firebase/auth';
-import { LogIn, LogOut, ShieldCheck, User as UserIcon, Menu, X, PlusCircle, Edit, LayoutGrid, Key, Trash2, ChevronDown, ChevronUp, AlertTriangle, Type } from 'lucide-react';
+import { LogIn, LogOut, ShieldCheck, User as UserIcon, Menu, X, PlusCircle, Edit, LayoutGrid, Key, Trash2, ChevronDown, ChevronUp, AlertTriangle, Type, Moon, Sun } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Board } from '../types';
 import BoardModals from './BoardModals';
@@ -14,7 +14,7 @@ import { OperationType } from '../types';
 import TextEditorModal from './TextEditorModal';
 import RecycleBinModal from './RecycleBinModal';
 import { ADMIN_CONFIG } from '../config';
-import { GlobalSettings } from '../types';
+import { GlobalSettings, License } from '../types';
 import OwnerLicensePanel from './OwnerLicensePanel';
 
 interface HeaderProps {
@@ -26,6 +26,9 @@ interface HeaderProps {
   onSelectBoard: (id: string | null) => void;
   globalSettings?: GlobalSettings;
   onUpdateSettings?: (newSettings: Partial<GlobalSettings>) => Promise<void>;
+  isDarkMode?: boolean;
+  setIsDarkMode?: (val: boolean) => void;
+  userLicense?: License | null;
 }
 
 export default function Header({ 
@@ -36,7 +39,10 @@ export default function Header({
   boards, 
   onSelectBoard,
   globalSettings,
-  onUpdateSettings
+  onUpdateSettings,
+  isDarkMode = false,
+  setIsDarkMode,
+  userLicense
 }: HeaderProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isBoardsDrawerOpen, setIsBoardsDrawerOpen] = useState(false);
@@ -105,6 +111,17 @@ export default function Header({
       setSidebarKey(safeStorage.getItem('user_gemini_api_key') || '');
     }
   }, [isSidebarOpen]);
+
+  useEffect(() => {
+    if (isSidebarOpen || isBoardsDrawerOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isSidebarOpen, isBoardsDrawerOpen]);
 
   const handleLogin = async () => {
     try {
@@ -295,16 +312,20 @@ export default function Header({
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full border-b border-natural-border bg-white/80 backdrop-blur-md shadow-sm shrink-0">
+      <header className={`sticky top-0 z-40 w-full border-b backdrop-blur-md shadow-sm shrink-0 transition-colors ${isDarkMode ? 'border-[#2C374E] bg-[#1A212E]/80' : 'border-natural-border bg-white/80'}`}>
         <div className="mx-auto flex h-12 max-w-5xl items-center justify-between px-1 relative">
           
           {/* Left Side: Settings Menu Button */}
           <button 
             onClick={() => setIsSidebarOpen(true)}
-            className="px-1 py-1 text-[12px] sm:text-xs md:text-sm font-bold text-[#15803d] bg-[#f0fdf4] hover:bg-[#dcfce7] hover:text-[#166534] hover:border-[#86efac] rounded-lg border border-[#15803d] shadow-xs transition-all z-10 cursor-pointer flex items-center justify-center h-8 whitespace-nowrap"
+            className={`px-3 py-1 rounded-lg  transition-all z-10 cursor-pointer flex items-center justify-center h-8 whitespace-nowrap ${
+              isDarkMode 
+                ? 'text-emerald-50 ' 
+                : 'text-[#000000] bg-[#ffffff] hover:bg-[#ffffff] hover:text-[#166534] '
+            }`}
             title="الأدوات"
           >
-            الأدوات
+            <Menu size={25} className={isDarkMode ? 'text-emerald-50' : 'text-[#15803d]'} />
           </button>
 
           {/* Absolute Centered Logo/Name */}
@@ -320,7 +341,11 @@ export default function Header({
                   }}
                 />
               </div>
-              <h1 className="text-lg sm:text-xl font-black tracking-tight text-[#15803d]">
+              <h1 className={`text-lg sm:text-xl font-black tracking-tight ${
+                isDarkMode 
+                  ? 'bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent' 
+                  : 'text-[#15803d]'
+              }`}>
                 JADGPT
               </h1>
             </div>
@@ -329,7 +354,11 @@ export default function Header({
           {/* Right Side: Boards Drawer Button */}
           <button 
             onClick={() => setIsBoardsDrawerOpen(true)}
-            className="px-1 py-1 text-[12px] sm:text-xs md:text-sm font-bold text-[#15803d] bg-[#f0fdf4] hover:bg-[#dcfce7] hover:text-[#166534] hover:border-[#86efac] rounded-lg border border-[#15803d] shadow-xs transition-all z-10 cursor-pointer flex items-center justify-center h-8 whitespace-nowrap"
+            className={`px-2 py-1 text-[12px] sm:text-xs md:text-sm font-bold rounded-lg border shadow-xs transition-all z-10 cursor-pointer flex items-center justify-center h-8 whitespace-nowrap ${
+              isDarkMode 
+                ? 'text-[#16af75] bg-[#00000029] hover:bg-[#007662] border-[#6980b0] pulsate-btn-dark' 
+                : 'text-[#c26700] bg-[#fffaf5] shadow-md hover:bg-[#fef3e6] hover:border-[#c26700]/40 border border-[#cbd5e1] pulsate-btn-light'
+            }`}
             title="لوحات كاملة"
           >
             لوحات كاملة
@@ -354,16 +383,26 @@ export default function Header({
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed inset-y-0 right-0 z-[1001] w-72 bg-white shadow-2xl"
+              className={`fixed inset-y-0 right-0 z-[1001] w-72 shadow-2xl transition-colors border-l ${
+                isDarkMode 
+                  ? 'bg-[#151D2A] text-white border-[#2C374E]' 
+                  : 'bg-white text-natural-text border-natural-border'
+              }`}
               dir="rtl"
             >
               <div className="flex flex-col h-full">
                 {/* Header */}
-                <div className="relative flex items-center justify-center py-2.5 px-3 border-b border-natural-border/40 bg-neutral-50/50">
-                  <h2 className="text-sm font-black text-[#3A3A28] text-center">الأقسام واللوحات</h2>
+                <div className={`relative flex items-center justify-center py-2.5 px-3 border-b transition-colors ${
+                  isDarkMode 
+                    ? 'border-[#2C374E] bg-[#111822]' 
+                    : 'border-natural-border/40 bg-neutral-50/50'
+                }`}>
+                  <h2 className={`text-sm font-black text-center ${isDarkMode ? 'text-white' : 'text-[#3A3A28]'}`}>الأقسام واللوحات</h2>
                   <button 
                     onClick={() => setIsBoardsDrawerOpen(false)}
-                    className="absolute right-2.5 p-1.5 text-natural-muted hover:bg-neutral-100 rounded-lg transition-colors cursor-pointer"
+                    className={`absolute right-2.5 p-1.5 rounded-lg transition-colors cursor-pointer ${
+                      isDarkMode ? 'text-[#B4C6D8] hover:bg-[#1A212E]' : 'text-natural-muted hover:bg-neutral-100'
+                    }`}
                   >
                     <X size={16} />
                   </button>
@@ -371,7 +410,9 @@ export default function Header({
 
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                  <p className="text-xs text-natural-muted font-bold mb-4 text-center leading-relaxed">
+                  <p className={`text-xs font-bold mb-4 text-center leading-relaxed ${
+                    isDarkMode ? 'text-[#B4C6D8]' : 'text-natural-muted'
+                  }`}>
                     تصفح جميع أقسام ولوحات توليد الصور الذكية
                   </p>
 
@@ -384,8 +425,12 @@ export default function Header({
                       }}
                       className={`w-full flex items-center justify-between p-3 rounded-2xl border text-right transition-all cursor-pointer ${
                         currentBoard === undefined && activeBoardId !== 'prompt-builder' && activeBoardId !== 'user-board'
-                          ? 'bg-natural-primary border-natural-primary text-white shadow-md font-normal'
-                          : 'bg-white border-natural-border hover:bg-natural-secondary-bg text-natural-text font-normal'
+                          ? (isDarkMode 
+                              ? 'bg-[#008D75] border-[#008D75] text-white shadow-md font-normal' 
+                              : 'bg-natural-primary border-natural-primary text-white shadow-md font-normal')
+                          : (isDarkMode
+                              ? 'bg-[#111822] border-[#2C374E] hover:bg-[#1A212E] text-white font-normal'
+                              : 'bg-white border-natural-border hover:bg-natural-secondary-bg text-natural-text font-normal')
                       }`}
                     >
                       <span className="flex items-center gap-2">
@@ -409,8 +454,12 @@ export default function Header({
                           }}
                           className={`w-full flex items-center justify-between p-3 rounded-2xl border text-right transition-all cursor-pointer ${
                             isSelected
-                              ? 'bg-natural-primary border-natural-primary text-white shadow-md font-normal'
-                              : 'bg-white border-natural-border hover:bg-natural-secondary-bg text-natural-text font-normal'
+                              ? (isDarkMode 
+                                  ? 'bg-[#008D75] border-[#008D75] text-white shadow-md font-normal' 
+                                  : 'bg-natural-primary border-natural-primary text-white shadow-md font-normal')
+                              : (isDarkMode
+                                  ? 'bg-[#111822] border-[#2C374E] hover:bg-[#1A212E] text-white font-normal'
+                                  : 'bg-white border-natural-border hover:bg-natural-secondary-bg text-natural-text font-normal')
                           }`}
                         >
                           <span className="flex items-center gap-2">
@@ -447,16 +496,26 @@ export default function Header({
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed inset-y-0 left-0 z-[1001] w-72 bg-white shadow-2xl"
+              className={`fixed inset-y-0 left-0 z-[1001] w-72 shadow-2xl transition-colors border-r ${
+                isDarkMode 
+                  ? 'bg-[#151D2A] text-white border-[#2C374E]' 
+                  : 'bg-white text-natural-text border-natural-border'
+              }`}
               dir="rtl"
             >
               <div className="flex flex-col h-full">
                 {/* Sidebar Header */}
-                <div className="relative flex items-center justify-center py-2.5 px-3 border-b border-natural-border/40 bg-neutral-50/50">
-                  <h2 className="text-sm font-black text-[#3A3A28] text-center">القائمة</h2>
+                <div className={`relative flex items-center justify-center py-2.5 px-3 border-b transition-colors ${
+                  isDarkMode 
+                    ? 'border-[#2C374E] bg-[#111822]' 
+                    : 'border-natural-border/40 bg-neutral-50/50'
+                }`}>
+                  <h2 className={`text-sm font-black text-center ${isDarkMode ? 'text-white' : 'text-[#3A3A28]'}`}>القائمة</h2>
                   <button 
                     onClick={() => setIsSidebarOpen(false)}
-                    className="absolute left-2.5 p-1.5 text-natural-muted hover:bg-neutral-100 rounded-lg transition-colors cursor-pointer"
+                    className={`absolute left-2.5 p-1.5 rounded-lg transition-colors cursor-pointer ${
+                      isDarkMode ? 'text-[#B4C6D8] hover:bg-[#1A212E]' : 'text-natural-muted hover:bg-neutral-100'
+                    }`}
                   >
                     <X size={16} />
                   </button>
@@ -465,60 +524,92 @@ export default function Header({
                 {/* Sidebar Content */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
                   {user ? (
-                    <div className="space-y-8">
+                    <div className="space-y-6">
                       {/* User Info */}
                       <div className="flex flex-col items-center text-center space-y-2">
                         <div>
-                          <p className="text-lg font-bold text-natural-text">{user.displayName}</p>
-                          <p className="text-xs text-natural-muted">{user.email}</p>
+                          <p className={`text-base font-bold ${isDarkMode ? 'text-white' : 'text-natural-text'}`}>{user.displayName}</p>
+                          <p className={`text-xs ${isDarkMode ? 'text-[#B4C6D8]' : 'text-natural-muted'}`}>{user.email}</p>
                         </div>
+                        {userLicense?.activated === true && (
+                          <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-black transition-colors ${
+                            isDarkMode 
+                              ? 'bg-[#008D75]/15 text-[#00C4A3]' 
+                              : 'bg-[#e6f4ea] text-[#008D75]'
+                          }`}>
+                            <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse"></span>
+                            مشترك بنسخة كاملة
+                          </span>
+                        )}
                         {isAdmin && (
-                         <span className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-[#e6f4ea] text-[#137333]">
+                         <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-normal uppercase tracking-wider transition-colors ${
+                           isDarkMode 
+                             ? 'bg-[#F9F3DC] text-[#ca3500]' 
+                             : 'bg-[#e6f4ea] text-[#ca3500]'
+                         }`}>
                          <ShieldCheck size={12} /> المسؤول
                          </span>
                         )}
                       </div>
 
+                      {/* Dark Mode Switch */}
+                      <div className={`flex items-center justify-between w-full p-3 rounded-2xl border transition-all ${
+                        isDarkMode 
+                          ? 'bg-[#111822] border-[#2C374E] text-white' 
+                          : 'bg-[#FAF9F5] border-natural-border text-natural-text'
+                      }`}>
+                        <div className="flex items-center gap-2 font-sans">
+                          {isDarkMode ? <Moon size={16} className="text-[#EEA396]" /> : <Sun size={16} className="text-[#008D75]" />}
+                          <span className="text-xs font-black">المظهر الداكن</span>
+                        </div>
+                        <button
+                          onClick={() => setIsDarkMode(!isDarkMode)}
+                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            isDarkMode ? 'bg-[#008D75]' : 'bg-[#414C5D]/30'
+                          }`}
+                          dir="ltr"
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                              isDarkMode ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
                       <div className="space-y-2">
                         {/* Always available tool for all logged-in users */}
-                        <div className="space-y-2 w-full">
-                          <h4 className="text-[10px] text-natural-muted font-bold uppercase tracking-widest text-right mb-1">الأدوات العامة</h4>
-                          
-                          {isAdmin && globalSettings && onUpdateSettings && (
-                            <div className="mb-2">
-                              <OwnerLicensePanel 
-                                currentSettings={globalSettings}
-                                onUpdateSettings={onUpdateSettings}
-                                compact={true}
-                              />
-                            </div>
-                          )}
-
-                          <div className="flex items-center justify-between gap-2 w-full">
+                              <div className="flex items-center justify-between gap-2 w-full">
                             {/* Button 1: تعديل النص */}
                             <button
                               onClick={() => {
                                 setIsSidebarOpen(false);
                                 setIsTranslatorOpen(true);
                               }}
-                              className="flex items-center gap-2 px-3 py-2.5 rounded-xl hover:bg-natural-secondary-bg text-natural-text transition-all border border-dashed border-natural-border hover:border-natural-primary text-xs font-bold cursor-pointer"
+                              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl transition-all border border-dashed text-xs font-bold cursor-pointer ${
+                                isDarkMode 
+                                  ? 'border-[#2C374E] text-white hover:bg-[#111822] hover:border-[#008D75]' 
+                                  : 'border-natural-border text-natural-text hover:bg-natural-secondary-bg hover:border-natural-primary'
+                              }`}
                             >
-                              <Edit size={16} className="text-natural-primary animate-pulse" />
+                              <Edit size={16} className={`${isDarkMode ? 'text-[#008D75]' : 'text-natural-primary'} animate-pulse`} />
                               <span className="whitespace-nowrap">تعديل النص</span>
                             </button>
 
                             {/* Button 2: حجم النصوص */}
-                            <div className="relative">
+                            <div className="relative flex-1">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setIsTextSizeMenuOpen(!isTextSizeMenuOpen);
                                 }}
-                                className={`flex items-center gap-2 px-3 py-2.5 rounded-xl hover:bg-natural-secondary-bg text-natural-text transition-all border border-dashed hover:border-natural-primary text-xs font-bold cursor-pointer ${
-                                  isTextSizeMenuOpen ? 'border-natural-primary bg-natural-secondary-bg' : 'border-natural-border'
+                                className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl transition-all border border-dashed text-xs font-bold cursor-pointer ${
+                                  isDarkMode
+                                    ? (isTextSizeMenuOpen ? 'border-[#008D75] bg-[#111822] text-white' : 'border-[#2C374E] text-white hover:bg-[#111822]')
+                                    : (isTextSizeMenuOpen ? 'border-natural-primary bg-natural-secondary-bg text-natural-text' : 'border-natural-border text-natural-text hover:bg-natural-secondary-bg hover:border-natural-primary')
                                 }`}
                               >
-                                <Type size={16} className="text-natural-primary" />
+                                <Type size={16} className={isDarkMode ? 'text-[#008D75]' : 'text-natural-primary'} />
                                 <span className="whitespace-nowrap">حجم النصوص</span>
                               </button>
 
@@ -528,23 +619,29 @@ export default function Header({
                                     initial={{ opacity: 0, scale: 0.95, y: 5 }}
                                     animate={{ opacity: 1, scale: 1, y: 0 }}
                                     exit={{ opacity: 0, scale: 0.95, y: 5 }}
-                                    className="absolute left-0 mt-1.5 z-50 min-w-[130px] bg-white border border-natural-border rounded-xl shadow-md p-2 flex items-center justify-between gap-2"
+                                    className={`absolute left-0 mt-1.5 z-50 min-w-[130px] border rounded-xl shadow-md p-2 flex items-center justify-between gap-2 transition-colors ${
+                                      isDarkMode ? 'bg-[#111822] border-[#2C374E] text-white' : 'bg-white border-natural-border text-natural-text'
+                                    }`}
                                     onClick={(e) => e.stopPropagation()}
                                     dir="ltr"
                                   >
                                     <button
                                       onClick={handleDecreaseFontSize}
-                                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-neutral-100 hover:bg-neutral-200 text-natural-text font-black transition-colors cursor-pointer text-sm"
+                                      className={`w-7 h-7 flex items-center justify-center rounded-lg font-black transition-colors cursor-pointer text-sm ${
+                                        isDarkMode ? 'bg-[#1A212E] hover:bg-[#151D2A] text-white' : 'bg-neutral-100 hover:bg-neutral-200 text-natural-text'
+                                      }`}
                                       title="تصغير"
                                     >
                                       -
                                     </button>
-                                    <span className="text-xs font-bold text-natural-text font-mono">
+                                    <span className={`text-xs font-bold font-mono ${isDarkMode ? 'text-white' : 'text-natural-text'}`}>
                                       {postFontSize}px
                                     </span>
                                     <button
                                       onClick={handleIncreaseFontSize}
-                                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-neutral-100 hover:bg-neutral-200 text-natural-text font-black transition-colors cursor-pointer text-sm"
+                                      className={`w-7 h-7 flex items-center justify-center rounded-lg font-black transition-colors cursor-pointer text-sm ${
+                                        isDarkMode ? 'bg-[#1A212E] hover:bg-[#151D2A] text-white' : 'bg-neutral-100 hover:bg-neutral-200 text-natural-text'
+                                      }`}
                                       title="تكبير"
                                     >
                                       +
@@ -557,16 +654,22 @@ export default function Header({
                         </div>
 
                         {isAdmin && (
-                          <div className="space-y-2 w-full pt-2 border-t border-natural-border">
+                          <div className={`space-y-2 w-full p-1 rounded-xl border border-solid transition-all duration-200 hover:border-dashed ${
+                            isDarkMode 
+                              ? 'border-[#2C374E] hover:border-[#008D75]' 
+                              : 'border-[#efece1] hover:border-[#4A4A35] bg-[#FAF9F5]'
+                          }`}>
                             {/* Toggle Button for Boards Management */}
                             <button
                               type="button"
                               onClick={() => setIsBoardsManagerOpen(!isBoardsManagerOpen)}
-                              className="flex w-full items-center justify-between p-2 rounded-xl hover:bg-natural-secondary-bg text-natural-text transition-colors cursor-pointer w-full text-right"
+                              className={`flex w-full items-center justify-between p-2 rounded-xl transition-colors cursor-pointer text-right ${
+                                isDarkMode ? 'hover:bg-[#111822] text-white' : ' text-natural-text'
+                              }`}
                             >
                               <div className="flex items-center gap-3">
-                                <LayoutGrid size={16} className="text-natural-primary animate-pulse" />
-                                <span className="text-sm font-black text-[#4A4A35]">إدارة اللوحات</span>
+                                <LayoutGrid size={16} className={`${isDarkMode ? 'text-[#008D75]' : 'text-natural-primary'} animate-pulse`} />
+                                <span className={`text-sm font-black ${isDarkMode ? 'text-white' : 'text-[#4A4A35]'}`}>إدارة اللوحات</span>
                               </div>
                               {isBoardsManagerOpen ? (
                                 <ChevronUp size={16} className="text-natural-muted" />
@@ -591,7 +694,11 @@ export default function Header({
                                       onClick={() => {
                                         setModalState({ isOpen: true, type: 'create', targetBoard: undefined });
                                       }}
-                                      className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg bg-[#FAF9F5] hover:bg-[#F4F4EB] text-natural-primary border border-natural-border/60 text-xs font-bold transition-colors cursor-pointer"
+                                      className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg border text-xs font-bold transition-colors cursor-pointer ${
+                                        isDarkMode 
+                                          ? 'bg-[#111822] border-[#2C374E] text-white hover:bg-[#1A212E]' 
+                                          : 'bg-[#FAF9F5] hover:bg-[#F4F4EB] text-natural-primary border border-natural-border/60'
+                                      }`}
                                     >
                                       <PlusCircle size={14} />
                                       <span>لوحة جديدة</span>
@@ -600,7 +707,11 @@ export default function Header({
                                       onClick={() => {
                                         setModalState({ isOpen: true, type: 'reorder', targetBoard: undefined });
                                       }}
-                                      className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg bg-[#FAF9F5] hover:bg-[#F4F4EB] text-natural-primary border border-natural-border/60 text-xs font-bold transition-colors cursor-pointer"
+                                      className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg border text-xs font-bold transition-colors cursor-pointer ${
+                                        isDarkMode 
+                                          ? 'bg-[#111822] border-[#2C374E] text-white hover:bg-[#1A212E]' 
+                                          : 'bg-[#FAF9F5] hover:bg-[#F4F4EB] text-natural-primary border border-natural-border/60'
+                                      }`}
                                     >
                                       <LayoutGrid size={14} />
                                       <span>ترتيب اللوحات</span>
@@ -651,15 +762,30 @@ export default function Header({
                           </div>
                         )}
 
+                        {isAdmin && globalSettings && onUpdateSettings && (
+                          <div className="w-full">
+                            <OwnerLicensePanel 
+                              currentSettings={globalSettings} 
+                              onUpdateSettings={onUpdateSettings} 
+                              compact={true} 
+                              isDarkMode={isDarkMode}
+                            />
+                          </div>
+                        )}
+
                         {isAdmin && (
-                          <div className="space-y-2 w-full pt-1 border-t border-natural-border">
+                          <div className={`space-y-2 w-full pt-1 border-t ${isDarkMode ? 'border-[#2C374E]' : 'border-natural-border'}`}>
                             
                             <button
                               onClick={() => {
                                 setIsSidebarOpen(false);
                                 setIsRecycleBinOpen(true);
                               }}
-                              className="flex w-full items-center gap-3 p-2 rounded-xl bg-red-50/80 hover:bg-red-100 text-red-700 transition-colors border border-red-100 cursor-pointer shadow-sm font-black"
+                              className={`flex w-full items-center gap-3 p-2 rounded-xl transition-all border cursor-pointer shadow-sm font-black ${
+                                isDarkMode 
+                                  ? 'bg-[#1C1517] hover:bg-[#2A1D1F] text-red-400 border-red-950/60 hover:border-dashed hover:border-red-500/50' 
+                                  : 'bg-red-50/80 hover:bg-red-100 text-red-700 border-red-100 hover:border-dashed hover:border-red-300'
+                              }`}
                             >
                               <Trash2 size={18} className="text-red-500 animate-pulse" />
                               <span className="text-sm">المحذوفات</span>
@@ -677,20 +803,44 @@ export default function Header({
                           تسجيل الخروج
                         </button>
                       </div>
-                    </div>
                   ) : (
                     <div className="flex flex-col items-center w-full space-y-6 text-center py-3">
                       <button
                         onClick={handleLogin}
-                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-natural-primary p-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-[#4A4A35] active:scale-95"
+                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-natural-primary p-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-[#4A4A35] active:scale-95 cursor-pointer"
                       >
                         <LogIn size={16} />
                         تسجيل الدخول عبر غوغل
                       </button>
 
+                      {/* Dark Mode Switch for Guests */}
+                      <div className={`flex items-center justify-between w-full p-3 rounded-2xl border transition-all ${
+                        isDarkMode 
+                          ? 'bg-[#111822] border-[#2C374E] text-white' 
+                          : 'bg-[#FAF9F5] border-natural-border text-natural-text'
+                      }`}>
+                        <div className="flex items-center gap-2 font-sans">
+                          {isDarkMode ? <Moon size={16} className="text-[#EEA396]" /> : <Sun size={16} className="text-[#008D75]" />}
+                          <span className="text-xs font-black">المظهر الداكن</span>
+                        </div>
+                        <button
+                          onClick={() => setIsDarkMode(!isDarkMode)}
+                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            isDarkMode ? 'bg-[#008D75]' : 'bg-[#414C5D]/30'
+                          }`}
+                          dir="ltr"
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                              isDarkMode ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
                       {/* Tool Button for Guests as well */}
-                      <div className="w-full pt-6 border-t border-natural-border space-y-2">
-                        <h4 className="text-[10px] text-natural-muted font-bold uppercase tracking-widest text-right">الأدوات العامة</h4>
+                      <div className={`w-full pt-6 border-t space-y-2 ${isDarkMode ? 'border-[#2C374E]' : 'border-natural-border'}`}>
+                        <h4 className={`text-[10px] font-bold uppercase tracking-widest text-right ${isDarkMode ? 'text-[#B4C6D8]' : 'text-natural-muted'}`}>الأدوات العامة</h4>
                         <div className="flex items-center justify-between gap-2 w-full">
                           {/* Button 1: تعديل النص */}
                           <button
@@ -698,24 +848,30 @@ export default function Header({
                               setIsSidebarOpen(false);
                               setIsTranslatorOpen(true);
                             }}
-                            className="flex items-center gap-2 px-3 py-2.5 rounded-xl hover:bg-natural-secondary-bg text-natural-text transition-all border border-dashed border-natural-border hover:border-natural-primary text-xs font-bold cursor-pointer"
+                            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl transition-all border border-dashed text-xs font-bold cursor-pointer ${
+                              isDarkMode 
+                                ? 'border-[#2C374E] text-white hover:bg-[#111822] hover:border-[#008D75]' 
+                                : 'border-natural-border text-natural-text hover:bg-natural-secondary-bg hover:border-natural-primary'
+                            }`}
                           >
-                            <Edit size={16} className="text-natural-primary animate-pulse" />
+                            <Edit size={16} className={`${isDarkMode ? 'text-[#008D75]' : 'text-natural-primary'} animate-pulse`} />
                             <span className="whitespace-nowrap">تعديل النص</span>
                           </button>
 
                           {/* Button 2: حجم النصوص */}
-                          <div className="relative">
+                          <div className="relative flex-1">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setIsTextSizeMenuOpen(!isTextSizeMenuOpen);
                               }}
-                              className={`flex items-center gap-2 px-3 py-2.5 rounded-xl hover:bg-natural-secondary-bg text-natural-text transition-all border border-dashed hover:border-natural-primary text-xs font-bold cursor-pointer ${
-                                isTextSizeMenuOpen ? 'border-natural-primary bg-natural-secondary-bg' : 'border-natural-border'
+                              className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl transition-all border border-dashed text-xs font-bold cursor-pointer ${
+                                isDarkMode
+                                  ? (isTextSizeMenuOpen ? 'border-[#008D75] bg-[#111822] text-white' : 'border-[#2C374E] text-white hover:bg-[#111822]')
+                                  : (isTextSizeMenuOpen ? 'border-natural-primary bg-natural-secondary-bg text-natural-text' : 'border-natural-border text-natural-text hover:bg-natural-secondary-bg hover:border-natural-primary')
                               }`}
                             >
-                              <Type size={16} className="text-natural-primary" />
+                              <Type size={16} className={isDarkMode ? 'text-[#008D75]' : 'text-natural-primary'} />
                               <span className="whitespace-nowrap">حجم النصوص</span>
                             </button>
 
@@ -725,23 +881,29 @@ export default function Header({
                                   initial={{ opacity: 0, scale: 0.95, y: 5 }}
                                   animate={{ opacity: 1, scale: 1, y: 0 }}
                                   exit={{ opacity: 0, scale: 0.95, y: 5 }}
-                                  className="absolute left-0 mt-1.5 z-50 min-w-[130px] bg-white border border-natural-border rounded-xl shadow-md p-2 flex items-center justify-between gap-2"
+                                  className={`absolute left-0 mt-1.5 z-50 min-w-[130px] border rounded-xl shadow-md p-2 flex items-center justify-between gap-2 transition-colors ${
+                                    isDarkMode ? 'bg-[#111822] border-[#2C374E] text-white' : 'bg-white border-natural-border text-natural-text'
+                                  }`}
                                   onClick={(e) => e.stopPropagation()}
                                   dir="ltr"
                                 >
                                   <button
                                     onClick={handleDecreaseFontSize}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-neutral-100 hover:bg-neutral-200 text-natural-text font-black transition-colors cursor-pointer text-sm"
+                                    className={`w-7 h-7 flex items-center justify-center rounded-lg font-black transition-colors cursor-pointer text-sm ${
+                                      isDarkMode ? 'bg-[#1A212E] hover:bg-[#151D2A] text-white' : 'bg-neutral-100 hover:bg-neutral-200 text-natural-text'
+                                    }`}
                                     title="تصغير"
                                   >
                                     -
                                   </button>
-                                  <span className="text-xs font-bold text-natural-text font-mono">
+                                  <span className={`text-xs font-bold font-mono ${isDarkMode ? 'text-white' : 'text-natural-text'}`}>
                                     {postFontSize}px
                                   </span>
                                   <button
                                     onClick={handleIncreaseFontSize}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-neutral-100 hover:bg-neutral-200 text-natural-text font-black transition-colors cursor-pointer text-sm"
+                                    className={`w-7 h-7 flex items-center justify-center rounded-lg font-black transition-colors cursor-pointer text-sm ${
+                                      isDarkMode ? 'bg-[#1A212E] hover:bg-[#151D2A] text-white' : 'bg-neutral-100 hover:bg-neutral-200 text-natural-text'
+                                    }`}
                                     title="تكبير"
                                   >
                                     +

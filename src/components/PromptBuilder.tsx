@@ -12,27 +12,33 @@ interface CustomSelectorProps {
   onChange: (val: string) => void;
   zIndex?: number;
   labelComponent?: React.ReactNode;
+  isDarkMode?: boolean;
 }
 
-function CustomSelector({ label, options, value, onChange, zIndex = 11, labelComponent }: CustomSelectorProps) {
+function CustomSelector({ label, options, value, onChange, zIndex = 11, labelComponent, isDarkMode }: CustomSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const isDark = isDarkMode !== undefined ? isDarkMode : document.documentElement.classList.contains('dark');
 
   return (
     <div className="relative text-right" style={{ zIndex }}>
       {labelComponent ? (
         labelComponent
       ) : label ? (
-        <label className="block text-xs font-black text-natural-primary mb-1.5">
+        <label className={`block text-xs font-black mb-1.5 ${isDark ? 'text-[#B4C6D8]' : 'text-natural-primary'}`}>
           {label}
         </label>
       ) : null}
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between text-right rounded-xl border border-natural-border bg-natural-bg/40 px-3 py-2.5 text-xs font-bold focus:ring-1 focus:ring-natural-primary focus:outline-none transition-all hover:bg-natural-bg/60"
+        className={`w-full flex items-center justify-between text-right rounded-xl border px-3 py-2.5 text-xs font-black focus:ring-1 focus:outline-none transition-all cursor-pointer ${
+          isDark
+            ? 'border-[#2C374E] bg-[#1A212E] text-white focus:ring-[#008D75] hover:bg-[#212B3B]'
+            : 'border-natural-border bg-natural-bg/40 focus:ring-natural-primary hover:bg-natural-bg/60'
+        }`}
       >
-        <span className="truncate pl-3 text-[#4A4A35] text-right flex-1 select-none">{value}</span>
-        <ChevronDown size={14} className={`text-natural-muted transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
+        <span className={`truncate pl-3 text-right flex-1 select-none ${isDark ? 'text-white' : 'text-[#4A4A35]'}`}>{value}</span>
+        <ChevronDown size={14} className={`transition-transform shrink-0 ${isDark ? 'text-[#B4C6D8]' : 'text-natural-muted'} ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       <AnimatePresence>
@@ -45,7 +51,9 @@ function CustomSelector({ label, options, value, onChange, zIndex = 11, labelCom
               initial={{ opacity: 0, y: 5 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 5 }}
-              className="absolute z-50 mt-1 w-full rounded-xl border border-natural-border bg-white shadow-xl max-h-60 overflow-y-auto"
+              className={`absolute z-50 mt-1 w-full rounded-xl border shadow-xl max-h-60 overflow-y-auto ${
+                isDark ? 'border-[#2C374E] bg-[#111822]' : 'border-natural-border bg-white'
+              }`}
             >
               <div className="p-1">
                 {options.map((opt, idx) => (
@@ -56,10 +64,14 @@ function CustomSelector({ label, options, value, onChange, zIndex = 11, labelCom
                       onChange(opt);
                       setIsOpen(false);
                     }}
-                    className={`w-full text-right px-3 py-2.5 text-xs font-bold rounded-lg transition-colors whitespace-normal break-words leading-relaxed block ${
+                    className={`w-full text-right px-3 py-2.5 text-xs font-black rounded-lg transition-colors whitespace-normal break-words leading-relaxed block cursor-pointer ${
                       value === opt
-                        ? 'bg-natural-primary text-white'
-                        : 'text-[#4A3A25] hover:bg-natural-bg/80'
+                        ? isDark
+                          ? 'bg-[#008D75] text-white'
+                          : 'bg-natural-primary text-white'
+                        : isDark
+                          ? 'text-[#B4C6D8] hover:bg-[#1A212E]'
+                          : 'text-[#4A3A25] hover:bg-natural-bg/80'
                     }`}
                   >
                     {opt}
@@ -87,7 +99,11 @@ const DEFAULT_EXECUTION_SITES = [
   { label: "اسم الموقع هنا ", url: "https://عنوان الموفع" }
 ];
 
-export default function PromptBuilder() {
+interface PromptBuilderProps {
+  isDarkMode?: boolean;
+}
+
+export default function PromptBuilder({ isDarkMode }: PromptBuilderProps) {
   // Visited sites state (resets on page load)
   const [visitedSiteIds, setVisitedSiteIds] = useState<string[]>([]);
   
@@ -1514,7 +1530,11 @@ ${originalPrompt}
             className="space-y-4 overflow-visible"
           >
             {/* Options configuration Panel */}
-            <div className="bg-white rounded-3xl border border-natural-border p-5 shadow-sm space-y-5 mb-6">
+            <div className={`rounded-3xl border p-5 shadow-sm space-y-5 mb-6 transition-colors ${
+              isDarkMode 
+                ? 'bg-[#111822] border-[#2C374E] text-white' 
+                : 'bg-white border-natural-border'
+            }`}>
         
         {/* Option 1: Gender & Age (Custom Layout) - Now at the absolute top */}
         <div className="grid grid-cols-2 gap-3 relative z-[110]">
@@ -1526,7 +1546,7 @@ ${originalPrompt}
                   zIndex={115}
                 />
                 <div>
-                  <label className="block text-xs font-black text-natural-primary mb-1.5">
+                  <label className={`block text-xs font-black mb-1.5 ${isDarkMode ? 'text-[#B4C6D8]' : 'text-natural-primary'}`}>
                     العمر (اختياري)
                   </label>
                   <input
@@ -1534,7 +1554,11 @@ ${originalPrompt}
                     value={age}
                     onChange={(e) => setAge(e.target.value)}
                     placeholder="مثال: 30 عاماً"
-                    className="w-full text-right rounded-xl border border-natural-border bg-natural-bg/40 px-3 py-2.5 text-xs font-bold focus:ring-1 focus:ring-natural-primary focus:outline-none transition-all hover:bg-natural-bg/60 placeholder:text-natural-muted/50"
+                    className={`w-full text-right rounded-xl border px-3 py-2.5 text-xs font-black focus:ring-1 focus:outline-none transition-all ${
+                      isDarkMode
+                        ? 'border-[#2C374E] bg-[#1A212E] text-white focus:ring-[#008D75] hover:bg-[#212B3B] placeholder-[#B4C6D8]/40'
+                        : 'border-natural-border bg-natural-bg/40 focus:ring-natural-primary hover:bg-natural-bg/60 placeholder:text-natural-muted/50'
+                    }`}
                   />
                 </div>
               </div>
@@ -1568,29 +1592,33 @@ ${originalPrompt}
 
               {/* Option 4.5: Shot Angle (Custom Visual Selector) */}
               <div className="relative text-right z-[80] space-y-2">
-                <label className="block text-xs font-black text-natural-primary">
+                <label className={`block text-xs font-black ${isDarkMode ? 'text-[#B4C6D8]' : 'text-natural-primary'}`}>
                   زاوية التصوير
                 </label>
                 <button
                   type="button"
                   onClick={() => setIsAngleSelectorOpen(!isAngleSelectorOpen)}
-                  className={`w-full flex items-center justify-between text-right rounded-xl border px-3 py-2.5 text-xs font-bold transition-all ${
+                  className={`w-full flex items-center justify-between text-right rounded-xl border px-3 py-2.5 text-xs font-black transition-all cursor-pointer ${
                     isAngleSelectorOpen 
-                      ? 'border-amber-500 bg-amber-50/20 ring-1 ring-amber-500' 
-                      : 'border-natural-border bg-natural-bg/40 hover:bg-natural-bg/60'
+                      ? isDarkMode
+                        ? 'border-amber-500 bg-amber-500/10 ring-1 ring-amber-500'
+                        : 'border-amber-500 bg-amber-50/20 ring-1 ring-amber-500' 
+                      : isDarkMode
+                        ? 'border-[#2C374E] bg-[#1A212E] text-white focus:ring-[#008D75] hover:bg-[#212B3B]'
+                        : 'border-natural-border bg-natural-bg/40 hover:bg-natural-bg/60'
                   }`}
                 >
                   <div className="flex items-center gap-2 text-right flex-1 select-none">
-                    <span className="truncate text-[#4A4A35] font-black">
+                    <span className={`truncate font-black ${isDarkMode ? 'text-white' : 'text-[#4A4A35]'}`}>
                       {shotAnglesData.find(a => a.value === shotAngle)?.label || shotAngle}
                     </span>
                     {shotAngle !== 'يتبع الصورة المرجعية' && (
-                      <span className="text-[10px] text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">
+                      <span className="text-[10px] text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200 font-bold">
                         نشط
                       </span>
                     )}
                   </div>
-                  <ChevronDown size={14} className={`text-natural-muted transition-transform shrink-0 ${isAngleSelectorOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={14} className={`transition-transform shrink-0 ${isDarkMode ? 'text-[#B4C6D8]' : 'text-natural-muted'} ${isAngleSelectorOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 <AnimatePresence>
@@ -1600,7 +1628,11 @@ ${originalPrompt}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
                       transition={{ duration: 0.25, ease: 'easeOut' }}
-                      className="overflow-hidden bg-neutral-50/80 rounded-2xl border border-natural-border/60 p-3 mt-1 shadow-inner"
+                      className={`overflow-hidden rounded-2xl border p-3 mt-1 shadow-inner transition-colors ${
+                        isDarkMode 
+                          ? 'border-[#2C374E] bg-[#111822]' 
+                          : 'bg-neutral-50/80 border border-natural-border/60'
+                      }`}
                     >
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
                         {shotAnglesData.map((angle) => {
@@ -1613,14 +1645,18 @@ ${originalPrompt}
                                 setShotAngle(angle.value);
                                 setIsAngleSelectorOpen(false);
                               }}
-                              className={`group relative flex flex-col overflow-hidden rounded-xl border text-right transition-all duration-300 ${
+                              className={`group relative flex flex-col overflow-hidden rounded-xl border text-right transition-all duration-300 cursor-pointer ${
                                 isSelected 
-                                  ? 'border-amber-500 ring-2 ring-amber-500/20 bg-amber-50/30 shadow-md scale-[1.02]' 
-                                  : 'border-natural-border/80 bg-white hover:border-amber-400 hover:shadow-sm'
+                                  ? isDarkMode
+                                    ? 'border-amber-500 ring-2 ring-amber-500/20 bg-amber-950/20 shadow-md scale-[1.02]'
+                                    : 'border-amber-500 ring-2 ring-amber-500/20 bg-amber-50/30 shadow-md scale-[1.02]' 
+                                  : isDarkMode
+                                    ? 'border-[#2C374E] bg-[#1A212E] hover:border-amber-400 hover:shadow-sm'
+                                    : 'border-natural-border/80 bg-white hover:border-amber-400 hover:shadow-sm'
                               }`}
                             >
                               {/* Image Container */}
-                              <div className="relative w-full aspect-[4/3] overflow-hidden bg-neutral-100">
+                              <div className={`relative w-full aspect-[4/3] overflow-hidden ${isDarkMode ? 'bg-[#111822]' : 'bg-neutral-100'}`}>
                                 <img
                                   src={angle.image}
                                   alt={angle.label}
@@ -1638,8 +1674,16 @@ ${originalPrompt}
                                 </div>
                               </div>
                               {/* Bottom title */}
-                              <div className="p-2 w-full text-center bg-white border-t border-neutral-100 group-hover:bg-neutral-50/50">
-                                <span className={`block text-[11px] font-black truncate leading-tight ${isSelected ? 'text-amber-800' : 'text-neutral-700'}`}>
+                              <div className={`p-2 w-full text-center border-t group-hover:opacity-90 ${
+                                isDarkMode 
+                                  ? 'bg-[#1A212E] border-[#2C374E]' 
+                                  : 'bg-white border-neutral-100'
+                              }`}>
+                                <span className={`block text-[11px] font-black truncate leading-tight ${
+                                  isSelected 
+                                    ? isDarkMode ? 'text-amber-400' : 'text-amber-800' 
+                                    : isDarkMode ? 'text-[#B4C6D8]' : 'text-neutral-700'
+                                }`}>
                                   {angle.label}
                                 </span>
                               </div>
@@ -1682,17 +1726,19 @@ ${originalPrompt}
                 labelComponent={
                   <div className="flex flex-col gap-2 mb-1.5 matches-label-direction">
                     <div className="flex items-center justify-between w-full">
-                      <label className="block text-xs font-black text-natural-primary">
+                      <label className={`block text-xs font-black ${isDarkMode ? 'text-[#B4C6D8]' : 'text-natural-primary'}`}>
                         الزي والملابس
                       </label>
-                      <div className="flex items-center gap-1 bg-natural-bg/50 p-0.5 rounded-lg border border-natural-border/40 select-none">
+                      <div className={`flex items-center gap-1 p-0.5 rounded-lg border select-none ${
+                        isDarkMode ? 'bg-[#1A212E] border-[#2C374E]' : 'bg-natural-bg/50 border-natural-border/40'
+                      }`}>
                         <button
                           type="button"
                           onClick={() => setOutfitType('women')}
-                          className={`px-2 py-0.5 text-[10px] font-black rounded-md transition-all ${
+                          className={`px-2 py-0.5 text-[10px] font-black rounded-md transition-all cursor-pointer ${
                             outfitType === 'women'
-                              ? 'bg-natural-primary text-white shadow-sm'
-                              : 'text-[#4A4A35] hover:bg-natural-bg/80'
+                              ? isDarkMode ? 'bg-[#008D75] text-white shadow-sm' : 'bg-natural-primary text-white shadow-sm'
+                              : isDarkMode ? 'text-[#B4C6D8] hover:bg-[#212B3B]' : 'text-[#4A4A35] hover:bg-natural-bg/80'
                           }`}
                         >
                           ملابس نسائية
@@ -1700,10 +1746,10 @@ ${originalPrompt}
                         <button
                           type="button"
                           onClick={() => setOutfitType('men')}
-                          className={`px-2 py-0.5 text-[10px] font-black rounded-md transition-all ${
+                          className={`px-2 py-0.5 text-[10px] font-black rounded-md transition-all cursor-pointer ${
                             outfitType === 'men'
-                              ? 'bg-natural-primary text-white shadow-sm'
-                              : 'text-[#4A4A35] hover:bg-natural-bg/80'
+                              ? isDarkMode ? 'bg-[#008D75] text-white shadow-sm' : 'bg-natural-primary text-white shadow-sm'
+                              : isDarkMode ? 'text-[#B4C6D8] hover:bg-[#212B3B]' : 'text-[#4A4A35] hover:bg-natural-bg/80'
                           }`}
                         >
                           ملابس رجالية
@@ -1714,14 +1760,16 @@ ${originalPrompt}
                     {/* Sub-categories for Men's clothing */}
                     {outfitType === 'men' && (
                       <div className="flex justify-end select-none">
-                        <div className="flex items-center gap-1 bg-natural-bg/50 p-0.5 rounded-lg border border-natural-border/40">
+                        <div className={`flex items-center gap-1 p-0.5 rounded-lg border ${
+                          isDarkMode ? 'bg-[#1A212E] border-[#2C374E]' : 'bg-natural-bg/50 border-natural-border/40'
+                        }`}>
                           <button
                             type="button"
                             onClick={() => setMenOutfitSubCategory('formal')}
-                            className={`px-2 py-0.5 text-[10px] font-black rounded-md transition-all ${
+                            className={`px-2 py-0.5 text-[10px] font-black rounded-md transition-all cursor-pointer ${
                               menOutfitSubCategory === 'formal'
-                                ? 'bg-natural-primary text-white shadow-sm'
-                                : 'text-[#4A4A35] hover:bg-natural-bg/80'
+                                ? isDarkMode ? 'bg-[#008D75] text-white shadow-sm' : 'bg-natural-primary text-white shadow-sm'
+                                : isDarkMode ? 'text-[#B4C6D8] hover:bg-[#212B3B]' : 'text-[#4A4A35] hover:bg-natural-bg/80'
                             }`}
                           >
                             بدلة رسمية
@@ -1729,10 +1777,10 @@ ${originalPrompt}
                           <button
                             type="button"
                             onClick={() => setMenOutfitSubCategory('threePiece')}
-                            className={`px-2 py-0.5 text-[10px] font-black rounded-md transition-all ${
+                            className={`px-2 py-0.5 text-[10px] font-black rounded-md transition-all cursor-pointer ${
                               menOutfitSubCategory === 'threePiece'
-                                ? 'bg-natural-primary text-white shadow-sm'
-                                : 'text-[#4A4A35] hover:bg-natural-bg/80'
+                                ? isDarkMode ? 'bg-[#008D75] text-white shadow-sm' : 'bg-natural-primary text-white shadow-sm'
+                                : isDarkMode ? 'text-[#B4C6D8] hover:bg-[#212B3B]' : 'text-[#4A4A35] hover:bg-natural-bg/80'
                             }`}
                           >
                             بدلة 3 قطع
@@ -1740,10 +1788,10 @@ ${originalPrompt}
                           <button
                             type="button"
                             onClick={() => setMenOutfitSubCategory('modern')}
-                            className={`px-2 py-0.5 text-[10px] font-black rounded-md transition-all ${
+                            className={`px-2 py-0.5 text-[10px] font-black rounded-md transition-all cursor-pointer ${
                               menOutfitSubCategory === 'modern'
-                                ? 'bg-natural-primary text-white shadow-sm'
-                                : 'text-[#4A4A35] hover:bg-natural-bg/80'
+                                ? isDarkMode ? 'bg-[#008D75] text-white shadow-sm' : 'bg-natural-primary text-white shadow-sm'
+                                : isDarkMode ? 'text-[#B4C6D8] hover:bg-[#212B3B]' : 'text-[#4A4A35] hover:bg-natural-bg/80'
                             }`}
                           >
                             ملابس عصرية
@@ -1755,14 +1803,16 @@ ${originalPrompt}
                     {/* Sub-categories for Women's clothing */}
                     {outfitType === 'women' && (
                       <div className="flex justify-end select-none">
-                        <div className="flex items-center gap-1 bg-natural-bg/50 p-0.5 rounded-lg border border-natural-border/40">
+                        <div className={`flex items-center gap-1 p-0.5 rounded-lg border ${
+                          isDarkMode ? 'bg-[#1A212E] border-[#2C374E]' : 'bg-natural-bg/50 border-natural-border/40'
+                        }`}>
                           <button
                             type="button"
                             onClick={() => setWomenOutfitSubCategory('traditional')}
-                            className={`px-2 py-0.5 text-[10px] font-black rounded-md transition-all ${
+                            className={`px-2 py-0.5 text-[10px] font-black rounded-md transition-all cursor-pointer ${
                               womenOutfitSubCategory === 'traditional'
-                                ? 'bg-natural-primary text-white shadow-sm'
-                                : 'text-[#4A4A35] hover:bg-natural-bg/80'
+                                ? isDarkMode ? 'bg-[#008D75] text-white shadow-sm' : 'bg-natural-primary text-white shadow-sm'
+                                : isDarkMode ? 'text-[#B4C6D8] hover:bg-[#212B3B]' : 'text-[#4A4A35] hover:bg-natural-bg/80'
                             }`}
                           >
                             فساتين ومناسبات
@@ -1770,10 +1820,10 @@ ${originalPrompt}
                           <button
                             type="button"
                             onClick={() => setWomenOutfitSubCategory('formal')}
-                            className={`px-2 py-0.5 text-[10px] font-black rounded-md transition-all ${
+                            className={`px-2 py-0.5 text-[10px] font-black rounded-md transition-all cursor-pointer ${
                               womenOutfitSubCategory === 'formal'
-                                ? 'bg-natural-primary text-white shadow-sm'
-                                : 'text-[#4A4A35] hover:bg-natural-bg/80'
+                                ? isDarkMode ? 'bg-[#008D75] text-white shadow-sm' : 'bg-natural-primary text-white shadow-sm'
+                                : isDarkMode ? 'text-[#B4C6D8] hover:bg-[#212B3B]' : 'text-[#4A4A35] hover:bg-natural-bg/80'
                             }`}
                           >
                             رسمي وأعمال
@@ -1781,10 +1831,10 @@ ${originalPrompt}
                           <button
                             type="button"
                             onClick={() => setWomenOutfitSubCategory('casual')}
-                            className={`px-2 py-0.5 text-[10px] font-black rounded-md transition-all ${
+                            className={`px-2 py-0.5 text-[10px] font-black rounded-md transition-all cursor-pointer ${
                               womenOutfitSubCategory === 'casual'
-                                ? 'bg-natural-primary text-white shadow-sm'
-                                : 'text-[#4A4A35] hover:bg-natural-bg/80'
+                                ? isDarkMode ? 'bg-[#008D75] text-white shadow-sm' : 'bg-natural-primary text-white shadow-sm'
+                                : isDarkMode ? 'text-[#B4C6D8] hover:bg-[#212B3B]' : 'text-[#4A4A35] hover:bg-natural-bg/80'
                             }`}
                           >
                             عصرية كاجوال

@@ -43,6 +43,20 @@ export default function App() {
   const [licenseLoading, setLicenseLoading] = useState(true);
   const [showActivationForce, setShowActivationForce] = useState(false);
 
+  // Dark Mode State
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    return localStorage.getItem('jadgpt_dark_mode') === 'true';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('jadgpt_dark_mode', String(isDarkMode));
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
+
   // 1. Listen to global settings in real-time
   useEffect(() => {
     const docRef = doc(db, 'settings', 'global');
@@ -230,7 +244,7 @@ export default function App() {
 
   if (loading || (user && licenseLoading)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-natural-bg">
+      <div className={`flex min-h-screen items-center justify-center transition-colors ${isDarkMode ? 'bg-[#121824]' : 'bg-natural-bg'}`}>
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-natural-primary shadow-xl animate-pulse overflow-hidden">
           <img src="/logo.png" className="h-full w-full object-cover" alt="Loading" onError={(e) => (e.target as HTMLElement).style.display = 'none'} />
         </div>
@@ -239,7 +253,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-natural-bg font-sans selection:bg-natural-primary/20 selection:text-natural-primary">
+    <div className={`min-h-screen font-sans selection:bg-natural-primary/20 selection:text-natural-primary transition-colors duration-300 ${isDarkMode ? 'bg-[#121824]' : 'bg-natural-bg'}`}>
       <Header 
         user={user} 
         isAdmin={isAdmin} 
@@ -249,10 +263,13 @@ export default function App() {
         onSelectBoard={setActiveBoardId}
         globalSettings={globalSettings}
         onUpdateSettings={handleUpdateSettings}
+        isDarkMode={isDarkMode}
+        setIsDarkMode={setIsDarkMode}
+        userLicense={userLicense}
       />
       
       {/* 1. AllFree (Gift) Banner */}
-      {globalSettings.allFree && (
+      {globalSettings.allFree && !isOwner && (
         <div className="bg-emerald-50 border-b border-emerald-200/40 py-2.5 text-center px-4 animate-fadeIn" dir="rtl">
           <p className="text-xs font-black text-emerald-800 flex items-center justify-center gap-1.5">
             <span>🎁</span>
@@ -279,13 +296,16 @@ export default function App() {
 
       <main className="container mx-auto px-1 max-w-5xl">
 
-        <div className="sticky top-12 z-30 bg-natural-bg/95 backdrop-blur-sm pt-1.5 pb-0.5 border-b border-natural-border/20 mb-1">
+        <div className={`sticky top-12 z-30 pt-1.5 pb-0.5 border-b mb-1 transition-colors ${
+          isDarkMode ? 'bg-[#121824]/95 border-[#2C374E]/30' : 'bg-natural-bg/95 border-natural-border/20'
+        }`}>
           <BoardTabs 
             boards={boards} 
             activeBoardId={activeBoardId} 
             onSelectBoard={setActiveBoardId} 
             postCounts={postCounts}
             lastDynamicBoardId={lastDynamicBoardId}
+            isDarkMode={isDarkMode}
           />
         </div>
 
@@ -356,6 +376,7 @@ export default function App() {
                     activeBoardId={activeBoardId} 
                     activeBoardName={activeBoardId === 'user-board' ? "لوحة المستخدم" : currentBoard?.name} 
                     boards={boards}
+                    isDarkMode={isDarkMode}
                     onUploadSuccess={(boardId) => {
                       if (boardId !== undefined) {
                         setActiveBoardId(boardId);
@@ -367,32 +388,15 @@ export default function App() {
             </AnimatePresence>
 
             <div className="mt-1.5">
-              {activeBoardId !== 'prompt-builder' && activeBoardId !== 'user-board' && activeBoardId !== null && currentBoard && (
-                <div className="mx-auto max-w-xl px-4 py-2.5 flex items-center justify-between border border-natural-border bg-white rounded-2xl shadow-xs mb-3 animate-fadeIn" dir="rtl">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">📂</span>
-                    <div className="text-right">
-                      <h2 className="text-xs font-black text-natural-text"> لوحة {currentBoard.name}</h2>
-                      <p className="text-[9px] font-normal text-natural-muted leading-tight">أنت تتصفح هذه اللوحة</p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => setActiveBoardId(null)}
-                    className="text-[10px] font-black text-natural-primary hover:underline bg-natural-secondary-bg px-2.5 py-1 rounded-xl cursor-pointer"
-                  >
-                    العودة للرئيسية 🏡
-                  </button>
-                </div>
-              )}
-
               {activeBoardId === 'prompt-builder' ? (
-                <PromptBuilder />
+                <PromptBuilder isDarkMode={isDarkMode} />
               ) : (
                 <Feed 
                   isAdmin={isAdmin} 
                   boardId={activeBoardId} 
                   boards={boards} 
                   onTestPrompt={() => {}} 
+                  isDarkMode={isDarkMode}
                 />
               )}
             </div>
