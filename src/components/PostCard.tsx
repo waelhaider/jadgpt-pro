@@ -665,7 +665,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
         }
 
         for (let i = 0; i < filesToUpload.length; i++) {
-          setStatus(`جاري رفع الصورة ${i + 1}/${filesToUpload.length} إلى Google Drive...`);
+          setStatus(`يتم رفع الصوة ${i + 1}/${filesToUpload.length} إلى G-Drive`);
           try {
             const url = await uploadPostImage(filesToUpload[i], post.authorId);
             finalImageUrls.push(url);

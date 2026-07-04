@@ -16,6 +16,7 @@ import RecycleBinModal from './RecycleBinModal';
 import { ADMIN_CONFIG } from '../config';
 import { GlobalSettings, License } from '../types';
 import OwnerLicensePanel from './OwnerLicensePanel';
+import { showToast } from './Toast';
 
 interface HeaderProps {
   user: User | null;
@@ -245,7 +246,7 @@ export default function Header({
     try {
       if (modalState.type === 'create') {
         if (!data.name?.trim()) {
-          alert('يرجى إدخال اسم اللوحة');
+          showToast('يرجى إدخال اسم اللوحة');
           return;
         }
         const boardData = {
@@ -257,32 +258,32 @@ export default function Header({
         console.log('Creating board with data:', boardData);
         const docRef = await addDoc(collection(db, 'boards'), boardData);
         onSelectBoard(docRef.id);
-        alert('تم إنشاء اللوحة بنجاح! تم الانتقال إليها الآن.');
+        showToast('تم إنشاء اللوحة بنجاح! تم الانتقال إليها الآن.');
       } else if (modalState.type === 'edit' && (modalState.targetBoard || currentBoard)) {
         const boardToEdit = modalState.targetBoard || currentBoard;
         if (!boardToEdit) return;
         if (!data.name?.trim()) {
-          alert('يرجى إدخال اسم اللوحة');
+          showToast('يرجى إدخال اسم اللوحة');
           return;
         }
         await updateDoc(doc(db, 'boards', boardToEdit.id), {
           name: data.name.trim(),
           locked: !!data.locked
         });
-        alert('تم تعديل اسم اللوحة بنجاح!');
+        showToast('تم تعديل اسم اللوحة بنجاح!');
       } else if (modalState.type === 'reorder') {
         console.log('Reordering boards:', data);
         // data is array of {id, order}
         for (const b of data) {
           await updateDoc(doc(db, 'boards', b.id), { order: b.order });
         }
-        alert('تم حفظ الترتيب الجديد بنجاح!');
+        showToast('تم حفظ الترتيب الجديد بنجاح!');
       }
       setModalState({ ...modalState, isOpen: false });
     } catch (error) {
       console.error('Board operation error detail:', error);
       const msg = error instanceof Error ? error.message : String(error);
-      alert(`فشل تنفيذ العملية: ${msg}`);
+      showToast(`فشل تنفيذ العملية: ${msg}`);
       handleFirestoreError(error, OperationType.WRITE, 'boards');
     }
   };
@@ -303,10 +304,10 @@ export default function Header({
       await moveBoardToRecycleBin(board, postsList);
       
       onSelectBoard(null);
-      alert('تم نقل اللوحة وجميع منشوراتها بنجاح إلى سلة المحذوفات! 🗑️');
+      showToast('تم نقل اللوحة وجميع منشوراتها بنجاح إلى سلة المحذوفات! 🗑️');
     } catch (err: any) {
       console.error('Failed to delete board:', err);
-      alert('حدث خطأ أثناء حذف اللوحة: ' + (err.message || err));
+      showToast('حدث خطأ أثناء حذف اللوحة: ' + (err.message || err));
     }
   };
 
@@ -330,7 +331,7 @@ export default function Header({
 
           {/* Absolute Centered Logo/Name */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="flex items-center gap-2 pointer-events-auto cursor-pointer" onClick={() => onSelectBoard(null)}>
+            <div className="flex items-center gap-2 pointer-events-auto cursor-pointer" onClick={() => setIsTranslatorOpen(true)}>
               <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg bg-natural-primary shadow-xs border border-natural-border/10">
                 <img 
                   src="/logo.png" 

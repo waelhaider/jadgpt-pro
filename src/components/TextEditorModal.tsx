@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, ArrowLeftRight, Copy, Loader2 } from 'lucide-react';
 
+// القيمة القابلة للتعديل لبعد النافذة عن أعلى الصفحة (يمكنك تغييرها لاحقاً حسب رغبتك)
+const MODAL_TOP_OFFSET = '50px';
+
 interface TextEditorModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -20,6 +23,17 @@ export default function TextEditorModal({ isOpen, onClose }: TextEditorModalProp
     const saved = localStorage.getItem('post_font_size');
     return saved ? parseInt(saved, 10) : 14;
   });
+
+  // Prevent background scrolling and content shifting when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     const handleFontSizeChange = (e: Event) => {
@@ -148,7 +162,7 @@ export default function TextEditorModal({ isOpen, onClose }: TextEditorModalProp
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[1000] flex justify-center p-2 sm:p-4 overflow-hidden">
         {/* Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -164,7 +178,11 @@ export default function TextEditorModal({ isOpen, onClose }: TextEditorModalProp
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ type: 'spring', duration: 0.35 }}
-          className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-natural-border overflow-hidden flex flex-col max-h-[90vh]"
+          className="relative w-[96%] max-w-[1300px] bg-white rounded-2xl shadow-2xl border border-natural-border overflow-hidden flex flex-col"
+          style={{
+            marginTop: MODAL_TOP_OFFSET,
+            height: `calc(100dvh - ${MODAL_TOP_OFFSET} - 24px)`,
+          }}
           dir="rtl"
         >
           {/* Header Area */}
@@ -172,13 +190,13 @@ export default function TextEditorModal({ isOpen, onClose }: TextEditorModalProp
             
             {/* Right Side: Original Text Label & Language Selector */}
             <div className="flex-1 text-right flex flex-col items-start justify-center">
-              <span className="text-xs font-black text-[#4A4A35]">النص الأصلي</span>
+              <span className="text-xs font-bold text-[#016f4a] block w-full max-w-[140px] text-center">النص الأصلي</span>
               <select
                 value={srcLang}
                 onChange={(e) => setSrcLang(e.target.value)}
-                className="mt-1 text-[11px] rounded-md border border-natural-border px-2 py-1 bg-white font-bold text-natural-text focus:outline-none focus:ring-1 focus:ring-natural-primary cursor-pointer w-full max-w-[140px]"
+                className="mt-1 text-[11px] rounded-md border border-natural-border px-0.5 py-1 bg-white font-bold text-natural-text focus:outline-none focus:ring-1 focus:ring-natural-primary cursor-pointer w-full max-w-[140px]"
               >
-                <option value="auto">تحديد تلقائي (Auto)</option>
+                <option value="auto">تلقائي(Auto)</option>
                 <option value="ar">العربية (Arabic)</option>
                 <option value="en">الإنجليزية (English)</option>
                 <option value="fr">الفرنسية (French)</option>
@@ -192,7 +210,7 @@ export default function TextEditorModal({ isOpen, onClose }: TextEditorModalProp
             </div>
 
             {/* Middle Side: Close button (X) and Swap button between Original text and translation */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 onClick={handleSwap}
@@ -208,17 +226,17 @@ export default function TextEditorModal({ isOpen, onClose }: TextEditorModalProp
                 title="إغلاق النافذة"
                 className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-all shadow-sm border border-red-200"
               >
-                <X size={16} />
+                <X size={15} />
               </button>
             </div>
 
             {/* Left Side: Translation Label & Language Selector */}
             <div className="flex-1 text-left flex flex-col items-end justify-center">
-              <span className="text-xs font-black text-[#4A4A35] block w-full max-w-[140px] text-right">الترجمة</span>
+              <span className="text-xs font-bold text-[#016f4a] block w-full max-w-[140px] text-center">الترجمة</span>
               <select
                 value={tgtLang}
                 onChange={(e) => setTgtLang(e.target.value)}
-                className="mt-1 text-[11px] rounded-md border border-natural-border px-2 py-1 bg-white font-bold text-natural-text focus:outline-none focus:ring-1 focus:ring-natural-primary cursor-pointer w-full max-w-[140px] text-right"
+                className="mt-1 text-[11px] rounded-md border border-natural-border px-0.5 py-1 bg-white font-bold text-natural-text focus:outline-none focus:ring-1 focus:ring-natural-primary cursor-pointer w-full max-w-[140px] text-right"
               >
                 <option value="en">الإنجليزية (English)</option>
                 <option value="ar">العربية (Arabic)</option>
@@ -235,10 +253,10 @@ export default function TextEditorModal({ isOpen, onClose }: TextEditorModalProp
           </div>
 
           {/* Text Areas Section (Strictly grid-cols-2 side-by-side for parallel comparison) */}
-          <div className="flex-1 p-3 grid grid-cols-2 gap-3 overflow-y-auto">
+          <div className="flex-1 p-1 grid grid-cols-2 gap-1 overflow-y-auto">
             
             {/* Right Column: Original Input Area */}
-            <div className="flex flex-col h-full min-h-[320px] md:min-h-[420px]">
+            <div className="flex flex-col h-full min-h-[120px]">
               <textarea
                 value={originalText}
                 onChange={(e) => setOriginalText(e.target.value)}
@@ -253,7 +271,7 @@ export default function TextEditorModal({ isOpen, onClose }: TextEditorModalProp
             </div>
 
             {/* Left Column: Translation View Area */}
-            <div className="flex flex-col h-full min-h-[320px] md:min-h-[420px]">
+            <div className="flex flex-col h-full min-h-[120px]">
               <div className="relative w-full flex-1 flex flex-col">
                 <textarea
                   readOnly
