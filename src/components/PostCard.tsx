@@ -256,14 +256,40 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
   const [newImages, setNewImages] = useState<(File | string)[]>([]);
   const [newPreviews, setNewPreviews] = useState<string[]>([]);
   const [removedImageUrls, setRemovedImageUrls] = useState<string[]>([]);
-  const [editedImageModels, setEditedImageModels] = useState<string[]>([]);
+  const [editedImageModels, setEditedImageModels] = useState<string[]>(post.imageModels || []);
   const [newImageModels, setNewImageModels] = useState<string[]>([]);
-  const [editedImageCaptions, setEditedImageCaptions] = useState<string[]>([]);
+  const [editedImageCaptions, setEditedImageCaptions] = useState<string[]>(post.imageCaptions || []);
   const [newImageCaptions, setNewImageCaptions] = useState<string[]>([]);
+  const [editedFileNames, setEditedFileNames] = useState<string[]>(post.fileNames || []);
+  const [editedFileTypes, setEditedFileTypes] = useState<string[]>(post.fileTypes || []);
+  const [newFileNames, setNewFileNames] = useState<string[]>([]);
+  const [newFileTypes, setNewFileTypes] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [status, setStatus] = useState('');
   
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const isUrlAnImage = (url: string, index: number) => {
+    const type = editedFileTypes[index] || post.fileTypes?.[index];
+    if (type) {
+      return type.startsWith('image/');
+    }
+    const name = editedFileNames[index] || post.fileNames?.[index];
+    if (name) {
+      return /\.(jpeg|jpg|gif|png|webp|bmp|svg|tiff)$/i.test(name);
+    }
+    if (url.includes('drive.google.com/thumbnail') || url.includes('/thumbnail?id=')) {
+      return true;
+    }
+    if (url.startsWith('data:image/')) {
+      return true;
+    }
+    if (!post.fileTypes || post.fileTypes.length === 0) {
+      return true;
+    }
+    const cleanUrl = url.split('?')[0].split('#')[0].toLowerCase();
+    return /\.(jpeg|jpg|gif|png|webp|bmp|svg|tiff)$/i.test(cleanUrl);
+  };
 
   const processEditedTextForImageUrls = (inputText: string) => {
     const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
@@ -499,6 +525,14 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
       const originalCaptions = Array(originalUrls.length).fill('').map((_, i) => post.imageCaptions?.[i] || '');
       setEditedImageCaptions(originalCaptions);
       setNewImageCaptions([]);
+
+      const originalFileNames = Array(originalUrls.length).fill('').map((_, i) => post.fileNames?.[i] || '');
+      setEditedFileNames(originalFileNames);
+      setNewFileNames([]);
+
+      const originalFileTypes = Array(originalUrls.length).fill('').map((_, i) => post.fileTypes?.[i] || '');
+      setEditedFileTypes(originalFileTypes);
+      setNewFileTypes([]);
     }
   }, [isEditing]); // Only reset when toggling isEditing
 
@@ -601,8 +635,17 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
           if (typeof file === 'string') {
             newUrls.push(file);
           } else {
-            const base64 = await compressImage(file);
-            newUrls.push(base64);
+            if (file.type.startsWith('image/')) {
+              const base64 = await compressImage(file);
+              newUrls.push(base64);
+            } else {
+              const base64 = await new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(file);
+              });
+              newUrls.push(base64);
+            }
           }
         }
 
@@ -610,6 +653,8 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
         const finalImageUrls = [...remainingOldUrls, ...newUrls];
         const finalImageModels = [...editedImageModels, ...newImageModels];
         const finalImageCaptions = [...editedImageCaptions, ...newImageCaptions];
+        const finalFileNames = [...editedFileNames, ...newFileNames];
+        const finalFileTypes = [...editedFileTypes, ...newFileTypes];
 
         const parsed = await getLocalUserPostsIndexedDB();
         const updated = parsed.map((p: any) => {
@@ -621,6 +666,8 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
               imageUrl: finalImageUrls.length > 0 ? finalImageUrls[0] : null,
               imageModels: finalImageModels,
               imageCaptions: finalImageCaptions,
+              fileNames: finalFileNames,
+              fileTypes: finalFileTypes,
               boardId: editedBoardId,
             };
           }
@@ -637,15 +684,17 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
         setNewImages([]);
         setNewPreviews([]);
         setRemovedImageUrls([]);
+        setNewFileNames([]);
+        setNewFileTypes([]);
         setIsSaving(false);
         setStatus('');
         return;
       }
 
-      setStatus('جاري معالجة الصور...');
+      setStatus('جاري معالجة الملفات...');
       const finalImageUrls = [...editedImageUrls];
       
-      // 1. Upload new images if any
+      // 1. Upload new files if any
       const filesToUpload = newImages.filter(img => typeof img !== 'string') as File[];
       const remoteUrls = newImages.filter(img => typeof img === 'string') as string[];
       
@@ -654,7 +703,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
       if (filesToUpload.length > 0) {
         const activeToken = getAccessToken();
         if (!activeToken || activeToken === 'local-dummy-token') {
-          showToast('يتطلب رفع صور جديدة تسجيل الدخول إلى Google Drive.');
+          showToast('يتطلب رفع ملفات جديدة تسجيل الدخول إلى Google Drive.');
           await handleAuthorize(false);
           const freshToken = getAccessToken();
           if (!freshToken || freshToken === 'local-dummy-token') {
@@ -665,12 +714,12 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
         }
 
         for (let i = 0; i < filesToUpload.length; i++) {
-          setStatus(`يتم رفع الصوة ${i + 1}/${filesToUpload.length} إلى G-Drive`);
+          setStatus(`يتم رفع الملف ${i + 1}/${filesToUpload.length} إلى G-Drive`);
           try {
-            const url = await uploadPostImage(filesToUpload[i], post.authorId);
+            const url = await uploadPostImage(filesToUpload[i], post.authorId, editedText);
             finalImageUrls.push(url);
           } catch (uploadErr: any) {
-            console.warn('[PostCard] Image upload error:', uploadErr);
+            console.warn('[PostCard] File upload error:', uploadErr);
             if (uploadErr.message === 'AUTH_REQUIRED' || uploadErr.message === 'AUTH_EXPIRED') {
               await handleAuthorize(false);
               const freshToken = getAccessToken();
@@ -679,7 +728,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
                 setStatus('');
                 return;
               }
-              const url = await uploadPostImage(filesToUpload[i], post.authorId);
+              const url = await uploadPostImage(filesToUpload[i], post.authorId, editedText);
               finalImageUrls.push(url);
               continue;
             }
@@ -688,9 +737,9 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
         }
       }
 
-      // 2. Delete removed images
+      // 2. Delete removed images/files
       if (removedImageUrls.length > 0) {
-        setStatus('جاري حذف الصور القديمة...');
+        setStatus('جاري حذف الملفات القديمة...');
         const token = getAccessToken();
         for (const url of removedImageUrls) {
           try {
@@ -705,12 +754,17 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
       // 3. Update Firestore
       const finalImageModels = [...editedImageModels, ...newImageModels];
       const finalImageCaptions = [...editedImageCaptions, ...newImageCaptions];
+      const finalFileNames = [...editedFileNames, ...newFileNames];
+      const finalFileTypes = [...editedFileTypes, ...newFileTypes];
+
       await updateDoc(doc(db, 'posts', post.id), {
         text: editedText.trim(),
         imageUrls: finalImageUrls,
         imageUrl: finalImageUrls.length > 0 ? finalImageUrls[0] : null,
         imageModels: finalImageModels,
         imageCaptions: finalImageCaptions,
+        fileNames: finalFileNames,
+        fileTypes: finalFileTypes,
         boardId: editedBoardId,
         updatedAt: serverTimestamp(),
       });
@@ -720,6 +774,8 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
       setNewImages([]);
       setNewPreviews([]);
       setRemovedImageUrls([]);
+      setNewFileNames([]);
+      setNewFileTypes([]);
       showToast('تم تحديث المنشور بنجاح! ✅');
     } catch (err) {
       console.error('[PostCard] Fatal update error:', err);
@@ -736,7 +792,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
     const totalCount = editedImageUrls.length + newImages.length + files.length;
     
     if (totalCount > 6) {
-      showToast('يمكنك إضافة 6 صور كحد أقصى.');
+      showToast('يمكنك إضافة 6 مرفقات كحد أقصى.');
       return;
     }
 
@@ -744,21 +800,33 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
     const nextNewPreviews = [...newPreviews];
     const nextNewModels = [...newImageModels];
     const nextNewCaptions = [...newImageCaptions];
+    const nextNewFileNames = [...newFileNames];
+    const nextNewFileTypes = [...newFileTypes];
 
     files.forEach(file => {
       nextNewImages.push(file);
-      nextNewModels.push(''); // No model selected initially
-      nextNewCaptions.push(''); // No caption initially
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setNewPreviews(prev => [...prev, reader.result as string]);
-      };
-      reader.readAsDataURL(file);
+      nextNewModels.push(''); 
+      nextNewCaptions.push(''); 
+      nextNewFileNames.push(file.name);
+      nextNewFileTypes.push(file.type || 'application/octet-stream');
+
+      const isImg = file.type.startsWith('image/');
+      if (isImg) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setNewPreviews(prev => [...prev, reader.result as string]);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        nextNewPreviews.push(`file:${file.name}:${file.type || 'application/octet-stream'}`);
+      }
     });
 
     setNewImages(nextNewImages);
     setNewImageModels(nextNewModels);
     setNewImageCaptions(nextNewCaptions);
+    setNewFileNames(nextNewFileNames);
+    setNewFileTypes(nextNewFileTypes);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -767,6 +835,8 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
     setEditedImageUrls(editedImageUrls.filter((_, i) => i !== index));
     setEditedImageModels(editedImageModels.filter((_, i) => i !== index));
     setEditedImageCaptions(editedImageCaptions.filter((_, i) => i !== index));
+    setEditedFileNames(editedFileNames.filter((_, i) => i !== index));
+    setEditedFileTypes(editedFileTypes.filter((_, i) => i !== index));
     setRemovedImageUrls([...removedImageUrls, url]);
   };
 
@@ -775,13 +845,26 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
     setNewPreviews(newPreviews.filter((_, i) => i !== index));
     setNewImageModels(newImageModels.filter((_, i) => i !== index));
     setNewImageCaptions(newImageCaptions.filter((_, i) => i !== index));
+    setNewFileNames(newFileNames.filter((_, i) => i !== index));
+    setNewFileTypes(newFileTypes.filter((_, i) => i !== index));
   };
 
   const imageUrls = post.imageUrls || (post.imageUrl ? [post.imageUrl] : []);
-  const slides = imageUrls.map((url, i) => ({ 
-    src: url,
-    modelName: post.imageModels?.[i] || ''
-  }));
+  const fileNames = post.fileNames || [];
+  const fileTypes = post.fileTypes || [];
+
+  const imagesList = imageUrls.filter((url, i) => isUrlAnImage(url, i));
+  const filesList = imageUrls
+    .map((url, i) => ({ url, name: fileNames[i], type: fileTypes[i], index: i }))
+    .filter(item => !isUrlAnImage(item.url, item.index));
+
+  const slides = imagesList.map((url) => {
+    const origIdx = imageUrls.indexOf(url);
+    return {
+      src: url,
+      modelName: post.imageModels?.[origIdx] || ''
+    };
+  });
 
   return (
     <>
@@ -975,36 +1058,65 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
               
               {/* Existing & New Images Preview in Edit Mode */}
               <div className="grid grid-cols-3 gap-2">
-                {editedImageUrls.map((url, i) => (
-                  <div key={`existing-${i}`} className="relative aspect-square overflow-hidden rounded-lg border border-natural-border">
-                    <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-                    <button 
-                      type="button"
-                      onClick={() => removeExistingImage(i)}
-                      className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white shadow-sm hover:scale-110"
-                    >
-                      <X size={10} />
-                    </button>
-                  </div>
-                ))}
-                {newPreviews.map((prev, i) => (
-                  <div key={`new-${i}`} className="relative aspect-square overflow-hidden rounded-lg border border-green-200 bg-green-50">
-                    <img src={prev} alt="" className="h-full w-full object-cover" />
-                    <button 
-                      type="button"
-                      onClick={() => removeNewImage(i)}
-                      className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white shadow-sm hover:scale-110"
-                    >
-                      <X size={10} />
-                    </button>
-                    <div className="absolute bottom-1 left-1 bg-green-600 text-white text-[8px] px-1 rounded">جديد</div>
-                  </div>
-                ))}
+                {editedImageUrls.map((url, i) => {
+                  const isFile = !isUrlAnImage(url, i);
+                  const fName = editedFileNames[i] || 'ملف';
+                  const isApk = fName.toLowerCase().endsWith('.apk') || (editedFileTypes[i] || '').includes('vnd.android.package-archive');
+                  return (
+                    <div key={`existing-${i}`} className="relative aspect-square overflow-hidden rounded-lg border border-natural-border flex items-center justify-center text-center p-1.5 bg-zinc-50">
+                      {isFile ? (
+                        <div className="flex flex-col items-center justify-center text-center w-full min-w-0">
+                          <span className="text-xl">{isApk ? '🤖' : '📄'}</span>
+                          <span className="text-[8px] font-black mt-1 leading-tight text-center break-all text-neutral-600 line-clamp-2 w-full px-1">
+                            {fName}
+                          </span>
+                        </div>
+                      ) : (
+                        <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                      )}
+                      <button 
+                        type="button"
+                        onClick={() => removeExistingImage(i)}
+                        className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white shadow-sm hover:scale-110 cursor-pointer"
+                      >
+                        <X size={10} />
+                      </button>
+                    </div>
+                  );
+                })}
+                {newPreviews.map((prev, i) => {
+                  const isFile = prev.startsWith('file:');
+                  const fName = isFile ? prev.split(':')[1] : (newFileNames[i] || 'ملف جديد');
+                  const fType = isFile ? prev.split(':')[2] : (newFileTypes[i] || '');
+                  const isApk = fName.toLowerCase().endsWith('.apk') || fType.includes('vnd.android.package-archive');
+                  return (
+                    <div key={`new-${i}`} className="relative aspect-square overflow-hidden rounded-lg border border-green-200 bg-green-50 flex items-center justify-center text-center p-1.5">
+                      {isFile ? (
+                        <div className="flex flex-col items-center justify-center text-center w-full min-w-0">
+                          <span className="text-xl">{isApk ? '🤖' : '📄'}</span>
+                          <span className="text-[8px] font-black mt-1 leading-tight text-center break-all text-green-800 line-clamp-2 w-full px-1">
+                            {fName}
+                          </span>
+                        </div>
+                      ) : (
+                        <img src={prev} alt="" className="h-full w-full object-cover" />
+                      )}
+                      <button 
+                        type="button"
+                        onClick={() => removeNewImage(i)}
+                        className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white shadow-sm hover:scale-110 cursor-pointer"
+                      >
+                        <X size={10} />
+                      </button>
+                      <div className="absolute bottom-1 left-1 bg-green-600 text-white text-[7px] px-1.5 py-0.5 rounded font-bold">جديد</div>
+                    </div>
+                  );
+                })}
                 {(editedImageUrls.length + newImages.length < 6) && (
                   <button 
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex aspect-square items-center justify-center rounded-lg border-2 border-dashed border-natural-border text-natural-muted hover:bg-natural-bg hover:text-natural-primary"
+                    className="flex aspect-square items-center justify-center rounded-lg border-2 border-dashed border-natural-border text-natural-muted hover:bg-natural-bg hover:text-natural-primary cursor-pointer"
                   >
                     <Plus size={24} />
                   </button>
@@ -1015,7 +1127,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
                 type="file" 
                 hidden 
                 multiple 
-                accept="image/*" 
+                accept="*" 
                 ref={fileInputRef} 
                 onChange={handleImageAdd} 
               />
@@ -1024,24 +1136,39 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
               {(editedImageUrls.length > 0 || newPreviews.length > 0) && (
                 <div className="mt-4 border border-natural-border/30 rounded-xl bg-natural-bg/35 p-3 flex flex-col gap-3 text-right" dir="rtl">
                   <span className="text-xs font-black text-[#4A4A35] flex items-center gap-1.5">
-                    ✨ اختيار موديل توليد كل صورة:
+                    ✨ ملاحظات وموديلات المرفقات المضافة:
                   </span>
                   <div className="grid grid-cols-2 gap-2">
                     {/* Pictures currently in the post */}
                     {editedImageUrls.map((url, index) => {
+                      const isFile = !isUrlAnImage(url, index);
+                      const fName = editedFileNames[index] || 'ملف';
+                      const isApk = fName.toLowerCase().endsWith('.apk') || (editedFileTypes[index] || '').includes('vnd.android.package-archive');
                       const models = ['gpt-2', 'grok', 'banana-2', 'flux', 'wan 2.7'];
+                      
                       return (
                         <div key={`edit-model-exist-${index}`} className="flex flex-col gap-1.5 p-2 rounded-lg border border-natural-border/40 bg-zinc-50">
-                          <div className="relative aspect-video overflow-hidden rounded-md border border-natural-border/20 bg-natural-bg">
-                            <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                          <div className="relative aspect-video overflow-hidden rounded-md border border-natural-border/20 bg-natural-bg flex items-center justify-center text-center p-1.5">
+                            {isFile ? (
+                              <div className="flex flex-col items-center justify-center text-center w-full min-w-0">
+                                <span className="text-xl">{isApk ? '🤖' : '📄'}</span>
+                                <span className="text-[9px] font-black mt-1 leading-tight text-center break-all text-neutral-600 line-clamp-2 w-full px-1">
+                                  {fName}
+                                </span>
+                              </div>
+                            ) : (
+                              <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                            )}
                           </div>
                           
                           {/* Caption Edit Field */}
                           <div className="flex flex-col gap-1 text-right">
-                            <span className="text-[9px] font-bold text-[#4A4A35]">ملاحظة حول الصورة : </span>
+                            <span className="text-[9px] font-bold text-[#4A4A35]">
+                              ملاحظة حول {isFile ? 'الملف' : 'الصورة'}:
+                            </span>
                             <input
                               type="text"
-                              placeholder="اكتب عبارة تعريفية لهذه الصورة"
+                              placeholder={isFile ? 'اكتب ملاحظة حول هذا الملف...' : 'اكتب عبارة تعريفية لهذه الصورة'}
                               value={editedImageCaptions[index] || ''}
                               onChange={(e) => {
                                 const updated = [...editedImageCaptions];
@@ -1052,56 +1179,74 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
                             />
                           </div>
 
-                          <div className="flex flex-col gap-1">
-                            <span className="text-[9px] font-bold text-[#4A4A35]">موديل توليد الصورة:</span>
-                            <div className="grid grid-cols-2 gap-1 w-full">
-                              {models.map((model, mIdx) => {
-                                const isSelected = editedImageModels[index] === model;
-                                const isLastOdd = mIdx === models.length - 1 && models.length % 2 !== 0;
-                                return (
-                                  <button
-                                    key={model}
-                                    type="button"
-                                    onClick={() => {
-                                      const updated = [...editedImageModels];
-                                      updated[index] = isSelected ? '' : model;
-                                      setEditedImageModels(updated);
-                                    }}
-                                    className={`px-1.5 py-1 rounded text-[8px] font-black cursor-pointer transition-all border text-center truncate whitespace-nowrap overflow-hidden ${
-                                      isLastOdd ? 'col-span-2' : ''
-                                    } ${
-                                      isSelected
-                                        ? 'bg-[#4A4A35] text-white border-transparent'
-                                        : 'bg-white text-natural-muted border-natural-border/60 hover:bg-natural-bg/80'
-                                    }`}
-                                    title={model}
-                                  >
-                                    {model}
-                                  </button>
-                                );
-                              })}
+                          {!isFile && (
+                            <div className="flex flex-col gap-1">
+                              <span className="text-[9px] font-bold text-[#4A4A35]">موديل توليد الصورة:</span>
+                              <div className="grid grid-cols-2 gap-1 w-full">
+                                {models.map((model, mIdx) => {
+                                  const isSelected = editedImageModels[index] === model;
+                                  const isLastOdd = mIdx === models.length - 1 && models.length % 2 !== 0;
+                                  return (
+                                    <button
+                                      key={model}
+                                      type="button"
+                                      onClick={() => {
+                                        const updated = [...editedImageModels];
+                                        updated[index] = isSelected ? '' : model;
+                                        setEditedImageModels(updated);
+                                      }}
+                                      className={`px-1.5 py-1 rounded text-[8px] font-black cursor-pointer transition-all border text-center truncate whitespace-nowrap overflow-hidden ${
+                                        isLastOdd ? 'col-span-2' : ''
+                                      } ${
+                                        isSelected
+                                          ? 'bg-[#4A4A35] text-white border-transparent'
+                                          : 'bg-white text-natural-muted border-natural-border/60 hover:bg-natural-bg/80'
+                                      }`}
+                                      title={model}
+                                    >
+                                      {model}
+                                    </button>
+                                  );
+                                })}
+                              </div>
                             </div>
-                          </div>
+                          )}
                         </div>
                       );
                     })}
 
                     {/* Newly added images */}
                     {newPreviews.map((prev, index) => {
+                      const isFile = prev.startsWith('file:');
+                      const fName = isFile ? prev.split(':')[1] : (newFileNames[index] || 'ملف جديد');
+                      const fType = isFile ? prev.split(':')[2] : (newFileTypes[index] || '');
+                      const isApk = fName.toLowerCase().endsWith('.apk') || fType.includes('vnd.android.package-archive');
                       const models = ['gpt-2', 'grok', 'banana-2', 'flux', 'wan 2.7'];
+                      
                       return (
                         <div key={`edit-model-new-${index}`} className="flex flex-col gap-1 p-1 rounded-lg border border-green-200 bg-green-50/20">
-                          <div className="relative aspect-video overflow-hidden rounded-md border border-green-200/55 bg-white">
-                            <img src={prev} alt="" className="h-full w-full object-cover" />
+                          <div className="relative aspect-video overflow-hidden rounded-md border border-green-200/55 bg-white flex items-center justify-center text-center p-1.5">
+                            {isFile ? (
+                              <div className="flex flex-col items-center justify-center text-center w-full min-w-0">
+                                <span className="text-xl">{isApk ? '🤖' : '📄'}</span>
+                                <span className="text-[9px] font-black mt-1 leading-tight text-center break-all text-green-800 line-clamp-2 w-full px-1">
+                                  {fName}
+                                </span>
+                              </div>
+                            ) : (
+                              <img src={prev} alt="" className="h-full w-full object-cover" />
+                            )}
                             <div className="absolute bottom-1 left-1 bg-green-600 text-[8px] text-white px-1 rounded font-black">جديدة</div>
                           </div>
 
                           {/* New Image Caption Edit Field */}
                           <div className="flex flex-col gap-1 text-right">
-                            <span className="text-[9px] font-bold text-green-700"> ملاحظة حول الصورة : </span>
+                            <span className="text-[9px] font-bold text-green-700">
+                              ملاحظة حول {isFile ? 'الملف الجديد' : 'الصورة الجديدة'}:
+                            </span>
                             <input
                               type="text"
-                              placeholder="اكتب عبارة تعريفية لهذه الصورة"
+                              placeholder={isFile ? 'اكتب ملاحظة حول هذا الملف الجديد...' : 'اكتب عبارة تعريفية لهذه الصورة الجديدة'}
                               value={newImageCaptions[index] || ''}
                               onChange={(e) => {
                                 const updated = [...newImageCaptions];
@@ -1112,36 +1257,38 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
                             />
                           </div>
 
-                          <div className="flex flex-col gap-1">
-                            <span className="text-[9px] font-bold text-green-700">الموديل للصورة الجديدة:</span>
-                            <div className="grid grid-cols-2 gap-1 w-full">
-                              {models.map((model, mIdx) => {
-                                const isSelected = newImageModels[index] === model;
-                                const isLastOdd = mIdx === models.length - 1 && models.length % 2 !== 0;
-                                return (
-                                  <button
-                                    key={model}
-                                    type="button"
-                                    onClick={() => {
-                                      const updated = [...newImageModels];
-                                      updated[index] = isSelected ? '' : model;
-                                      setNewImageModels(updated);
-                                    }}
-                                    className={`px-1.5 py-1 rounded text-[8px] font-black cursor-pointer transition-all border text-center truncate whitespace-nowrap overflow-hidden ${
-                                      isLastOdd ? 'col-span-2' : ''
-                                    } ${
-                                      isSelected
-                                        ? 'bg-green-700 text-white border-transparent'
-                                        : 'bg-white text-[#4A4A35] border-green-200 hover:bg-green-100/50'
-                                    }`}
-                                    title={model}
-                                  >
-                                    {model}
-                                  </button>
-                                );
-                              })}
+                          {!isFile && (
+                            <div className="flex flex-col gap-1">
+                              <span className="text-[9px] font-bold text-green-700">الموديل للصورة الجديدة:</span>
+                              <div className="grid grid-cols-2 gap-1 w-full">
+                                {models.map((model, mIdx) => {
+                                  const isSelected = newImageModels[index] === model;
+                                  const isLastOdd = mIdx === models.length - 1 && models.length % 2 !== 0;
+                                  return (
+                                    <button
+                                      key={model}
+                                      type="button"
+                                      onClick={() => {
+                                        const updated = [...newImageModels];
+                                        updated[index] = isSelected ? '' : model;
+                                        setNewImageModels(updated);
+                                      }}
+                                      className={`px-1.5 py-1 rounded text-[8px] font-black cursor-pointer transition-all border text-center truncate whitespace-nowrap overflow-hidden ${
+                                        isLastOdd ? 'col-span-2' : ''
+                                      } ${
+                                        isSelected
+                                          ? 'bg-green-700 text-white border-transparent'
+                                          : 'bg-white text-[#4A4A35] border-green-200 hover:bg-green-100/50'
+                                      }`}
+                                      title={model}
+                                    >
+                                      {model}
+                                    </button>
+                                  );
+                                })}
+                              </div>
                             </div>
-                          </div>
+                          )}
                         </div>
                       );
                     })}
@@ -1179,6 +1326,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
                             ? 'bg-[#4A4A35] text-[#F5F5EC] border-transparent shadow-sm'
                             : 'bg-white text-natural-muted border-natural-border/40 hover:bg-natural-bg'
                         }`}
+                        title={board.name}
                       >
                         {board.name}
                       </button>
@@ -1585,101 +1733,64 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
         </div>
 
         {/* Image Grid/Gallery */}
-        <div className={`grid gap-0.5 overflow-hidden rounded-b-2xl transition-colors ${
-          isDarkMode ? 'bg-[#2C374E]' : 'bg-natural-border'
-        }`}>
-          {imageUrls.length === 1 && (
-            <div 
-              className="relative aspect-video w-full bg-natural-secondary-bg overflow-hidden cursor-pointer"
-              onClick={() => { setLightboxIndex(0); setLightboxOpen(true); }}
-            >
-              <img
-                src={imageUrls[0]}
-                alt="Post content"
-                className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
-                loading="lazy"
-                referrerPolicy="no-referrer"
-              />
-              {post.imageModels && post.imageModels[0] && (
-                <div className="absolute bottom-1 right-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded px-1.5 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10 font-sans font-bold" style={{ fontSize: '7px' }}>
-                  ✨ {post.imageModels[0]}
-                </div>
-              )}
-              {post.imageCaptions && post.imageCaptions[0] && (
-                <div className="absolute bottom-1 left-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1.5 py-0.5 backdrop-blur-xs select-text z-10" onClick={(e) => e.stopPropagation()}>
-                  <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '5px' }} dir="rtl">
-                    {post.imageCaptions[0]}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-          
-          {imageUrls.length === 2 && (
-            <div className="grid grid-cols-2 gap-0.5">
-              {imageUrls.map((url, i) => (
-                <div 
-                  key={url + i} 
-                  className="relative aspect-square bg-natural-secondary-bg overflow-hidden cursor-pointer"
-                  onClick={() => { setLightboxIndex(i); setLightboxOpen(true); }}
-                >
-                  <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-                  {post.imageModels && post.imageModels[i] && (
-                    <div className="absolute bottom-1 right-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded px-1.5 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10 font-sans font-bold" style={{ fontSize: '7px' }}>
-                      ✨ {post.imageModels[i]}
-                    </div>
-                  )}
-                  {post.imageCaptions && post.imageCaptions[i] && (
-                    <div className="absolute bottom-1 left-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1.5 py-0.5 backdrop-blur-xs select-text z-10" onClick={(e) => e.stopPropagation()}>
-                      <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '5px' }} dir="rtl">
-                        {post.imageCaptions[i]}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {imageUrls.length === 3 && (
-            <div className="grid grid-cols-2 gap-0.5">
+        {imagesList.length > 0 && (
+          <div className={`grid gap-0.5 overflow-hidden transition-colors ${
+            isDarkMode ? 'bg-[#2C374E]' : 'bg-natural-border'
+          } ${filesList.length === 0 ? 'rounded-b-2xl' : ''}`}>
+            {imagesList.length === 1 && (
               <div 
-                className="relative aspect-square bg-natural-secondary-bg row-span-2 overflow-hidden cursor-pointer"
+                className="relative aspect-video w-full bg-natural-secondary-bg overflow-hidden cursor-pointer"
                 onClick={() => { setLightboxIndex(0); setLightboxOpen(true); }}
               >
-                <img src={imageUrls[0]} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-                {post.imageModels && post.imageModels[0] && (
-                  <div className="absolute bottom-1 right-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded px-1.5 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10 font-sans font-bold" style={{ fontSize: '7px' }}>
-                    ✨ {post.imageModels[0]}
-                  </div>
-                )}
-                {post.imageCaptions && post.imageCaptions[0] && (
-                  <div className="absolute bottom-1 left-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1.5 py-0.5 backdrop-blur-xs select-text z-10" onClick={(e) => e.stopPropagation()}>
-                    <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '5px' }} dir="rtl">
-                      {post.imageCaptions[0]}
-                    </p>
-                  </div>
-                )}
-              </div>
-              <div className="grid grid-rows-2 gap-0.5">
-                {imageUrls.slice(1).map((url, i) => {
-                  const actualIndex = i + 1;
+                <img
+                  src={imagesList[0]}
+                  alt="Post content"
+                  className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                />
+                {(() => {
+                  const origIdx = imageUrls.indexOf(imagesList[0]);
                   return (
-                    <div 
-                      key={url + actualIndex} 
-                      className="relative aspect-square bg-natural-secondary-bg overflow-hidden cursor-pointer"
-                      onClick={() => { setLightboxIndex(actualIndex); setLightboxOpen(true); }}
-                    >
-                      <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-                      {post.imageModels && post.imageModels[actualIndex] && (
+                    <>
+                      {post.imageModels && post.imageModels[origIdx] && (
                         <div className="absolute bottom-1 right-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded px-1.5 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10 font-sans font-bold" style={{ fontSize: '7px' }}>
-                          ✨ {post.imageModels[actualIndex]}
+                          ✨ {post.imageModels[origIdx]}
                         </div>
                       )}
-                      {post.imageCaptions && post.imageCaptions[actualIndex] && (
+                      {post.imageCaptions && post.imageCaptions[origIdx] && (
                         <div className="absolute bottom-1 left-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1.5 py-0.5 backdrop-blur-xs select-text z-10" onClick={(e) => e.stopPropagation()}>
                           <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '5px' }} dir="rtl">
-                            {post.imageCaptions[actualIndex]}
+                            {post.imageCaptions[origIdx]}
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+            
+            {imagesList.length === 2 && (
+              <div className="grid grid-cols-2 gap-0.5">
+                {imagesList.map((url, i) => {
+                  const origIdx = imageUrls.indexOf(url);
+                  return (
+                    <div 
+                      key={url + i} 
+                      className="relative aspect-square bg-natural-secondary-bg overflow-hidden cursor-pointer"
+                      onClick={() => { setLightboxIndex(i); setLightboxOpen(true); }}
+                    >
+                      <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                      {post.imageModels && post.imageModels[origIdx] && (
+                        <div className="absolute bottom-1 right-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded px-1.5 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10 font-sans font-bold" style={{ fontSize: '7px' }}>
+                          ✨ {post.imageModels[origIdx]}
+                        </div>
+                      )}
+                      {post.imageCaptions && post.imageCaptions[origIdx] && (
+                        <div className="absolute bottom-1 left-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1.5 py-0.5 backdrop-blur-xs select-text z-10" onClick={(e) => e.stopPropagation()}>
+                          <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '5px' }} dir="rtl">
+                            {post.imageCaptions[origIdx]}
                           </p>
                         </div>
                       )}
@@ -1687,40 +1798,144 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
                   );
                 })}
               </div>
-            </div>
-          )}
+            )}
 
-          {imageUrls.length >= 4 && (
-            <div className="grid grid-cols-2 gap-0.5">
-              {imageUrls.slice(0, 4).map((url, i) => (
+            {imagesList.length === 3 && (
+              <div className="grid grid-cols-2 gap-0.5">
                 <div 
-                  key={url + i} 
-                  className="relative aspect-square bg-natural-secondary-bg overflow-hidden cursor-pointer"
-                  onClick={() => { setLightboxIndex(i); setLightboxOpen(true); }}
+                  className="relative aspect-square bg-natural-secondary-bg row-span-2 overflow-hidden cursor-pointer"
+                  onClick={() => { setLightboxIndex(0); setLightboxOpen(true); }}
                 >
-                  <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-                  {post.imageModels && post.imageModels[i] && (
-                    <div className="absolute bottom-1 right-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded px-1.5 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10 font-sans font-bold" style={{ fontSize: '7px' }}>
-                      ✨ {post.imageModels[i]}
+                  <img src={imagesList[0]} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                  {(() => {
+                    const origIdx = imageUrls.indexOf(imagesList[0]);
+                    return (
+                      <>
+                        {post.imageModels && post.imageModels[origIdx] && (
+                          <div className="absolute bottom-1 right-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded px-1.5 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10 font-sans font-bold" style={{ fontSize: '7px' }}>
+                            ✨ {post.imageModels[origIdx]}
+                          </div>
+                        )}
+                        {post.imageCaptions && post.imageCaptions[origIdx] && (
+                          <div className="absolute bottom-1 left-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1.5 py-0.5 backdrop-blur-xs select-text z-10" onClick={(e) => e.stopPropagation()}>
+                            <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '5px' }} dir="rtl">
+                              {post.imageCaptions[origIdx]}
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+                <div className="grid grid-rows-2 gap-0.5">
+                  {imagesList.slice(1).map((url, i) => {
+                    const actualIndex = i + 1;
+                    const origIdx = imageUrls.indexOf(url);
+                    return (
+                      <div 
+                        key={url + actualIndex} 
+                        className="relative aspect-square bg-natural-secondary-bg overflow-hidden cursor-pointer"
+                        onClick={() => { setLightboxIndex(actualIndex); setLightboxOpen(true); }}
+                      >
+                        <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                        {post.imageModels && post.imageModels[origIdx] && (
+                          <div className="absolute bottom-1 right-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded px-1.5 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10 font-sans font-bold" style={{ fontSize: '7px' }}>
+                            ✨ {post.imageModels[origIdx]}
+                          </div>
+                        )}
+                        {post.imageCaptions && post.imageCaptions[origIdx] && (
+                          <div className="absolute bottom-1 left-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1.5 py-0.5 backdrop-blur-xs select-text z-10" onClick={(e) => e.stopPropagation()}>
+                            <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '5px' }} dir="rtl">
+                              {post.imageCaptions[origIdx]}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {imagesList.length >= 4 && (
+              <div className="grid grid-cols-2 gap-0.5">
+                {imagesList.slice(0, 4).map((url, i) => {
+                  const origIdx = imageUrls.indexOf(url);
+                  return (
+                    <div 
+                      key={url + i} 
+                      className="relative aspect-square bg-natural-secondary-bg overflow-hidden cursor-pointer"
+                      onClick={() => { setLightboxIndex(i); setLightboxOpen(true); }}
+                    >
+                      <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                      {post.imageModels && post.imageModels[origIdx] && (
+                        <div className="absolute bottom-1 right-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded px-1.5 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10 font-sans font-bold" style={{ fontSize: '7px' }}>
+                          ✨ {post.imageModels[origIdx]}
+                        </div>
+                      )}
+                      {post.imageCaptions && post.imageCaptions[origIdx] && (
+                        <div className="absolute bottom-1 left-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1.5 py-0.5 backdrop-blur-xs select-text z-10" onClick={(e) => e.stopPropagation()}>
+                          <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '5px' }} dir="rtl">
+                            {post.imageCaptions[origIdx]}
+                          </p>
+                        </div>
+                      )}
+                      {i === 3 && imagesList.length > 4 && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-white font-bold text-xl pointer-events-none z-10">
+                          +{imagesList.length - 4}
+                        </div>
+                      )}
                     </div>
-                  )}
-                  {post.imageCaptions && post.imageCaptions[i] && (
-                    <div className="absolute bottom-1 left-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1.5 py-0.5 backdrop-blur-xs select-text z-10" onClick={(e) => e.stopPropagation()}>
-                      <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '5px' }} dir="rtl">
-                        {post.imageCaptions[i]}
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Files Download Section */}
+        {filesList.length > 0 && (
+          <div className={`p-3 border-t flex flex-col gap-2 rounded-b-2xl ${
+            isDarkMode ? 'border-[#2C374E] bg-[#111822]/60' : 'border-natural-border/40 bg-[#fffaf5]/40'
+          }`} dir="rtl">
+            <span className={`text-[10px] font-black select-none ${isDarkMode ? 'text-[#16af75]' : 'text-[#c26700]'}`}>
+              📎 الملفات المرفقة ({filesList.length}):
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {filesList.map((file, fIdx) => {
+                const isApk = file.name?.toLowerCase().endsWith('.apk') || file.type?.includes('vnd.android.package-archive');
+                return (
+                  <a
+                    key={fIdx}
+                    href={file.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`flex items-center gap-2.5 p-2 rounded-xl border transition-all hover:scale-[1.01] ${
+                      isDarkMode
+                        ? 'border-[#2C374E] bg-[#1a212e] text-white hover:bg-[#2C374E]'
+                        : 'border-natural-border/60 bg-white text-natural-text hover:bg-natural-bg/40'
+                    }`}
+                  >
+                    <span className="text-2xl shrink-0">{isApk ? '🤖' : '📄'}</span>
+                    <div className="flex-1 min-w-0 text-right">
+                      <p className="text-xs font-bold truncate" title={file.name || 'ملف بدون اسم'}>
+                        {file.name || 'ملف بدون اسم'}
+                      </p>
+                      <p className={`text-[9px] font-medium ${isDarkMode ? 'text-gray-400' : 'text-natural-muted'}`}>
+                        {isApk ? 'تطبيق أندرويد (APK)' : (file.type || 'ملف')}
                       </p>
                     </div>
-                  )}
-                  {i === 3 && imageUrls.length > 4 && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-white font-bold text-xl pointer-events-none z-10">
-                      +{imageUrls.length - 4}
-                    </div>
-                  )}
-                </div>
-              ))}
+                    {post.imageCaptions?.[file.index] && (
+                      <span className="text-[10px] text-gray-500 italic truncate max-w-[80px]">
+                        {post.imageCaptions[file.index]}
+                      </span>
+                    )}
+                  </a>
+                );
+              })}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </motion.div>
 
       <Lightbox

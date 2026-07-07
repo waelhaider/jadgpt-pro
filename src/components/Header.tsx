@@ -3,7 +3,7 @@ import { auth, googleProvider } from '../lib/firebase';
 import { googleSignIn, emailSignIn, logout as authLogout, saveUserKeyToFirestore } from '../lib/auth';
 import { safeStorage } from '../lib/safe-storage';
 import { User } from 'firebase/auth';
-import { LogIn, LogOut, ShieldCheck, User as UserIcon, Menu, X, PlusCircle, Edit, LayoutGrid, Key, Trash2, ChevronDown, ChevronUp, AlertTriangle, Type, Moon, Sun } from 'lucide-react';
+import { LogIn, LogOut, ShieldCheck, User as UserIcon, Menu, X, PlusCircle, Edit, LayoutGrid, Key, Trash2, ChevronDown, ChevronUp, AlertTriangle, Type, Moon, Sun, Bell, BellOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Board } from '../types';
 import BoardModals from './BoardModals';
@@ -17,6 +17,8 @@ import { ADMIN_CONFIG } from '../config';
 import { GlobalSettings, License } from '../types';
 import OwnerLicensePanel from './OwnerLicensePanel';
 import { showToast } from './Toast';
+import { isNotificationSupported, requestNotificationPermission } from '../lib/notifications';
+
 
 interface HeaderProps {
   user: User | null;
@@ -69,6 +71,12 @@ export default function Header({
     return saved ? parseInt(saved, 10) : 14;
   });
   const [isTextSizeMenuOpen, setIsTextSizeMenuOpen] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      return Notification.permission;
+    }
+    return 'denied';
+  });
 
   const handleIncreaseFontSize = () => {
     setPostFontSize(prev => {
@@ -129,7 +137,7 @@ export default function Header({
       setIframeLoginError('');
       const res = await googleSignIn();
       if (res) {
-        alert('تم تسجيل الدخول بنجاح بحساب غوغل');
+        showToast('🎉 تم تسجيل الدخول بنجاح بحساب غوغل');
         window.location.reload();
       }
       setIsSidebarOpen(false);
@@ -149,7 +157,7 @@ export default function Header({
         setIframeLoginSuccess('');
         setIframeLoginOpen(true);
       } else {
-        alert(`❌ فشل تسجيل الدخول: ${error?.message || error}`);
+        showToast(`❌ فشل تسجيل الدخول: ${error?.message || error}`);
       }
     }
   };
@@ -578,6 +586,53 @@ export default function Header({
                         </button>
                       </div>
 
+                      {/* Notifications Switch */}
+                      {isNotificationSupported() && (
+                        <div className={`flex flex-col gap-1.5 w-full p-3 rounded-2xl border transition-all ${
+                          isDarkMode 
+                            ? 'bg-[#111822] border-[#2C374E] text-white' 
+                            : 'bg-[#FAF9F5] border-natural-border text-natural-text'
+                        }`}>
+                          <div className="flex items-center justify-between w-full">
+                            <div className="flex items-center gap-2 font-sans">
+                              {notificationPermission === 'granted' ? (
+                                <Bell size={16} className="text-[#008D75]" />
+                              ) : (
+                                <BellOff size={16} className="text-natural-muted" />
+                              )}
+                              <span className="text-xs font-black">إشعارات التطبيق والشارب</span>
+                            </div>
+                            <button
+                              onClick={async () => {
+                                if (notificationPermission === 'granted') {
+                                  showToast('ℹ️ لتعديل أذونات الإشعارات أو إيقافها، يرجى تعديلها من إعدادات المتصفح أو الهاتف.');
+                                  return;
+                                }
+                                const perm = await requestNotificationPermission();
+                                setNotificationPermission(perm);
+                              }}
+                              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                notificationPermission === 'granted' ? 'bg-[#008D75]' : 'bg-[#414C5D]/30'
+                              }`}
+                              dir="ltr"
+                            >
+                              <span
+                                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                                  notificationPermission === 'granted' ? 'translate-x-5' : 'translate-x-0'
+                                }`}
+                              />
+                            </button>
+                          </div>
+                          
+                          <p className={`text-[9px] text-right font-bold leading-relaxed ${isDarkMode ? 'text-[#B4C6D8]' : 'text-natural-muted'}`}>
+                            {notificationPermission === 'granted' 
+                              ? 'إشعارات الهاتف وشارات التطبيق (Badge) مفعلة وتعمل تلقائياً دون أي تشغيل خلفي يدوي ✅'
+                              : 'اضغط لتفعيل الإشعارات والنقاط الحمراء على أيقونة التطبيق عند نشر المالك منشورات جديدة.'
+                            }
+                          </p>
+                        </div>
+                      )}
+
                       <div className="space-y-2">
                         {/* Always available tool for all logged-in users */}
                               <div className="flex items-center justify-between gap-2 w-full">
@@ -839,6 +894,53 @@ export default function Header({
                         </button>
                       </div>
 
+                      {/* Notifications Switch for Guests */}
+                      {isNotificationSupported() && (
+                        <div className={`flex flex-col gap-1.5 w-full p-3 rounded-2xl border transition-all ${
+                          isDarkMode 
+                            ? 'bg-[#111822] border-[#2C374E] text-white' 
+                            : 'bg-[#FAF9F5] border-natural-border text-natural-text'
+                        }`}>
+                          <div className="flex items-center justify-between w-full">
+                            <div className="flex items-center gap-2 font-sans">
+                              {notificationPermission === 'granted' ? (
+                                <Bell size={16} className="text-[#008D75]" />
+                              ) : (
+                                <BellOff size={16} className="text-natural-muted" />
+                              )}
+                              <span className="text-xs font-black">إشعارات التطبيق والشارب</span>
+                            </div>
+                            <button
+                              onClick={async () => {
+                                if (notificationPermission === 'granted') {
+                                  showToast('ℹ️ لتعديل أذونات الإشعارات أو إيقافها، يرجى تعديلها من إعدادات المتصفح أو الهاتف.');
+                                  return;
+                                }
+                                const perm = await requestNotificationPermission();
+                                setNotificationPermission(perm);
+                              }}
+                              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                notificationPermission === 'granted' ? 'bg-[#008D75]' : 'bg-[#414C5D]/30'
+                              }`}
+                              dir="ltr"
+                            >
+                              <span
+                                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                                  notificationPermission === 'granted' ? 'translate-x-5' : 'translate-x-0'
+                                }`}
+                              />
+                            </button>
+                          </div>
+                          
+                          <p className={`text-[9px] text-right font-bold leading-relaxed ${isDarkMode ? 'text-[#B4C6D8]' : 'text-natural-muted'}`}>
+                            {notificationPermission === 'granted' 
+                              ? 'إشعارات الهاتف وشارات التطبيق (Badge) مفعلة وتعمل تلقائياً دون أي تشغيل خلفي يدوي ✅'
+                              : 'اضغط لتفعيل الإشعارات والنقاط الحمراء على أيقونة التطبيق عند نشر المالك منشورات جديدة.'
+                            }
+                          </p>
+                        </div>
+                      )}
+
                       {/* Tool Button for Guests as well */}
                       <div className={`w-full pt-6 border-t space-y-2 ${isDarkMode ? 'border-[#2C374E]' : 'border-natural-border'}`}>
                         <h4 className={`text-[10px] font-bold uppercase tracking-widest text-right ${isDarkMode ? 'text-[#B4C6D8]' : 'text-natural-muted'}`}>الأدوات العامة</h4>
@@ -945,6 +1047,9 @@ export default function Header({
         onClose={() => setIsTranslatorOpen(false)}
         isAdmin={isAdmin}
         activeBoardId={currentBoard?.id || null}
+        boards={boards}
+        user={user}
+        onSelectBoard={onSelectBoard}
       />
 
       <RecycleBinModal
@@ -1119,7 +1224,8 @@ export default function Header({
                       setIframeLoginError('');
                       const res = await emailSignIn(cleanEmail, iframeName.trim() || undefined);
                       if (res) {
-                        setIframeLoginSuccess('تم تسجيل الدخول بنجاح! جاري تحويلك...');
+                        showToast('🎉 تم تسجيل الدخول بنجاح! جاري تحويلك...');
+                        setIframeLoginOpen(false);
                         setTimeout(() => {
                           window.location.reload();
                         }, 500);
@@ -1151,7 +1257,8 @@ export default function Header({
                         setIframeLoginError('');
                         const res = await googleSignIn();
                         if (res) {
-                          setIframeLoginSuccess('تم تسجيل الدخول بنجاح عبر حساب Google!');
+                          showToast('🎉 تم تسجيل الدخول بنجاح عبر حساب Google!');
+                          setIframeLoginOpen(false);
                           setTimeout(() => {
                             window.location.reload();
                           }, 500);

@@ -41,11 +41,11 @@ export default function ToastContainer() {
   return (
     <AnimatePresence>
       {toast && (
-        <div className="fixed inset-0 pointer-events-none z-[9999] flex items-center justify-center p-4">
+        <div className="fixed inset-x-0 bottom-8 pointer-events-none z-[9999] flex items-end justify-center p-4">
           <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 15 }}
+            initial={{ opacity: 0, scale: 0.9, y: 30 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: -15 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: 'spring', duration: 0.4 }}
             className="pointer-events-auto flex items-center gap-2 bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-xl border border-emerald-500 max-w-sm text-center"
             dir="rtl"

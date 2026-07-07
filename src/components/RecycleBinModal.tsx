@@ -7,6 +7,7 @@ import { restoreRecycleBinItem, deleteRecycleBinItemPermanently, emptyRecycleBin
 import { getAccessToken } from '../lib/auth';
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
+import { showToast } from './Toast';
 
 interface RecycleBinModalProps {
   isOpen: boolean;
@@ -40,15 +41,36 @@ export default function RecycleBinModal({ isOpen, onClose }: RecycleBinModalProp
     return unsubscribe;
   }, [isOpen]);
 
+  // Back gesture / browser back history integration to close modal without exiting the app
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const modalState = { modalId: 'recycle-bin-' + Date.now() };
+    window.history.pushState(modalState, '');
+
+    const handlePopState = (e: PopStateEvent) => {
+      onClose();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      if (window.history.state && window.history.state.modalId === modalState.modalId) {
+        window.history.back();
+      }
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleRestore = async (item: any) => {
     setActionLoading(item.id);
     try {
       await restoreRecycleBinItem(item);
-      alert('تم استعادة العنصر بنجاح إلى مكانه الأصلي! 🔄');
+      showToast('🔄 تم استعادة العنصر بنجاح إلى مكانه الأصلي!');
     } catch (err: any) {
-      alert('فشل في استعادة العنصر: ' + (err.message || err));
+      showToast('⚠️ فشل في استعادة العنصر: ' + (err.message || err));
     } finally {
       setActionLoading(null);
     }
@@ -62,9 +84,9 @@ export default function RecycleBinModal({ isOpen, onClose }: RecycleBinModalProp
     try {
       const token = getAccessToken();
       await deleteRecycleBinItemPermanently(item, token);
-      alert('تم الحذف النهائي بنجاح! 🗑️');
+      showToast('🗑️ تم الحذف النهائي بنجاح!');
     } catch (err: any) {
-      alert('فشل في الحذف النهائي: ' + (err.message || err));
+      showToast('⚠️ فشل في الحذف النهائي: ' + (err.message || err));
     } finally {
       setActionLoading(null);
     }
@@ -75,10 +97,10 @@ export default function RecycleBinModal({ isOpen, onClose }: RecycleBinModalProp
     try {
       const token = getAccessToken();
       await emptyRecycleBin(items, token);
-      alert('تم إفراغ سلة المحذوفات بالكامل بنجاح! 🧹');
+      showToast('🧹 تم إفراغ سلة المحذوفات بالكامل بنجاح!');
       setConfirmEmptyOpen(false);
     } catch (err: any) {
-      alert('فشل في إفراغ السلة: ' + (err.message || err));
+      showToast('⚠️ فشل في إفراغ السلة: ' + (err.message || err));
     } finally {
       setActionLoading(null);
     }

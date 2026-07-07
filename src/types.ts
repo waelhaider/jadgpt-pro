@@ -14,6 +14,8 @@ export interface Post {
   authorEmail: string;
   isPinned?: boolean;
   createdAtMillis?: number;
+  fileNames?: string[];
+  fileTypes?: string[];
 }
 
 export interface Board {

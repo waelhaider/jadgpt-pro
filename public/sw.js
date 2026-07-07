@@ -137,3 +137,53 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+// Background push notification event listener
+self.addEventListener('push', (event) => {
+  let data = {};
+  if (event.data) {
+    try {
+      data = event.data.json();
+    } catch (e) {
+      data = { title: 'منشور جديد مضاف! 📣', body: event.data.text() };
+    }
+  }
+
+  const title = data.title || 'منشور جديد مضاف! 📣';
+  const options = {
+    body: data.body || 'قم بزيارة التطبيق لرؤية آخر التحديثات والصور المولدة.',
+    icon: '/logo.png',
+    badge: '/logo.png',
+    vibrate: [100, 50, 100],
+    data: {
+      url: data.url || '/'
+    }
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(title, options)
+  );
+});
+
+// Notification click behavior (opening or focusing the PWA window)
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  
+  const targetUrl = event.notification.data ? event.notification.data.url : '/';
+  
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // If a window is already open, focus it
+      for (const client of clientList) {
+        if (client.url === targetUrl && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      // Otherwise open a new window
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+    })
+  );
+});
+

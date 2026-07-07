@@ -66,6 +66,8 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
   const [previews, setPreviews] = useState<string[]>([]);
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [imageCaptions, setImageCaptions] = useState<string[]>([]);
+  const [fileNames, setFileNames] = useState<string[]>([]);
+  const [fileTypes, setFileTypes] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -185,29 +187,39 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
     if (files.length === 0) return;
 
     if (images.length + files.length > 6) {
-      showToast('يمكنك إضافة 6 صور كحد أقصى في المنشور الواحد.');
+      showToast('يمكنك إضافة 6 ملفات كحد أقصى في المنشور الواحد.');
       return;
     }
 
     const newImages = [...images];
-    const newPreviews = [...previews];
     const newModels = [...selectedModels];
     const newCaptions = [...imageCaptions];
+    const newFileNames = [...fileNames];
+    const newFileTypes = [...fileTypes];
 
     files.forEach(file => {
       newImages.push(file);
       newModels.push(''); // No model selected initially
       newCaptions.push(''); // No caption initially
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviews(prev => [...prev, reader.result as string]);
-      };
-      reader.readAsDataURL(file);
+      newFileNames.push(file.name);
+      newFileTypes.push(file.type || 'application/octet-stream');
+      
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setPreviews(prev => [...prev, reader.result as string]);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        setPreviews(prev => [...prev, `file:${file.name}:${file.type}:${file.size}`]);
+      }
     });
 
     setImages(newImages);
     setSelectedModels(newModels);
     setImageCaptions(newCaptions);
+    setFileNames(newFileNames);
+    setFileTypes(newFileTypes);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -216,10 +228,14 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
     const newPreviews = previews.filter((_, i) => i !== index);
     const newModels = selectedModels.filter((_, i) => i !== index);
     const newCaptions = imageCaptions.filter((_, i) => i !== index);
+    const newFileNames = fileNames.filter((_, i) => i !== index);
+    const newFileTypes = fileTypes.filter((_, i) => i !== index);
     setImages(newImages);
     setPreviews(newPreviews);
     setSelectedModels(newModels);
     setImageCaptions(newCaptions);
+    setFileNames(newFileNames);
+    setFileTypes(newFileTypes);
   };
 
   const [status, setStatus] = useState<string>('');
@@ -256,7 +272,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
     const hasImages = images.length > 0;
 
     if (!hasText && !hasImages) {
-      showToast('لا يمكن نشر منشور فارغ (برجاء كتابة نص أو إضافة صورة)');
+      showToast('لا يمكن نشر منشور فارغ (برجاء كتابة نص أو إضافة ملف/صورة)');
       return;
     }
 
@@ -272,8 +288,13 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
           if (typeof file === 'string') {
             imageUrls.push(file);
           } else {
-            const base64 = await compressImage(file);
-            imageUrls.push(base64);
+            if (file.type.startsWith('image/')) {
+              const base64 = await compressImage(file);
+              imageUrls.push(base64);
+            } else {
+              // Non-image files in local mode are kept as local ObjectURLs or marked as local files
+              imageUrls.push(`data:${file.type};name=${encodeURIComponent(file.name)},local-file-placeholder`);
+            }
           }
         }
 
@@ -284,6 +305,8 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
           imageUrls: imageUrls,
           imageModels: selectedModels,
           imageCaptions: imageCaptions,
+          fileNames: fileNames,
+          fileTypes: fileTypes,
           boardId: 'user-board',
           authorId: currentUser?.uid || 'local-user',
           authorEmail: currentUser?.email || 'local-user@local.com',
@@ -300,6 +323,8 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
           setPreviews([]);
           setSelectedModels([]);
           setImageCaptions([]);
+          setFileNames([]);
+          setFileTypes([]);
           setStatus('');
           window.dispatchEvent(new Event('reload_local_posts'));
           if (onUploadSuccess) {
@@ -351,11 +376,11 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
             imageUrls.push(file);
             continue;
           }
-          const currentStatus = `يتم رفع الصور ${i + 1} من ${images.length} إلى G-Drive`;
+          const currentStatus = `يتم رفع الملف ${i + 1} من ${images.length} إلى G-Drive`;
           console.log(`[UploadPost] Status: ${currentStatus}`);
           setStatus(currentStatus);
           try {
-            const url = await uploadPostImage(file, currentUser.uid);
+            const url = await uploadPostImage(file, currentUser.uid, text);
             imageUrls.push(url);
           } catch (uploadErr: any) {
             console.warn('[UploadPost] File upload error:', uploadErr);
@@ -363,7 +388,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
               const authorized = await handleAuthorize(false);
               if (authorized) {
                 currentUser = getCurrentUser(); // Refresh user after re-auth popup
-                const retryUrl = await uploadPostImage(file, currentUser.uid);
+                const retryUrl = await uploadPostImage(file, currentUser.uid, text);
                 imageUrls.push(retryUrl);
                 continue;
               } else {
@@ -392,6 +417,8 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
         imageUrls: imageUrls,
         imageModels: selectedModels,
         imageCaptions: imageCaptions,
+        fileNames: fileNames,
+        fileTypes: fileTypes,
         boardId: (targetBoardId === 'placeholder' || targetBoardId === 'main-feed' || !targetBoardId) ? null : targetBoardId, // Explicitly null for main feed
         authorId: currentUser.uid,
         authorEmail: currentUser.email,
@@ -418,15 +445,17 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
       setPreviews([]);
       setSelectedModels([]);
       setImageCaptions([]);
+      setFileNames([]);
+      setFileTypes([]);
       setStatus('');
-      showToast('🎉تم نشر وحفظ الصور بكامل جودتها');
+      showToast('🎉 تم نشر وحفظ الملفات والمنشور بنجاح بنسبة 100%');
     } catch (error) {
       console.error('Final upload error track:', error);
       const msg = error instanceof Error ? error.message : String(error);
       let isAuthErr = msg.includes('AUTH_REQUIRED') || msg.includes('AUTH_EXPIRED') || msg.includes('401') || msg.includes('403') || msg.includes('expired') || msg.includes('token');
       
       setUploadError({ 
-        message: isAuthErr 
+         message: isAuthErr 
           ? 'انتهت صلاحية الاتصال بـ Google Drive أو لم يتم السماح بالوصول بالشكل الصحيح. الرجاء تجديد الصلاحية بضغطة واحدة للمحاولة مجدداً.' 
           : `حدث خطأ أثناء النشر والرفع: ${msg}`,
         showRefresh: isAuthErr
@@ -451,32 +480,6 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
           ? 'border-[#6980b0] bg-[#111822] shadow-[0_4px_12px_rgba(0,0,0,0.2)]' 
           : 'border-[#C1C3B8] bg-white shadow-[0_4px_12px_rgba(90,90,64,0.05)]'
       }`}>
-        {/* Full Card Loading Overlay */}
-        <AnimatePresence>
-          {loading && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className={`absolute inset-0 z-50 flex flex-col items-center justify-center p-6 backdrop-blur-md transition-all ${
-                isDarkMode 
-                  ? 'bg-[#111822]/95 text-white' 
-                  : 'bg-white/95 text-[#c26700]'
-              }`}
-            >
-              <div className="flex flex-col items-center gap-4 text-center max-w-sm px-4">
-                <Loader2 size={36} className={`animate-spin ${isDarkMode ? 'text-[#16af75]' : 'text-[#c26700]'}`} />
-                <p className={`text-sm sm:text-base font-extrabold leading-relaxed ${isDarkMode ? 'text-[#16af75]' : 'text-[#c26700]'}`} dir="rtl">
-                  {status || 'جاري معالجة المنشور ونشره...'}
-                </p>
-                <span className={`text-[11px] font-medium leading-relaxed ${isDarkMode ? 'text-gray-400' : 'text-[#4A4A35]/80'}`}>
-                  برجاء عدم إغلاق الصفحة حتى تكتمل العملية بنجاح.
-                </span>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         <form onSubmit={handleSubmit} className="p-2 sm:p-2 text-right">
           {uploadError && (
             <div className={`mb-4 rounded-lg p-4 border transition-all ${
@@ -502,147 +505,145 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
               </div>
             </div>
           )}
-        <AnimatePresence>
-          {previews.length > 0 && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3"
-            >
-              {previews.map((prev, index) => {
-                const models = ['gpt-2', 'grok', 'banana-2', 'flux', 'wan 2.7'];
-                return (
-                  <div
-                    key={index}
-                    className={`flex flex-col gap-2 p-2 rounded-xl border transition-colors relative ${
-                      isDarkMode 
-                        ? 'border-[#2C374E] bg-[#111822]/40' 
-                        : 'border-natural-border/60 bg-natural-bg/30'
-                    }`}
-                    dir="rtl"
-                  >
-                    {/* Upper row: Image and Model Selector side by side using a robust 2-column grid */}
-                    <div className="grid grid-cols-2 gap-3 w-full items-stretch">
-                      {/* Right side: Uploaded Image */}
-                      <div className="relative w-full aspect-video overflow-hidden rounded-lg border border-natural-border/30 bg-black/5 flex items-center justify-center shrink-0">
-                        <img src={prev} alt={`Preview ${index + 1}`} className="h-full w-full object-cover" />
-                        <button
-                          type="button"
-                          disabled={loading}
-                          onClick={() => removeImage(index)}
-                          className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur shadow-sm transition-transform hover:scale-110 active:scale-95 disabled:opacity-50 cursor-pointer z-10"
-                        >
-                          <X size={10} />
-                        </button>
-                      </div>
 
-                      {/* Left side: Model Selector attached next to it */}
-                      <div className="flex flex-col gap-1 text-right justify-center min-w-0" dir="rtl">
-                        <span className={`text-[10px] font-black select-none ${isDarkMode ? 'text-gray-400' : 'text-[#4A4A35]'}`}>موديل توليد الصورة:</span>
-                        <div className="grid grid-cols-2 gap-1 w-full">
-                          {models.map((model, mIdx) => {
-                            const isSelected = selectedModels[index] === model;
-                            const isLastOdd = mIdx === models.length - 1 && models.length % 2 !== 0;
-                            return (
-                              <button
-                                key={model}
-                                type="button"
-                                disabled={loading}
-                                onClick={() => {
-                                  const updated = [...selectedModels];
-                                  updated[index] = isSelected ? '' : model;
-                                  setSelectedModels(updated);
-                                }}
-                                className={`px-1 py-1 rounded text-[9px] font-bold cursor-pointer transition-all border text-center truncate whitespace-nowrap overflow-hidden ${
-                                  isLastOdd ? 'col-span-2' : ''
-                                } ${
-                                  isSelected
-                                    ? isDarkMode
-                                      ? 'bg-[#16af75] text-white border-transparent shadow-sm'
-                                      : 'bg-[#4A4A35] text-white border-transparent shadow-sm'
-                                    : isDarkMode
-                                      ? 'bg-[#1a212e] text-gray-300 border-[#656c74]/50 hover:bg-[#2C374E]'
-                                      : 'bg-white text-natural-muted border-natural-border/60 hover:bg-natural-bg/80'
-                                }`}
-                                title={model}
-                              >
-                                {model}
-                              </button>
-                            );
-                          })}
+          <AnimatePresence>
+            {previews.length > 0 && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3"
+              >
+                {previews.map((prev, index) => {
+                  const models = ['gpt-2', 'grok', 'banana-2', 'flux', 'wan 2.7'];
+                  const isFile = prev.startsWith('file:');
+                  const fileName = isFile ? prev.split(':')[1] : '';
+                  const fileType = isFile ? prev.split(':')[2] : '';
+                  const isApkFile = isFile && (fileName.toLowerCase().endsWith('.apk') || fileType.includes('vnd.android.package-archive'));
+                  
+                  return (
+                    <div
+                      key={index}
+                      className={`p-2.5 rounded-xl border transition-colors relative ${
+                        isDarkMode 
+                          ? 'border-[#2C374E] bg-[#111822]/40' 
+                          : 'border-natural-border/60 bg-natural-bg/30'
+                      }`}
+                      dir="rtl"
+                    >
+                      {/* Side-by-side Container */}
+                      <div className="flex gap-2 items-stretch" dir="rtl">
+                        {/* Right side: Image/File and its note stacked vertically */}
+                        <div className="flex-1 flex flex-col gap-1.5 min-w-0">
+                          {/* Constrained Preview box */}
+                          <div className="relative w-full aspect-video sm:aspect-[4/3] max-h-28 sm:max-h-32 overflow-hidden rounded-lg border border-natural-border/30 bg-black/5 flex items-center justify-center shrink-0">
+                            {isFile ? (
+                              <div className="flex flex-col items-center justify-center text-center p-2 min-w-0 w-full">
+                                <span className="text-2xl sm:text-3xl">{isApkFile ? '🤖' : '📄'}</span>
+                                <span className="text-[9px] font-black mt-1.5 leading-tight text-center break-all text-neutral-600 line-clamp-2 w-full px-1">
+                                  {fileName}
+                                </span>
+                              </div>
+                            ) : (
+                              <img src={prev} alt={`Preview ${index + 1}`} className="h-full w-full object-cover" />
+                            )}
+                            <button
+                              type="button"
+                              disabled={loading}
+                              onClick={() => removeImage(index)}
+                              className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur shadow-sm transition-transform hover:scale-110 active:scale-95 disabled:opacity-50 cursor-pointer z-10"
+                            >
+                              <X size={10} />
+                            </button>
+                          </div>
+                          
+                          {/* Note Input - directly below */}
+                          <div className="flex flex-col gap-0.5 text-right">
+                            <span className={`text-[8px] sm:text-[9px] font-black select-none ${isDarkMode ? 'text-gray-400' : 'text-[#4A4A35]'}`}>
+                              ملاحظة حول {isFile ? 'الملف' : 'الصورة'}:
+                            </span>
+                            <input
+                              type="text"
+                              placeholder={isFile ? 'ملاحظة حول هذا الملف...' : 'اكتب ملاحظة لهذه الصورة'}
+                              value={imageCaptions[index] || ''}
+                              onChange={(e) => {
+                                const updated = [...imageCaptions];
+                                updated[index] = e.target.value;
+                                setImageCaptions(updated);
+                              }}
+                              disabled={loading}
+                              className={`w-full text-[9px] sm:text-[10px] font-medium border rounded-lg px-2 py-1 focus:outline-none focus:ring-1 ${
+                                isDarkMode
+                                  ? 'border-[#2C374E] bg-[#1a212e] text-white placeholder-gray-500 focus:ring-[#16af75]'
+                                  : 'border-natural-border/60 bg-white text-natural-text placeholder-[#A1A18E] focus:ring-natural-primary'
+                              }`}
+                            />
+                          </div>
                         </div>
+
+                        {/* Left side: Attached Model Selector - Only for Images */}
+                        {!isFile && (
+                          <div className="w-[100px] sm:w-[120px] shrink-0 flex flex-col justify-between border-r border-natural-border/20 pr-1.5" dir="rtl">
+                            <span className={`text-[8px] sm:text-[9px] font-black select-none mb-1 text-right block ${isDarkMode ? 'text-gray-400' : 'text-[#4A4A35]'}`}>
+                              موديل التوليد:
+                            </span>
+                            <div className="flex-1 flex flex-col gap-1 justify-center">
+                              {models.map((model) => {
+                                const isSelected = selectedModels[index] === model;
+                                return (
+                                  <button
+                                    key={model}
+                                    type="button"
+                                    disabled={loading}
+                                    onClick={() => {
+                                      const updated = [...selectedModels];
+                                      updated[index] = isSelected ? '' : model;
+                                      setSelectedModels(updated);
+                                    }}
+                                    className={`w-full py-0.5 rounded text-[8px] sm:text-[9px] font-black cursor-pointer transition-all border text-center truncate whitespace-nowrap overflow-hidden ${
+                                      isSelected
+                                        ? isDarkMode
+                                          ? 'bg-[#16af75] text-white border-transparent shadow-xs'
+                                          : 'bg-[#4A4A35] text-white border-transparent shadow-xs'
+                                        : isDarkMode
+                                          ? 'bg-[#1a212e] text-gray-300 border-[#656c74]/50 hover:bg-[#2C374E]'
+                                          : 'bg-white text-natural-muted border-natural-border/60 hover:bg-natural-bg/80'
+                                    }`}
+                                    title={model}
+                                  >
+                                    {model}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
+                  );
+                })}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-                    {/* Lower row: Note input under the image */}
-                    <div className="flex flex-col gap-1 text-right" dir="rtl">
-                      <span className={`text-[10px] font-black select-none ${isDarkMode ? 'text-gray-400' : 'text-[#4A4A35]'}`}>ملاحظة حول الصورة:</span>
-                      <input
-                        type="text"
-                        placeholder="اكتب ملاحظة لهذه الصورة"
-                        value={imageCaptions[index] || ''}
-                        onChange={(e) => {
-                          const updated = [...imageCaptions];
-                          updated[index] = e.target.value;
-                          setImageCaptions(updated);
-                        }}
-                        disabled={loading}
-                        className={`w-full text-[11px] font-medium border rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 ${
-                          isDarkMode
-                            ? 'border-[#2C374E] bg-[#1a212e] text-white placeholder-gray-500 focus:ring-[#16af75]'
-                            : 'border-natural-border/60 bg-white text-natural-text placeholder-[#A1A18E] focus:ring-natural-primary'
-                        }`}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <div className="w-full mt-2 mb-2">
-          <textarea
-            value={text}
-            onChange={(e) => processTextForImageUrls(e.target.value)}
-            placeholder={` الصق النص للنشر في لوحة : ${getTargetBoardName()}`}
-            className={`w-full resize-none rounded-xl border px-4 py-4 text-sm leading-normal focus:ring-1 focus:outline-none transition-all ${
-              isDarkMode
-                ? 'font-normal border-[#2C374E] bg-[#FCFAF2] text-[#1A212E] placeholder-[#8E8B7A] focus:ring-[#008D75]'
-                : 'font-normal border-[#C1C3B8] bg-natural-bg text-natural-text placeholder-[#A1A18E] focus:ring-natural-primary'
-            }`}
-            rows={3}
-            dir={isRtl(text) ? 'rtl' : 'ltr'}
-            style={{ textAlign: isRtl(text) ? 'right' : 'left', lineHeight: '1.8' }}
-            disabled={loading}
-          />
-        </div>
-
-          <div className={`mt-0 gap-1 flex items-center justify-between pt-1 transition-colors ${isDarkMode ? 'border-[#2C374E]' : 'border-natural-border'}`}>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={loading || images.length >= 6}
-              className={`group flex-[1.1] min-w-0 flex items-center justify-center gap-1 rounded-lg px-1.5 sm:px-3 h-10 py-0 text-xs sm:text-sm font-bold whitespace-nowrap transition-all disabled:opacity-50 cursor-pointer ${
-                isDarkMode 
-                  ? 'border border-[#656c74] text-[#16af75] bg-[#111822] hover:bg-[#1a212e]' 
-                  : 'text-[#c26700] bg-[#fffaf5] shadow-md hover:bg-[#fef3e6] hover:border-[#c26700]/40 border border-[#cbd5e1]'
+          <div className="w-full mt-2 mb-2">
+            <textarea
+              value={text}
+              onChange={(e) => processTextForImageUrls(e.target.value)}
+              placeholder={` الصق النص للنشر في : ${getTargetBoardName()}`}
+              className={`w-full resize-none rounded-xl border px-4 py-4 text-sm leading-normal focus:ring-1 focus:outline-none transition-all ${
+                isDarkMode
+                  ? 'font-normal border-[#2C374E] bg-[#FCFAF2] text-[#1A212E] placeholder-[#8E8B7A] focus:ring-[#008D75]'
+                  : 'font-normal border-[#C1C3B8] bg-natural-bg text-natural-text placeholder-[#A1A18E] focus:ring-natural-primary'
               }`}
-            >
-              <ImageIcon size={16} className={`hidden sm:inline-block ${isDarkMode ? "text-[#16af75]" : "text-[#c26700]"}`} />
-              إضافة صور ({images.length}/6)
-            </button>
-            <input
-              type="file"
-              hidden
-              multiple
-              accept="image/*"
-              ref={fileInputRef}
-              onChange={handleImageChange}
+              rows={3}
+              dir={isRtl(text) ? 'rtl' : 'ltr'}
+              style={{ textAlign: isRtl(text) ? 'right' : 'left', lineHeight: '1.8' }}
               disabled={loading}
             />
+          </div>
 
+          <div className={`mt-0 pt-0 flex flex-col md:flex-row md:items-center gap-2 transition-colors ${isDarkMode ? 'border-[#2C374E]' : 'border-natural-border/30'}`}>
             {isAdmin && (
               <select
                 value={targetBoardId === null ? 'placeholder' : targetBoardId}
@@ -650,7 +651,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
                   const val = e.target.value;
                   setTargetBoardId(val === 'placeholder' ? null : val);
                 }}
-                className={`flex-[1.4] min-w-0 rounded-lg border pl-2 pr-2 sm:px-2.5 h-10 py-0 text-xs sm:text-sm font-bold whitespace-nowrap focus:outline-none cursor-pointer transition-all shadow-md text-center ${
+                className={`w-full md:flex-[1.2] min-w-0 rounded-lg border pl-3 pr-3 sm:px-2 h-10 py-0 text-xs sm:text-sm font-bold focus:outline-none cursor-pointer transition-all shadow-md text-center ${
                   isDarkMode 
                     ? 'border-[#656c74] bg-[#111822] text-[#16af75] hover:bg-[#1a212e] focus:ring-1 focus:ring-[#16af75]' 
                     : 'border-[#cbd5e1] bg-[#fffaf5] text-[#c26700] hover:bg-[#fef3e6] hover:border-[#c26700]/40 focus:ring-1 focus:ring-[#cbd5e1]'
@@ -673,27 +674,81 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
               </select>
             )}
 
-            <button
-              type="submit"
-              disabled={loading || (!text.trim() && images.length === 0)}
-              className={`flex-[0.8] min-w-0 px-1 sm:px-3 h-10 py-0 flex items-center justify-center rounded-lg text-xs sm:text-sm font-bold whitespace-nowrap transition-all disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer ${
-                isDarkMode 
-                  ? 'border border-[#656c74] text-[#16af75] bg-[#111822] hover:bg-[#1a212e] shadow-md' 
-                  : 'text-[#c26700] bg-[#fffaf5] shadow-md hover:bg-[#fef3e6] hover:border-[#c26700]/40 border border-[#cbd5e1]'
-              }`}
-            >
-              {loading ? (
-                <div className="flex items-center gap-1.5">
-                  <Loader2 size={16} className="animate-spin" />
-                  <span>انتظر...</span>
-                </div>
-              ) : (
-                'نشر الآن'
-              )}
-            </button>
+            <div className="flex gap-2 w-full md:flex-1">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={loading || images.length >= 6}
+                className={`group flex-1 min-w-0 flex items-center justify-center gap-1 rounded-lg px-2 sm:px-3 h-10 py-0 text-[12px] sm:text-[11px] font-bold transition-all disabled:opacity-50 cursor-pointer ${
+                  isDarkMode 
+                    ? 'border border-[#656c74] text-[#16af75] bg-[#111822] hover:bg-[#1a212e]' 
+                    : 'text-[#c26700] bg-[#fffaf5] shadow-md hover:bg-[#fef3e6] hover:border-[#c26700]/40 border border-[#cbd5e1]'
+                }`}
+              >
+                <span className="md:hidden">إضافة ملفات أو صور ({images.length}/6)</span>
+                <span className="hidden md:inline">إضافـة ملفات ... أو صـور ({images.length}/6)</span>
+              </button>
+              <input
+                type="file"
+                hidden
+                multiple
+                ref={fileInputRef}
+                onChange={handleImageChange}
+                disabled={loading}
+              />
+
+              <button
+                type="submit"
+                disabled={loading || (!text.trim() && images.length === 0)}
+                className={`flex-1 min-w-0 px-2 sm:px-4 h-10 py-0 flex items-center justify-center rounded-lg text-xs sm:text-sm font-bold whitespace-nowrap transition-all disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer ${
+                  isDarkMode 
+                    ? 'border border-[#656c74] text-[#16af75] bg-[#111822] hover:bg-[#1a212e] shadow-md' 
+                    : 'text-[#c26700] bg-[#fffaf5] shadow-md hover:bg-[#fef3e6] hover:border-[#c26700]/40 border border-[#cbd5e1]'
+                }`}
+              >
+                {loading ? (
+                  <div className="flex items-center gap-1.5">
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>انتظر...</span>
+                  </div>
+                ) : (
+                  'نشر الآن'
+                )}
+              </button>
+            </div>
           </div>
         </form>
       </div>
+
+      {/* Elegant sliding status panel below the publication container */}
+      <AnimatePresence>
+        {loading && (
+          <motion.div
+            initial={{ height: 0, opacity: 0, marginTop: 0 }}
+            animate={{ height: 'auto', opacity: 1, marginTop: 12 }}
+            exit={{ height: 0, opacity: 0, marginTop: 0 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 180 }}
+            className={`overflow-hidden rounded-xl border p-4 shadow-md flex items-center gap-4 transition-all ${
+              isDarkMode 
+                ? 'border-[#6980b0]/60 bg-[#111822]/90 backdrop-blur-xs text-white shadow-[0_4px_12px_rgba(0,0,0,0.15)]' 
+                : 'border-[#C1C3B8] bg-[#fffaf5] text-[#c26700] shadow-[0_4px_12px_rgba(90,90,64,0.05)]'
+            }`}
+            dir="rtl"
+          >
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${isDarkMode ? 'bg-[#16af75]/10' : 'bg-[#c26700]/10'}`}>
+              <Loader2 size={24} className={`animate-spin ${isDarkMode ? 'text-[#16af75]' : 'text-[#c26700]'}`} />
+            </div>
+            <div className="flex-1 text-right min-w-0">
+              <p className={`text-xs sm:text-sm font-extrabold truncate ${isDarkMode ? 'text-[#16af75]' : 'text-[#c26700]'}`}>
+                {status || 'جاري معالجة المنشور ونشره...'}
+              </p>
+              <p className={`text-[10px] sm:text-[11px] font-medium truncate mt-0.5 ${isDarkMode ? 'text-gray-400' : 'text-[#4A4A35]/80'}`}>
+                برجاء عدم إغلاق الصفحة حتى تكتمل العملية بنجاح.
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

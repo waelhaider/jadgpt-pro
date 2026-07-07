@@ -23,6 +23,7 @@ import { Share2, Sparkles, PlusCircle, X, FileText, Lock, LogIn } from 'lucide-r
 import OwnerLicensePanel from './components/OwnerLicensePanel';
 import LockScreen from './components/LockScreen';
 import ToastContainer, { showToast } from './components/Toast';
+import { updateAppBadge, sendLocalNotification } from './lib/notifications';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -75,6 +76,28 @@ export default function App() {
     });
 
     return () => unsubscribeSettings();
+  }, []);
+
+  // Track Visibility & Reset Badge when user active
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        updateAppBadge(0);
+        localStorage.setItem('jadgpt_last_viewed_time', String(Date.now()));
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Initial clear
+    if (document.visibilityState === 'visible') {
+      updateAppBadge(0);
+      localStorage.setItem('jadgpt_last_viewed_time', String(Date.now()));
+    }
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   // 2. Listen to user license once user is loaded
@@ -206,15 +229,57 @@ export default function App() {
       handleFirestoreError(error, OperationType.GET, 'boards');
     });
 
-    // Fetch Post Counts
+    // Fetch Post Counts & Handle PWA Badges/Notifications in real-time
     const qPosts = query(collection(db, 'posts'));
+    let isInitialLoad = true;
     const unsubscribePosts = onSnapshot(qPosts, (snapshot) => {
       const counts: Record<string, number> = {};
+      
+      const lastViewedTimeStr = localStorage.getItem('jadgpt_last_viewed_time');
+      const lastViewedTime = lastViewedTimeStr ? parseInt(lastViewedTimeStr, 10) : 0;
+      
+      let newPostsCount = 0;
+      let latestPostText = '';
+      let latestPostTime = 0;
+
       snapshot.docs.forEach(doc => {
-        const boardId = doc.data().boardId || 'null';
+        const data = doc.data();
+        const boardId = data.boardId || 'null';
         counts[boardId] = (counts[boardId] || 0) + 1;
+        
+        // Count unread posts on regular public boards (ignore local user draft board if any)
+        if (boardId !== 'user-board') {
+          const createdAt = data.createdAt;
+          const createdAtMillis = createdAt?.toMillis ? createdAt.toMillis() : (createdAt?.seconds ? createdAt.seconds * 1000 : 0);
+          if (createdAtMillis > lastViewedTime) {
+            newPostsCount++;
+            if (createdAtMillis > latestPostTime) {
+              latestPostTime = createdAtMillis;
+              latestPostText = data.text || '';
+            }
+          }
+        }
       });
+      
       setPostCounts(counts);
+
+      // Handle App Badges & System Notifications
+      if (document.visibilityState === 'visible') {
+        updateAppBadge(0);
+        localStorage.setItem('jadgpt_last_viewed_time', String(Date.now()));
+      } else {
+        updateAppBadge(newPostsCount);
+        
+        // Trigger actual system notification if user permitted and it's not the initial load
+        if (!isInitialLoad && newPostsCount > 0 && latestPostTime > lastViewedTime) {
+          sendLocalNotification('منشور جديد مضاف! 📣', {
+            body: latestPostText ? (latestPostText.substring(0, 80) + '...') : 'تمت إضافة محتوى وصور جديدة في اللوحات.',
+            tag: 'new-post-alert',
+          });
+        }
+      }
+      
+      isInitialLoad = false;
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'posts-count');
     });
