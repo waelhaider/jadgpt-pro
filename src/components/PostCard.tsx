@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Post, OperationType, Board } from '../types';
 import { db, auth } from '../lib/firebase';
 import { doc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { MoreHorizontal, Trash2, Edit3, Check, X, Clock, Copy, Loader2, Image as ImageIcon, Plus, Sparkles, Pin } from 'lucide-react';
+import { MoreHorizontal, Trash2, Edit3, Check, X, Clock, Copy, Loader2, Image as ImageIcon, Plus, Sparkles, Pin, ArrowUp, ArrowDown, Move } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'motion/react';
@@ -160,6 +160,9 @@ interface PostCardProps {
   boards: Board[];
   onTestPrompt: (text: string) => void;
   isDarkMode?: boolean;
+  onMovePost?: (postId: string, direction: 'up' | 'down') => void;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
 }
 
 import { ADMIN_CONFIG } from '../config';
@@ -178,7 +181,16 @@ const DEFAULT_SITES = [
 
 ];
 
-export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMode }: PostCardProps) {
+export default function PostCard({ 
+  post, 
+  isAdmin, 
+  boards, 
+  onTestPrompt, 
+  isDarkMode,
+  onMovePost,
+  canMoveUp = false,
+  canMoveDown = false
+}: PostCardProps) {
   const isRtl = (val: string): boolean => {
     if (!val) return true; // Default to natural Arabic direction
     let arabicCount = 0;
@@ -264,10 +276,76 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
   const [editedFileTypes, setEditedFileTypes] = useState<string[]>(post.fileTypes || []);
   const [newFileNames, setNewFileNames] = useState<string[]>([]);
   const [newFileTypes, setNewFileTypes] = useState<string[]>([]);
-  const [isSaving, setIsSaving] = useState(false);
+   const [isSaving, setIsSaving] = useState(false);
   const [status, setStatus] = useState('');
+  const [failedImageUrls, setFailedImageUrls] = useState<Record<string, boolean>>({});
   
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const [isMoveMode, setIsMoveMode] = useState(false);
+  const longPressTimeoutRef = React.useRef<any>(null);
+  const isLongPressingRef = React.useRef(false);
+  const startPosRef = React.useRef({ x: 0, y: 0 });
+
+  const isInteractive = (target: HTMLElement | null): boolean => {
+    let current = target;
+    while (current) {
+      const tag = current.tagName.toLowerCase();
+      if (
+        tag === 'button' ||
+        tag === 'a' ||
+        tag === 'input' ||
+        tag === 'textarea' ||
+        tag === 'select' ||
+        tag === 'iframe' ||
+        tag === 'video' ||
+        tag === 'audio' ||
+        current.getAttribute('role') === 'button' ||
+        current.onclick ||
+        current.classList.contains('cursor-pointer') ||
+        current.classList.contains('pointer-events-auto')
+      ) {
+        return true;
+      }
+      if (current.classList.contains('post-card-container')) {
+        break;
+      }
+      current = current.parentElement;
+    }
+    return false;
+  };
+
+  const startLongPress = (e: React.PointerEvent) => {
+    if (!hasManagePermissions) return;
+    if (isInteractive(e.target as HTMLElement)) return;
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+
+    startPosRef.current = { x: e.clientX, y: e.clientY };
+    isLongPressingRef.current = false;
+    
+    longPressTimeoutRef.current = setTimeout(() => {
+      setIsMoveMode(true);
+      isLongPressingRef.current = true;
+      if (navigator.vibrate) {
+        navigator.vibrate(80);
+      }
+    }, 600);
+  };
+
+  const cancelLongPress = () => {
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    const dx = Math.abs(e.clientX - startPosRef.current.x);
+    const dy = Math.abs(e.clientY - startPosRef.current.y);
+    if (dx > 10 || dy > 10) {
+      cancelLongPress();
+    }
+  };
 
   const isUrlAnImage = (url: string, index: number) => {
     const type = editedFileTypes[index] || post.fileTypes?.[index];
@@ -866,6 +944,50 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
     };
   });
 
+  const renderPostImage = (url: string, className: string, alt: string = "", extraProps: any = {}) => {
+    if (failedImageUrls[url]) {
+      let mainErrorMsg = 'رابط الصورة الخارجي غير متوفر';
+      let subErrorMsg = '(قد يكون الرابط غير صالح أو تم حذفه)';
+      
+      const isDrive = url.includes('drive.google.com') || url.includes('googleusercontent');
+      const isMeta = url.includes('fbcdn.net') || url.includes('facebook.com') || url.includes('instagram.com') || url.includes('scontent');
+
+      if (isDrive) {
+        mainErrorMsg = 'الصورة غير متوفرة في Google Drive';
+        subErrorMsg = '(قد تكون حُذفت أو صلاحيات الوصول مقيدة)';
+      } else if (isMeta) {
+        mainErrorMsg = 'رابط خارجي مؤقت من فيسبوك وانتهت صلاحيته';
+        subErrorMsg = '(روابط فيسبوك تنتهي صلاحيتها تلقائياً بعد فترة قصيرة)';
+      } else {
+        mainErrorMsg = 'رابط الصورة الخارجي غير متوفر أو منتهي الصلاحية';
+        subErrorMsg = '(روابط المواقع الخارجية قد تتغير أو تنتهي صلاحيتها بمرور الوقت)';
+      }
+
+      return (
+        <div className={`flex flex-col items-center justify-center p-3 text-center bg-zinc-100/40 dark:bg-[#111822]/60 border border-dashed border-red-500/25 h-full w-full min-h-[120px] select-none ${className}`}>
+          <span className="text-sm">⚠️</span>
+          <p className="text-[10px] font-black text-red-500/90 dark:text-red-400/90 leading-snug px-1.5 mt-1" dir="rtl">
+            {mainErrorMsg}
+          </p>
+          <p className="text-[8px] font-medium text-gray-400 dark:text-gray-500 mt-1 max-w-[90%]" dir="rtl">
+            {subErrorMsg}
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <img
+        src={url}
+        alt={alt}
+        className={className}
+        onError={() => setFailedImageUrls(prev => ({ ...prev, [url]: true }))}
+        referrerPolicy="no-referrer"
+        {...extraProps}
+      />
+    );
+  };
+
   return (
     <>
       <motion.div
@@ -873,12 +995,93 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className={`relative mx-auto mb-2.5 w-full max-w-xl rounded-2xl border transition-all ${
-          isDarkMode 
-            ? 'border-[#6980b0] bg-[#111822] shadow-[0_4px_12px_rgba(0,0,0,0.15)]' 
-            : 'border-[#C1C3B8] bg-white shadow-[0_4px_12px_rgba(90,90,64,0.03)]'
+        onPointerDown={startLongPress}
+        onPointerUp={cancelLongPress}
+        onPointerLeave={cancelLongPress}
+        onPointerCancel={cancelLongPress}
+        onPointerMove={handlePointerMove}
+        style={isMoveMode ? { borderColor: '#EF4444', borderWidth: '3px' } : {}}
+        className={`relative mx-auto mb-2.5 w-full max-w-xl rounded-2xl border transition-all post-card-container ${
+          isMoveMode
+            ? 'ring-4 ring-red-500/20 shadow-[0_0_20px_rgba(239,68,68,0.4)] scale-[1.01] select-none'
+            : isDarkMode 
+              ? 'border-[#6980b0] bg-[#111822] shadow-[0_4px_12px_rgba(0,0,0,0.15)]' 
+              : 'border-[#C1C3B8] bg-white shadow-[0_4px_12px_rgba(90,90,64,0.03)]'
         } ${isDeleting ? 'opacity-50 grayscale pointer-events-none' : ''}`}
       >
+        {isMoveMode && (
+          <div className="relative z-30 flex items-center justify-between px-4 py-2.5 border-b-2 border-red-500 bg-red-500/10 text-red-600 text-xs font-black rounded-t-xl" dir="rtl">
+            <div className="flex items-center gap-1.5">
+              <Move size={14} className="animate-bounce text-red-500" />
+              <span>وضع ترتيب المنشورات (اسحب للأعلى أو الأسفل)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onMovePost && canMoveUp) {
+                    onMovePost(post.id, 'up');
+                    if (navigator.vibrate) navigator.vibrate(40);
+                  }
+                }}
+                disabled={!canMoveUp}
+                className={`p-1 rounded-md transition-all ${
+                  canMoveUp 
+                    ? 'bg-red-500 text-white hover:bg-red-600 cursor-pointer shadow-sm' 
+                    : 'bg-gray-300 text-gray-500 dark:bg-gray-800 dark:text-gray-600 cursor-not-allowed'
+                }`}
+                title="نقل للأعلى"
+              >
+                <ArrowUp size={14} />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onMovePost && canMoveDown) {
+                    onMovePost(post.id, 'down');
+                    if (navigator.vibrate) navigator.vibrate(40);
+                  }
+                }}
+                disabled={!canMoveDown}
+                className={`p-1 rounded-md transition-all ${
+                  canMoveDown 
+                    ? 'bg-red-500 text-white hover:bg-red-600 cursor-pointer shadow-sm' 
+                    : 'bg-gray-300 text-gray-500 dark:bg-gray-800 dark:text-gray-600 cursor-not-allowed'
+                }`}
+                title="نقل للأسفل"
+              >
+                <ArrowDown size={14} />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsMoveMode(false);
+                }}
+                className="px-3 py-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black transition-all cursor-pointer shadow-sm"
+              >
+                تم
+              </button>
+            </div>
+          </div>
+        )}
+
+        {isMoveMode && (
+          <div className="absolute inset-x-0 bottom-0 top-[45px] bg-white/80 dark:bg-black/85 backdrop-blur-[2.5px] z-20 rounded-b-xl flex flex-col items-center justify-center pointer-events-auto select-none border-t border-red-500/20">
+            <div className="flex flex-col items-center gap-2 p-4 bg-white dark:bg-[#111822] rounded-2xl border-2 border-red-500 shadow-[0_10px_25px_-5px_rgba(239,68,68,0.3)] max-w-[85%] text-center">
+              <div className="p-3 bg-red-500/10 dark:bg-red-500/20 rounded-full text-red-500 animate-pulse">
+                <Move size={24} />
+              </div>
+              <p className="text-sm font-black text-red-600 dark:text-red-400">
+                المنشور مقفل أثناء تغيير الترتيب
+              </p>
+              <p className="text-xs text-gray-600 dark:text-gray-300 font-bold leading-relaxed">
+                تم تعطيل أزرار المنشور لتجنب النقر بالخطأ.
+                <br />
+                استخدم أزرار النقل بالأعلى أو اضغط <span className="text-emerald-600 dark:text-emerald-400 font-black">"تم"</span> لإنهاء الترتيب.
+              </p>
+            </div>
+          </div>
+        )}
         {/* Post Header */}
         <div className="flex items-center justify-between px-4 pt-4 pb-1" dir="rtl">
           <div className="flex items-center gap-3">
@@ -967,7 +1170,14 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
                   }
 
                   if (!post.createdAt) return 'الآن';
-                  const dateObj = post.createdAt.toDate();
+                  let dateObj: Date;
+                  if (typeof post.createdAt.toDate === 'function') {
+                    dateObj = post.createdAt.toDate();
+                  } else if (post.createdAt.seconds !== undefined) {
+                    dateObj = new Date(post.createdAt.seconds * 1000 + (post.createdAt.nanoseconds || 0) / 1000000);
+                  } else {
+                    dateObj = new Date(post.createdAt as any);
+                  }
                   const now = new Date();
                   const diffTime = Math.abs(now.getTime() - dateObj.getTime());
                   const diffDays = diffTime / (1000 * 60 * 60 * 24);
@@ -1049,11 +1259,19 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
               <textarea
                 value={editedText}
                 onChange={(e) => processEditedTextForImageUrls(e.target.value)}
-                className="w-full resize-none rounded-xl border border-natural-border bg-natural-bg p-3 text-sm focus:ring-1 focus:ring-natural-primary"
+                className={`w-full resize-none rounded-xl border p-3 focus:ring-1 focus:outline-none transition-all ${
+                  isDarkMode
+                    ? 'border-[#6980b0] bg-[#111822] focus:ring-[#008D75]'
+                    : 'border-natural-border bg-natural-bg focus:ring-natural-primary'
+                }`}
                 rows={4}
                 autoFocus
                 dir={isRtl(editedText) ? 'rtl' : 'ltr'}
-                style={{ textAlign: isRtl(editedText) ? 'right' : 'left' }}
+                style={{ 
+                  textAlign: isRtl(editedText) ? 'right' : 'left',
+                  fontSize: `${fontSize}px`,
+                  color: isDarkMode ? '#e4edf7' : '#4A4A35'
+                }}
               />
               
               {/* Existing & New Images Preview in Edit Mode */}
@@ -1297,8 +1515,15 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
               )}
 
               {/* خيار نقل المنشور لسبورة أخرى */}
-              <div className="flex flex-col gap-2 rounded-xl border border-natural-border/30 bg-natural-bg/50 p-3.5 text-right" dir="rtl">
-                <span className="text-xs font-black text-[#5C5C44] flex items-center gap-1.5">
+              <div 
+                className={`flex flex-col gap-2 rounded-xl border p-3.5 text-right ${
+                  isDarkMode 
+                    ? 'border-[#2C374E] bg-[#111822]/60' 
+                    : 'border-[#8C8F7A] bg-natural-bg/50'
+                }`} 
+                dir="rtl"
+              >
+                <span className={`text-xs font-black flex items-center gap-1.5 ${isDarkMode ? 'text-[#B4C6D8]' : 'text-[#4A4A35]'}`}>
                   📁 نقل المنشور إلى لوحة أخرى:
                 </span>
                 <div className="flex flex-wrap gap-1.5 mt-1">
@@ -1307,8 +1532,12 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
                     onClick={() => setEditedBoardId(null)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all border cursor-pointer ${
                       editedBoardId === null
-                        ? 'bg-[#4A4A35] text-[#F5F5EC] border-transparent shadow-sm'
-                        : 'bg-white text-natural-muted border-natural-border/40 hover:bg-natural-bg'
+                        ? isDarkMode
+                          ? 'bg-[#1A212E] text-[#e4edf7] scale-[1.03] border-2 border-dashed border-[#e4edf7]'
+                          : 'bg-[#4A4A35] text-[#F5F5EC] border-[#4A4A35] shadow-sm'
+                        : isDarkMode
+                          ? 'bg-[#1A212E] text-[#16af75] border border-[#2C374E] hover:bg-[#212B3B]'
+                          : 'bg-white text-natural-muted border-[#8C8F7A] hover:bg-natural-bg'
                     }`}
                   >
                     الرئيسية
@@ -1323,8 +1552,12 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
                         onClick={() => setEditedBoardId(board.id)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all border cursor-pointer ${
                           isSelected
-                            ? 'bg-[#4A4A35] text-[#F5F5EC] border-transparent shadow-sm'
-                            : 'bg-white text-natural-muted border-natural-border/40 hover:bg-natural-bg'
+                            ? isDarkMode
+                              ? 'bg-[#1A212E] text-[#e4edf7] scale-[1.03] border-2 border-dashed border-[#e4edf7]'
+                              : 'bg-[#4A4A35] text-[#F5F5EC] border-[#4A4A35] shadow-sm'
+                            : isDarkMode
+                              ? 'bg-[#1A212E] text-[#16af75] border border-[#2C374E] hover:bg-[#212B3B]'
+                              : 'bg-white text-natural-muted border-[#8C8F7A] hover:bg-natural-bg'
                         }`}
                         title={board.name}
                       >
@@ -1368,13 +1601,14 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
             <div className="group relative max-w-full">
               <div className={`cursor-pointer transition-all duration-300 ${!isTextExpanded ? 'line-clamp-3' : ''} overflow-hidden max-w-full`} onClick={() => setIsTextExpanded(!isTextExpanded)}>
                 <p 
-                  className={`whitespace-pre-wrap leading-relaxed break-words transition-colors ${
-                    isDarkMode ? 'text-[#B4C6D8]' : 'text-[#4A4A35]'
-                  }`}
+                   className={`whitespace-pre-wrap leading-relaxed break-words transition-colors ${
+                     isDarkMode ? 'text-[#e4edf7]' : 'text-[#4A4A35]'
+                   }`}
                   dir={isRtl(post.text) ? 'rtl' : 'ltr'}
                   style={{ 
                     textAlign: isRtl(post.text) ? 'right' : 'left',
-                    fontSize: `${fontSize}px`
+                    fontSize: `${fontSize}px`,
+                    color: isDarkMode ? '#e4edf7' : '#4A4A35'
                   }}
                 >
                   {renderTextWithLinks(post.text)}
@@ -1742,13 +1976,12 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
                 className="relative aspect-video w-full bg-natural-secondary-bg overflow-hidden cursor-pointer"
                 onClick={() => { setLightboxIndex(0); setLightboxOpen(true); }}
               >
-                <img
-                  src={imagesList[0]}
-                  alt="Post content"
-                  className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
-                  loading="lazy"
-                  referrerPolicy="no-referrer"
-                />
+                {renderPostImage(
+                  imagesList[0],
+                  "h-full w-full object-cover transition-transform duration-500 hover:scale-105",
+                  "Post content",
+                  { loading: "lazy" }
+                )}
                 {(() => {
                   const origIdx = imageUrls.indexOf(imagesList[0]);
                   return (
@@ -1781,7 +2014,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
                       className="relative aspect-square bg-natural-secondary-bg overflow-hidden cursor-pointer"
                       onClick={() => { setLightboxIndex(i); setLightboxOpen(true); }}
                     >
-                      <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                      {renderPostImage(url, "h-full w-full object-cover")}
                       {post.imageModels && post.imageModels[origIdx] && (
                         <div className="absolute bottom-1 right-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded px-1.5 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10 font-sans font-bold" style={{ fontSize: '7px' }}>
                           ✨ {post.imageModels[origIdx]}
@@ -1806,7 +2039,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
                   className="relative aspect-square bg-natural-secondary-bg row-span-2 overflow-hidden cursor-pointer"
                   onClick={() => { setLightboxIndex(0); setLightboxOpen(true); }}
                 >
-                  <img src={imagesList[0]} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                  {renderPostImage(imagesList[0], "h-full w-full object-cover")}
                   {(() => {
                     const origIdx = imageUrls.indexOf(imagesList[0]);
                     return (
@@ -1837,7 +2070,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
                         className="relative aspect-square bg-natural-secondary-bg overflow-hidden cursor-pointer"
                         onClick={() => { setLightboxIndex(actualIndex); setLightboxOpen(true); }}
                       >
-                        <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                        {renderPostImage(url, "h-full w-full object-cover")}
                         {post.imageModels && post.imageModels[origIdx] && (
                           <div className="absolute bottom-1 right-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded px-1.5 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10 font-sans font-bold" style={{ fontSize: '7px' }}>
                             ✨ {post.imageModels[origIdx]}
@@ -1867,7 +2100,7 @@ export default function PostCard({ post, isAdmin, boards, onTestPrompt, isDarkMo
                       className="relative aspect-square bg-natural-secondary-bg overflow-hidden cursor-pointer"
                       onClick={() => { setLightboxIndex(i); setLightboxOpen(true); }}
                     >
-                      <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                      {renderPostImage(url, "h-full w-full object-cover")}
                       {post.imageModels && post.imageModels[origIdx] && (
                         <div className="absolute bottom-1 right-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded px-1.5 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10 font-sans font-bold" style={{ fontSize: '7px' }}>
                           ✨ {post.imageModels[origIdx]}

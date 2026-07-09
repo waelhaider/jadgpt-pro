@@ -6,7 +6,7 @@ import PostCard from './PostCard';
 import { Loader2, CameraOff } from 'lucide-react';
 import { handleFirestoreError } from '../lib/error-handler';
 import { AnimatePresence } from 'motion/react';
-import { getLocalUserPostsIndexedDB } from '../lib/indexedDbService';
+import { getLocalUserPostsIndexedDB, saveLocalUserPostsIndexedDB } from '../lib/indexedDbService';
 
 interface FeedProps {
   isAdmin: boolean;
@@ -16,14 +16,119 @@ interface FeedProps {
   isDarkMode?: boolean;
 }
 
+const boardScrollPositions: Record<string, number> = {};
+
 export default function Feed({ isAdmin, boardId, boards, onTestPrompt, isDarkMode }: FeedProps) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    setLoading(true);
+  const getPostMillis = (p: Post) => {
+    if (!p.createdAt) return p.createdAtMillis || Date.now();
+    if (typeof p.createdAt === 'number') return p.createdAt;
+    if (typeof p.createdAt.toMillis === 'function') {
+      try {
+        return p.createdAt.toMillis();
+      } catch (e) {}
+    }
+    if (typeof p.createdAt.toDate === 'function') {
+      try {
+        return p.createdAt.toDate().getTime();
+      } catch (e) {}
+    }
+    const anyCreated = p.createdAt as any;
+    if (anyCreated.seconds !== undefined) {
+      return anyCreated.seconds * 1000 + (anyCreated.nanoseconds || 0) / 1000000;
+    }
+    if (p.createdAt instanceof Date) {
+      return p.createdAt.getTime();
+    }
+    return p.createdAtMillis || Date.now();
+  };
 
+  const getSortValue = (p: Post) => {
+    if (p.customOrder !== undefined) return p.customOrder;
+    return (p.isPinned ? 1e13 : 0) + getPostMillis(p);
+  };
+
+  const handleMovePost = async (postId: string, direction: 'up' | 'down') => {
+    // Find index of the post in the current posts array
+    const idx = posts.findIndex(p => p.id === postId);
+    if (idx === -1) return;
+
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= posts.length) return; // Out of bounds
+
+    const currentPost = posts[idx];
+    const siblingPost = posts[targetIdx];
+
+    let currentVal = getSortValue(currentPost);
+    let siblingVal = getSortValue(siblingPost);
+
+    // If they are identical, we offset them slightly
+    if (currentVal === siblingVal) {
+      if (direction === 'up') {
+        siblingVal += 1000;
+      } else {
+        siblingVal -= 1000;
+      }
+    }
+
+    // Swap their customOrder values!
+    const newCurrentOrder = siblingVal;
+    const newSiblingOrder = currentVal;
+
+    // 1. Optimistic UI Update: immediately swap positions in state for absolute zero latency
+    const updatedPosts = [...posts];
+    updatedPosts[idx] = { ...currentPost, customOrder: newCurrentOrder };
+    updatedPosts[targetIdx] = { ...siblingPost, customOrder: newSiblingOrder };
+    
+    // Sort descending
+    updatedPosts.sort((a, b) => {
+      const orderA = getSortValue(a);
+      const orderB = getSortValue(b);
+      return orderB - orderA;
+    });
+    setPosts(updatedPosts);
+
+    try {
+      if (boardId === 'user-board') {
+        const parsed = await getLocalUserPostsIndexedDB();
+        const updated = parsed.map((p: any) => {
+          if (p.id === currentPost.id) {
+            return { ...p, customOrder: newCurrentOrder };
+          }
+          if (p.id === siblingPost.id) {
+            return { ...p, customOrder: newSiblingOrder };
+          }
+          return p;
+        });
+        await saveLocalUserPostsIndexedDB(updated);
+        window.dispatchEvent(new Event('reload_local_posts'));
+      } else {
+        const { doc, writeBatch, serverTimestamp } = await import('firebase/firestore');
+        
+        // Update both in Firestore atomically using a writeBatch to prevent intermediate inconsistent renders
+        const batch = writeBatch(db);
+        batch.update(doc(db, 'posts', currentPost.id), { 
+          customOrder: newCurrentOrder,
+          updatedAt: serverTimestamp()
+        });
+        batch.update(doc(db, 'posts', siblingPost.id), { 
+          customOrder: newSiblingOrder,
+          updatedAt: serverTimestamp()
+        });
+        await batch.commit();
+      }
+    } catch (err) {
+      console.error('[Feed] Error reordering posts:', err);
+      // Revert in case of failure
+      setPosts(posts);
+    }
+  };
+
+  useEffect(() => {
     if (boardId === 'user-board') {
+      setLoading(true);
       const loadLocalPosts = async () => {
         try {
           const parsed = await getLocalUserPostsIndexedDB();
@@ -38,6 +143,7 @@ export default function Feed({ isAdmin, boardId, boards, onTestPrompt, isDarkMod
             authorId: p.authorId || 'local-user',
             authorEmail: p.authorEmail || 'local-user@local.com',
             isPinned: !!p.isPinned,
+            customOrder: p.customOrder,
             createdAt: {
               toMillis: () => p.createdAtMillis || Date.now(),
               toDate: () => new Date(p.createdAtMillis || Date.now()),
@@ -47,14 +153,9 @@ export default function Feed({ isAdmin, boardId, boards, onTestPrompt, isDarkMod
           }));
 
           mapped.sort((a, b) => {
-            const pinA = a.isPinned ? 1 : 0;
-            const pinB = b.isPinned ? 1 : 0;
-            if (pinA !== pinB) {
-              return pinB - pinA;
-            }
-            const timeA = a.createdAt?.toMillis() || 0;
-            const timeB = b.createdAt?.toMillis() || 0;
-            return timeB - timeA;
+            const orderA = getSortValue(a);
+            const orderB = getSortValue(b);
+            return orderB - orderA;
           });
 
           setPosts(mapped);
@@ -73,6 +174,27 @@ export default function Feed({ isAdmin, boardId, boards, onTestPrompt, isDarkMod
       };
     }
 
+    let initialCachedLoaded = false;
+    if (boardId) {
+      try {
+        const cached = localStorage.getItem(`posts_cache_${boardId}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setPosts(parsed);
+            setLoading(false);
+            initialCachedLoaded = true;
+          }
+        }
+      } catch (e) {
+        console.warn('[Feed] Error reading local posts cache:', e);
+      }
+    }
+
+    if (!initialCachedLoaded) {
+      setLoading(true);
+    }
+
     const postsCollection = collection(db, 'posts');
     
     const q = query(
@@ -87,20 +209,22 @@ export default function Feed({ isAdmin, boardId, boards, onTestPrompt, isDarkMod
         ...doc.data(),
       } as Post));
       
-      // Sort pinned posts first, then sort by createdAt desc
       postsData.sort((a, b) => {
-        const pinA = a.isPinned ? 1 : 0;
-        const pinB = b.isPinned ? 1 : 0;
-        if (pinA !== pinB) {
-          return pinB - pinA; // Pinned goes first
-        }
-        const timeA = a.createdAt?.toMillis() || 0;
-        const timeB = b.createdAt?.toMillis() || 0;
-        return timeB - timeA; // Newest first
+        const orderA = getSortValue(a);
+        const orderB = getSortValue(b);
+        return orderB - orderA;
       });
 
       setPosts(postsData);
       setLoading(false);
+
+      if (boardId) {
+        try {
+          localStorage.setItem(`posts_cache_${boardId}`, JSON.stringify(postsData));
+        } catch (e) {
+          console.warn('[Feed] Error saving posts cache:', e);
+        }
+      }
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'posts');
       setLoading(false);
@@ -108,6 +232,42 @@ export default function Feed({ isAdmin, boardId, boards, onTestPrompt, isDarkMod
 
     return () => unsubscribe();
   }, [boardId]);
+
+  // Save scroll position on scroll
+  useEffect(() => {
+    if (loading) return;
+
+    const handleScroll = () => {
+      if (boardId) {
+        boardScrollPositions[boardId] = window.scrollY;
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, [boardId, loading]);
+
+  // Restore scroll position when loading finishes
+  useEffect(() => {
+    if (!loading && boardId && posts.length > 0) {
+      const savedScroll = boardScrollPositions[boardId];
+      if (savedScroll !== undefined && savedScroll > 0) {
+        // Try scrolling immediately
+        window.scrollTo(0, savedScroll);
+        
+        // Also schedule a micro-task or timeout to ensure layout has updated
+        const timer = setTimeout(() => {
+          window.scrollTo({
+            top: savedScroll,
+            behavior: 'instant' as any
+          });
+        }, 60);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [loading, boardId, posts]);
 
   if (loading) {
     return (
@@ -143,9 +303,18 @@ export default function Feed({ isAdmin, boardId, boards, onTestPrompt, isDarkMod
   return (
     <div className="pb-12">
       <AnimatePresence mode="popLayout">
-        {posts.map((post) => (
+        {posts.map((post, index) => (
           <div key={post.id}>
-            <PostCard post={post} isAdmin={isAdmin} boards={boards} onTestPrompt={onTestPrompt} isDarkMode={isDarkMode} />
+            <PostCard 
+              post={post} 
+              isAdmin={isAdmin} 
+              boards={boards} 
+              onTestPrompt={onTestPrompt} 
+              isDarkMode={isDarkMode} 
+              onMovePost={handleMovePost}
+              canMoveUp={index > 0}
+              canMoveDown={index < posts.length - 1}
+            />
           </div>
         ))}
       </AnimatePresence>

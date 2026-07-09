@@ -16,6 +16,7 @@ export interface Post {
   createdAtMillis?: number;
   fileNames?: string[];
   fileTypes?: string[];
+  customOrder?: number;
 }
 
 export interface Board {

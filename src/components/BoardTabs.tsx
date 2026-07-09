@@ -49,7 +49,7 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
           className={`relative flex items-center justify-center rounded-full transition-all shadow-xs cursor-pointer ${buttonTextClass} ${
             activeBoardId === 'prompt-builder'
               ? isDarkMode
-                ? 'bg-[#fdf2e3] text-[#ca3500] scale-[1.03] border border-[#dbb47f]'
+                ? 'bg-[#1A212E] text-[#e4edf7] scale-[1.03] border border-dashed border-[#e4edf7]'
                 : 'bg-orange-50 text-orange-700 border border-orange-300/80 scale-[1.03] shadow-xs'
               : isDarkMode
                 ? 'bg-[#1A212E] text-[#16af75] border border-[#2C374E] hover:bg-[#212B3B]'
@@ -65,7 +65,7 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
           className={`relative flex items-center justify-center rounded-full transition-all shadow-xs cursor-pointer ${buttonTextClass} ${
             activeBoardId === 'user-board'
               ? isDarkMode
-                ? 'bg-[#fdf2e3] text-[#ca3500] scale-[1.03] border border-[#dbb47f]'
+                ? 'bg-[#1A212E] text-[#e4edf7] scale-[1.03] border border-dashed border-[#e4edf7]'
                 : 'bg-orange-50 text-orange-700 border border-orange-300/80 scale-[1.03] shadow-xs'
               : isDarkMode
                 ? 'bg-[#1A212E] text-[#16af75] border border-[#2C374E] hover:bg-[#212B3B]'
@@ -86,7 +86,7 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
           className={`relative flex items-center justify-center rounded-full transition-all shadow-xs cursor-pointer ${buttonTextClass} ${
             activeBoardId === null
               ? isDarkMode
-                ? 'bg-[#fdf2e3] text-[#ca3500] scale-[1.03] border border-[#dbb47f]'
+                ? 'bg-[#1A212E] text-[#e4edf7] scale-[1.03] border border-dashed border-[#e4edf7]'
                 : 'bg-orange-50 text-orange-700 border border-orange-300/80 scale-[1.03] shadow-xs'
               : isDarkMode
                 ? 'bg-[#1A212E] text-[#16af75] border border-[#2C374E] hover:bg-[#212B3B]'
@@ -108,7 +108,7 @@ export default function BoardTabs({ boards, activeBoardId, onSelectBoard, postCo
             className={`relative flex items-center justify-center rounded-full transition-all shadow-xs cursor-pointer ${buttonTextClass} ${
               activeBoardId === dynamicBoard.id
                 ? isDarkMode
-                  ? 'bg-[#fdf2e3] text-[#ca3500] scale-[1.03] border border-[#dbb47f]'
+                  ? 'bg-[#1A212E] text-[#e4edf7] scale-[1.03] border border-dashed border-[#e8f7e4]'
                   : 'bg-orange-50 text-orange-700 border border-orange-300/80 scale-[1.03] shadow-xs'
                 : isDarkMode
                   ? 'bg-[#1A212E] text-[#16af75] border border-[#2C374E] hover:bg-[#212B3B]'

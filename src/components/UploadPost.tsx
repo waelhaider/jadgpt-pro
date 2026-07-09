@@ -71,6 +71,24 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [postFontSize, setPostFontSize] = useState<number>(() => {
+    const saved = localStorage.getItem('post_font_size');
+    return saved ? parseInt(saved, 10) : 14;
+  });
+
+  React.useEffect(() => {
+    const handleFontSizeChange = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && typeof customEvent.detail.size === 'number') {
+        setPostFontSize(customEvent.detail.size);
+      }
+    };
+    window.addEventListener('post_font_size_changed', handleFontSizeChange);
+    return () => {
+      window.removeEventListener('post_font_size_changed', handleFontSizeChange);
+    };
+  }, []);
+
   const processTextForImageUrls = (inputText: string) => {
     const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
     const matches = inputText.match(urlRegex);
@@ -584,10 +602,10 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
                         {/* Left side: Attached Model Selector - Only for Images */}
                         {!isFile && (
                           <div className="w-[100px] sm:w-[120px] shrink-0 flex flex-col justify-between border-r border-natural-border/20 pr-1.5" dir="rtl">
-                            <span className={`text-[8px] sm:text-[9px] font-black select-none mb-1 text-right block ${isDarkMode ? 'text-gray-400' : 'text-[#4A4A35]'}`}>
+                            <span className={`text-[8px] sm:text-[9px] font-black select-none mb-0 text-center block ${isDarkMode ? 'text-gray-400' : 'text-[#4A4A35]'}`}>
                               موديل التوليد:
                             </span>
-                            <div className="flex-1 flex flex-col gap-1 justify-center">
+                            <div className="flex-1 flex flex-col gap-1 pb-1 justify-center">
                               {models.map((model) => {
                                 const isSelected = selectedModels[index] === model;
                                 return (
@@ -631,14 +649,19 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
               value={text}
               onChange={(e) => processTextForImageUrls(e.target.value)}
               placeholder={` الصق النص للنشر في : ${getTargetBoardName()}`}
-              className={`w-full resize-none rounded-xl border px-4 py-4 text-sm leading-normal focus:ring-1 focus:outline-none transition-all ${
+              className={`w-full resize-none rounded-xl border px-4 py-4 leading-normal focus:ring-1 focus:outline-none transition-all ${
                 isDarkMode
-                  ? 'font-normal border-[#2C374E] bg-[#FCFAF2] text-[#1A212E] placeholder-[#8E8B7A] focus:ring-[#008D75]'
+                  ? 'font-normal border-[#6980b0] bg-[#111822] text-[#e4edf7] placeholder-[#B4C6D8]/50 focus:ring-[#008D75]'
                   : 'font-normal border-[#C1C3B8] bg-natural-bg text-natural-text placeholder-[#A1A18E] focus:ring-natural-primary'
               }`}
               rows={3}
               dir={isRtl(text) ? 'rtl' : 'ltr'}
-              style={{ textAlign: isRtl(text) ? 'right' : 'left', lineHeight: '1.8' }}
+              style={{ 
+                textAlign: isRtl(text) ? 'right' : 'left', 
+                lineHeight: '1.8',
+                fontSize: `${postFontSize}px`,
+                color: isDarkMode ? '#e4edf7' : '#2D2D2A'
+              }}
               disabled={loading}
             />
           </div>
