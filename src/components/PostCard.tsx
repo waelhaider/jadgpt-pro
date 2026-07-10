@@ -309,6 +309,7 @@ export default function PostCard({
   const [revealedImages, setRevealedImages] = useState<Record<string, boolean>>({});
   
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const cardRef = React.useRef<HTMLDivElement>(null);
 
   const [isMoveMode, setIsMoveMode] = useState(false);
   const longPressTimeoutRef = React.useRef<any>(null);
@@ -1053,6 +1054,7 @@ export default function PostCard({
   return (
     <>
       <motion.div
+        ref={cardRef}
         layout
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -1084,6 +1086,9 @@ export default function PostCard({
                   if (onMovePost && canMoveUp) {
                     onMovePost(post.id, 'up');
                     if (navigator.vibrate) navigator.vibrate(40);
+                    setTimeout(() => {
+                      cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 100);
                   }
                 }}
                 disabled={!canMoveUp}
@@ -1102,6 +1107,9 @@ export default function PostCard({
                   if (onMovePost && canMoveDown) {
                     onMovePost(post.id, 'down');
                     if (navigator.vibrate) navigator.vibrate(40);
+                    setTimeout(() => {
+                      cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 100);
                   }
                 }}
                 disabled={!canMoveDown}
