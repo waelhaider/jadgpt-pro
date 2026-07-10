@@ -93,7 +93,7 @@ function renderTextWithLinks(text: string) {
   });
 }
 
-function ImageModelBadge({ modelName, slideSrc }: { modelName: string; slideSrc: string }) {
+function LightboxBottomOverlay({ modelName, caption, slideSrc }: { modelName?: string; caption?: string; slideSrc: string }) {
   const [imgRect, setImgRect] = useState<{ bottom: number; left: number; width: number } | null>(null);
 
   useEffect(() => {
@@ -133,24 +133,51 @@ function ImageModelBadge({ modelName, slideSrc }: { modelName: string; slideSrc:
     };
   }, [slideSrc]);
 
-  if (!imgRect || !modelName) return null;
+  if (!imgRect) return null;
+
+  const hasModel = !!(modelName && modelName.trim() && modelName !== 'تغشية');
+  const hasCaption = !!(caption && caption.trim());
+
+  if (!hasModel && !hasCaption) return null;
 
   return (
-    <div 
-      style={{
-        position: 'fixed',
-        left: `${imgRect.left + imgRect.width / 2}px`,
-        top: `${imgRect.bottom + 12}px`,
-        transform: 'translate3d(-50%, 0, 0)',
-        pointerEvents: 'none',
-        zIndex: 9999,
-      }}
-      className="bg-black/80 text-[#F5F5EC] border border-white/20 rounded-full px-3.5 py-1.5 text-[11px] font-black backdrop-blur-md select-none font-sans tracking-wide shadow-lg flex items-center gap-1.5 whitespace-nowrap animate-fade-in"
-      dir="rtl"
-    >
-      <span>موديل التوليد :</span>
-      <span className="text-amber-200">{modelName}</span>
-    </div>
+    <>
+      {hasModel && (
+        <div 
+          style={{
+            position: 'fixed',
+            left: `${imgRect.left + imgRect.width - 8}px`,
+            top: `${imgRect.bottom + 12}px`,
+            transform: 'translate3d(-100%, 0, 0)',
+            pointerEvents: 'none',
+            zIndex: 9999,
+          }}
+          className="bg-black/80 text-[#F5F5EC] border border-white/20 rounded-full px-3.5 py-1.5 text-[11px] font-black backdrop-blur-md select-none font-sans tracking-wide shadow-lg flex items-center gap-1.5 whitespace-nowrap animate-fade-in"
+          dir="rtl"
+        >
+          <span>موديل التوليد :</span>
+          <span className="text-amber-200">{modelName}</span>
+        </div>
+      )}
+
+      {hasCaption && (
+        <div 
+          style={{
+            position: 'fixed',
+            left: `${imgRect.left + 8}px`,
+            top: `${imgRect.bottom + 12}px`,
+            transform: 'translate3d(0, 0, 0)',
+            pointerEvents: 'none',
+            zIndex: 9999,
+            maxWidth: `${Math.max(200, imgRect.width * 0.45)}px`,
+          }}
+          className="bg-black/80 text-[#F5F5EC] border border-white/20 rounded-xl px-3.5 py-1.5 text-[11px] font-black backdrop-blur-md select-none font-sans tracking-wide shadow-lg flex items-center gap-1.5 whitespace-normal break-words animate-fade-in"
+          dir="rtl"
+        >
+          <span className="text-white font-bold leading-relaxed">{caption}</span>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -2248,10 +2275,11 @@ export default function PostCard({
           buttonNext: slides.length <= 1 ? () => null : undefined,
           controls: () => {
             const currentModel = post.imageModels?.[lightboxIndex];
-            if (!currentModel) return null;
+            const currentCaption = post.imageCaptions?.[lightboxIndex];
             return (
-              <ImageModelBadge 
+              <LightboxBottomOverlay 
                 modelName={currentModel} 
+                caption={currentCaption}
                 slideSrc={imageUrls[lightboxIndex]} 
               />
             );

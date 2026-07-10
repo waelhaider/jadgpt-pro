@@ -422,7 +422,7 @@ ${prompt}
   // Server-side Gemini Prompt Enhancement Endpoint
   app.post('/api/enhance-prompt', async (req, res) => {
     try {
-      const { prompt } = req.body;
+      const { prompt, instructions } = req.body;
       if (!prompt) {
         return res.status(400).json({ error: 'لم يتم توفير النص المراد تحسينه.' });
       }
@@ -455,24 +455,32 @@ ${prompt}
         'gemini-flash-latest'
       ];
 
-      for (const modelName of modelsToTry) {
-        try {
-          console.log(`[Enhance Prompt API] Trying model: ${modelName}`);
-          response = await ai.models.generateContent({
-            model: modelName,
-            contents: `أنت خبير ذكاء اصطناعي محترف ومتميز في كتابة وتحسين برومبتات (prompts) توليد الصور لمولدات الصور الرائدة مثل Midjourney و Stable Diffusion و Leonardo AI و Imagen.
+      let systemInstruction = `أنت خبير ذكاء اصطناعي محترف ومتميز في كتابة وتحسين برومبتات (prompts) توليد الصور لمولدات الصور الرائدة مثل Midjourney و Stable Diffusion و Leonardo AI و Imagen.
 مهمتك هي إعادة صياغة وترقية وتطوير البرومبت التالي لتجعله فائق الجاذبية والاحترافية والسينمائية.
 
 المعايير المطلوبة:
 1. حافظ على كافة تفاصيل وهيكل المعطيات التي حددها المستخدم بدقة تامة (مثل الجنس والكل، العمر، المظهر، الوضعية، النمط، مقاس الصورة، الزي، التعبير، الإضاءة، وإعدادات الكاميرا). لا تغير أو تلغي أي عنصر أساسي حدده المستخدم.
 2. قم بإعادة صياغة النص بصورة وصفية سينمائية فائقة الجمال وغنية بالتفاصيل البصرية الفنية (مثل التفاصيل الدقيقة للوجه، الملمس الواقعي للبشرة والأقمشة، والجو العام).
 3. اكتب البرومبت المحسن بالكامل إما باللغة العربية بأسلوب راق للغاية وإما كبرومبت احترافي يمزج الكلمات المفتاحية بالإنجليزية لضمان وصول المولد لأفضل جودة جمالية (يفضل كتابة الأجزاء الوصفية بالإنجليزية في قالب منظم لتناسب محركات التوليد).
-4. لا تضف أي مقدمات أو شروحات أو عبارات مثل "تفضل البرومبت" أو علامات اقتباس إضافية. قم بإرجاع النص البرومبت النهائي مباشرة وبشكل فوري وجاهز للاستخدام.
+4. لا تضف أي مقدمات أو شروحات أو عبارات مثل "تفضل البرومبت" أو علامات اقتباس إضافية. قم بإرجاع النص البرومبت النهائي مباشرة وبشكل فوري وجاهز للاستخدام.`;
 
-البرومبت الأصلي المراد تحسينه:
+      if (instructions && instructions.trim()) {
+        systemInstruction += `\n\nتوجيه هام جداً يجب منحه الأولوية القصوى (هام):
+يجب دمج وتطبيق الملاحظة/التوجيه التالي بدقة وعناية فائقة في البرومبت المحسن وتغيير المشهد أو الإضاءة أو الخلفية بناءً عليه:
+"${instructions.trim()}"`;
+      }
+
+      systemInstruction += `\n\nالبرومبت الأصلي المراد تحسينه:
 """
 ${prompt}
-"""`
+"""`;
+
+      for (const modelName of modelsToTry) {
+        try {
+          console.log(`[Enhance Prompt API] Trying model: ${modelName}`);
+          response = await ai.models.generateContent({
+            model: modelName,
+            contents: systemInstruction
           });
           if (response && response.text) {
             console.log(`[Enhance Prompt API] Success with model: ${modelName}`);

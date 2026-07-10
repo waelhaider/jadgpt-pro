@@ -516,6 +516,7 @@ export default function PromptBuilder({ isDarkMode }: PromptBuilderProps) {
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [enhancedPrompt, setEnhancedPrompt] = useState<string | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [enhanceInstructions, setEnhanceInstructions] = useState('');
 
   // Outfit category selection (men / women) matches the active gender
   const [outfitType, setOutfitType] = useState<'men' | 'women'>('men');
@@ -529,6 +530,14 @@ export default function PromptBuilder({ isDarkMode }: PromptBuilderProps) {
   // Snapshot/Lock refs to prevent auto-prompt from overwriting custom/shared/restored prompts
   const ignoreAutoPrompt = React.useRef(false);
   const selectionSnapshot = React.useRef<any>(null);
+  const instructionsRef = React.useRef<HTMLTextAreaElement>(null);
+
+  React.useEffect(() => {
+    if (instructionsRef.current) {
+      instructionsRef.current.style.height = 'auto';
+      instructionsRef.current.style.height = `${instructionsRef.current.scrollHeight}px`;
+    }
+  }, [enhanceInstructions]);
 
   const currentSelections = {
     aspectRatio,
@@ -618,7 +627,7 @@ export default function PromptBuilder({ isDarkMode }: PromptBuilderProps) {
 ${outfitPrefix} :${displayOutfit}
 التعبير :${displayExpression}
 الاضاءة : ${displayLighting}
-الكاميرا : ${displayCamera}`;
+العدسة : ${displayCamera}`;
   };
 
   // Controlled textarea state
@@ -843,16 +852,22 @@ ${outfitPrefix} :${displayOutfit}
       let success = false;
       let enhancedTextResult = '';
 
-      const systemInstruction = `أنت خبير ذكاء اصطناعي محترف ومتميز في كتابة وتحسين برومبتات (prompts) توليد الصور لمولدات الصور الرائدة مثل Midjourney و Stable Diffusion و Leonardo AI و Imagen.
+      let systemInstruction = `أنت خبير ذكاء اصطناعي محترف ومتميز في كتابة وتحسين برومبتات (prompts) توليد الصور لمولدات الصور الرائدة مثل Midjourney و Stable Diffusion و Leonardo AI و Imagen.
 مهمتك هي إعادة صياغة وترقية وتطوير البرومبت التالي لتجعله فائق الجاذبية والاحترافية والسينمائية.
 
 المعايير المطلوبة:
 1. حافظ على كافة تفاصيل وهيكل المعطيات التي حددها المستخدم بدقة تامة (مثل الجنس والكل، العمر، المظهر، الوضعية، النمط، مقاس الصورة، الزي، التعبير، الإضاءة، وإعدادات الكاميرا). لا تغير أو تلغي أي عنصر أساسي حدده المستخدم.
 2. قم بإعادة صياغة النص بصورة وصفية سينمائية فائقة الجمال وغنية بالتفاصيل البصرية الفنية (مثل التفاصيل الدقيقة للوجه، الملمس الواقعي للبشرة والأقمشة، والجو العام).
 3. اكتب البرومبت المحسن بالكامل إما باللغة العربية بأسلوب راق للغاية وإما كبرومبت احترافي يمزج الكلمات المفتاحية بالإنجليزية لضمان وصول المولد لأفضل جودة جمالية (يفضل كتابة الأجزاء الوصفية بالإنجليزية في قالب منظم لتناسب محركات التوليد).
-4. لا تضف أي مقدمات أو شروحات أو عبارات مثل "تفضل البرومبت" أو علامات اقتباس إضافية. قم بإرجاع النص البرومبت النهائي مباشرة وبشكل فوري وجاهز للاستخدام.
+4. لا تضف أي مقدمات أو شروحات أو عبارات مثل "تفضل البرومبت" أو علامات اقتباس إضافية. قم بإرجاع النص البرومبت النهائي مباشرة وبشكل فوري وجاهز للاستخدام.`;
 
-البرومبت الأصلي المراد تحسينه:
+      if (enhanceInstructions && enhanceInstructions.trim()) {
+        systemInstruction += `\n\nتوجيه هام جداً يجب منحه الأولوية القصوى (هام):
+يجب دمج وتطبيق الملاحظة/التوجيه التالي بدقة وعناية فائقة في البرومبت المحسن وتغيير المشهد أو الإضاءة أو الخلفية بناءً عليه:
+"${enhanceInstructions.trim()}"`;
+      }
+
+      systemInstruction += `\n\nالبرومبت الأصلي المراد تحسينه:
 """
 ${originalPrompt}
 """`;
@@ -867,7 +882,7 @@ ${originalPrompt}
         const response = await fetch('/api/enhance-prompt', {
           method: 'POST',
           headers: headersKey,
-          body: JSON.stringify({ prompt: originalPrompt, apiKey: userApiKey }),
+          body: JSON.stringify({ prompt: originalPrompt, apiKey: userApiKey, instructions: enhanceInstructions }),
         });
 
         const contentType = response.headers.get('content-type') || '';
@@ -926,7 +941,7 @@ ${originalPrompt}
           const response = await fetch(`${cloudRunBaseUrl}/api/enhance-prompt`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: originalPrompt }),
+            body: JSON.stringify({ prompt: originalPrompt, instructions: enhanceInstructions }),
           });
 
           if (response.ok) {
@@ -975,6 +990,7 @@ ${originalPrompt}
     setPromptText('');
     setTranslatedPromptText('');
     setApiError(null);
+    setEnhanceInstructions('');
     setOutfitType('men');
     setMenOutfitSubCategory('modern');
     setWomenOutfitSubCategory('casual');
@@ -1336,20 +1352,17 @@ ${originalPrompt}
 
   const cameras = [
     'يتبع الصورة المرجعية',
-    'ضبط فتحة العدسة بين f/1.8 وf/2.2 للحصول على عمق مجال ضحل للغاية (بوكيه كريمي).',
-    'عدسة مقاس 50 ملم f/1.4.',
-    'عدسة مقاس 50 ملم f/1.8.',
-    'عدسة مقاس 50 ملم f/2.2.',
-    'عدسة مقاس 50 ملم f/2.8.',
-    'عدسة مقاس 85 ملم f/2.8.',
-    'عدسة مقاس 85 ملم f/1.8.',
-    'عدسة مقاس 85 ملم f/2.2.',
-     'عدسة بفتحة واسعة لخلفية غير واضحة قليلاً.',
-     'عدسة صورة رئيسية (على سبيل المثال، 85 مم أو 100 مم) على كاميرا ذات إطار كامل، وهي مثالية لالتقاط صور مقربة حميمة وخالية من التشويه.',
-     'يركز بشكل مكثف على العينين والوجه، ويترك الباقي غير واضح بهدوء.',
-     'ISO 100-200 للحصول على أقصى جودة للصورة بالأبيض والأسود وبدون ضوضاء.',
-     'تركيز فائق الوضوح، عمق المجال السينمائي.',
-     '',
+    'عدسة 24mm: للمساحات الواسعة وإظهار المكان والأشخاص.',
+    'عدسة 35mm: لتصوير الشارع والحياة اليومية.',
+    'عدسة 50mm: عزل قليل للخلفية.',
+    'عدسة 85mm: عدسة بورتريه مع عزل الخلفية.',
+    'عدسة 135mm: بورتريه سينمائي وضغط قوي للخلفية.',
+    'عدسة 200mm: لقطات بعيدة وتمويه الخلفية.',
+    'عدسة مثالية لالتقاط صور مقربة وخالية من التشويه.',
+    'عدسة تركز بشكل مكثف على العينين والوجه .',
+    'عدسة بتركيز فائق الوضوح ، عمق المجال السينمائي.',
+    'عدسة للحصول على اقصى جودة للصور بالأبيض والأسود وبدون ضوضاء.',
+    'ضبط فتحة العدسة تلقائياً للحصول على عمق مجال ضحل( بوكيه كريمي).'
   ];
 
   return (
@@ -1866,7 +1879,7 @@ ${originalPrompt}
 
               {/* Option 9: Camera */}
               <CustomSelector
-                label="إعدادات الكاميرا والعدسة"
+                label="إعدادات العدسة"
                 options={cameras}
                 value={camera}
                 onChange={setCamera}
@@ -1876,15 +1889,23 @@ ${originalPrompt}
             </div>
 
       {/* Generated output box frame */}
-      <div className="bg-[#4A4A35]/5 rounded-3xl border border-natural-border/60 p-5 mt-4 text-right flex flex-col space-y-4">
+      <div className={`rounded-3xl border p-5 mt-4 text-right flex flex-col space-y-4 transition-colors ${
+        isDarkMode 
+          ? 'bg-[#1A212E]/50 border-[#2C374E]' 
+          : 'bg-[#4A4A35]/5 border-natural-border/60'
+      }`}>
         <div className="flex items-center justify-between border-b border-natural-border/30 pb-3">
           <span className="text-[11px] font-black text-natural-muted tracking-widest uppercase flex items-center gap-1.5 leading-none">
             {enhancedPrompt ? (
-              <span className="flex items-center gap-1 text-amber-700 font-extrabold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+              <span className={`flex items-center gap-1 font-extrabold px-2 py-0.5 rounded-md border ${
+                isDarkMode 
+                  ? 'text-amber-400 bg-[#111822] border-amber-400/20' 
+                  : 'text-amber-700 bg-amber-50 border-amber-200'
+              }`}>
                 ✨ البرومبت المحسن ومترجمه اللحظي
               </span>
             ) : (
-              <span className="text-natural-muted font-bold">
+              <span className={isDarkMode ? 'text-[#B4C6D8] font-bold' : 'text-natural-muted font-bold'}>
                 📋 البرومبت الجاهز للنسخ ومترجمه اللحظي
               </span>
             )}
@@ -1895,7 +1916,11 @@ ${originalPrompt}
                 setEnhancedPrompt(null);
                 setPromptText(getStructuredPrompt());
               }}
-              className="text-[10px] font-bold text-natural-primary hover:underline flex items-center gap-1 px-2.5 py-1 rounded-lg bg-natural-primary/5 hover:bg-natural-primary/10 transition-colors"
+              className={`text-[10px] font-bold flex items-center gap-1 px-2.5 py-1 rounded-lg transition-colors ${
+                isDarkMode 
+                  ? 'text-amber-400 hover:underline bg-amber-400/5 hover:bg-amber-400/10' 
+                  : 'text-natural-primary hover:underline bg-natural-primary/5 hover:bg-natural-primary/10'
+              }`}
             >
               <Eye size={11} />
               رؤية الهيكل الأصلي (استرجاع)
@@ -1904,14 +1929,24 @@ ${originalPrompt}
         </div>
 
         {/* Translation controls header */}
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 bg-natural-bg/20 p-2 rounded-2xl border border-natural-border/40 select-none">
+        <div className={`grid grid-cols-[1fr_auto_1fr] items-center gap-2 p-2 rounded-2xl border select-none transition-colors ${
+          isDarkMode 
+            ? 'bg-[#111822] border-[#2C374E]' 
+            : 'bg-natural-bg/20 border-natural-border/40'
+        }`}>
           {/* Right side (RTL, original text label with dropdown) */}
           <div className="flex flex-col text-right w-full min-w-0">
-            <span className="text-[9px] sm:text-[10px] font-black text-[#4A4A35] truncate text-right block w-full">لغة النص الفعلي</span>
+            <span className={`text-[9px] sm:text-[10px] font-black truncate text-center block w-full ${
+              isDarkMode ? 'text-[#B4C6D8]' : 'text-[#4A4A35]'
+            }`}>لغة النص الفعلي</span>
             <select
               value={srcLang}
               onChange={(e) => setSrcLang(e.target.value)}
-              className="mt-1 text-[10px] sm:text-[11px] rounded-lg border border-natural-border px-1.5 sm:px-2 py-1.5 bg-white font-bold text-natural-text focus:outline-none focus:ring-1 focus:ring-natural-primary cursor-pointer w-full text-right"
+              className={`mt-1 text-[10px] sm:text-[11px] rounded-lg border px-1.5 sm:px-2 py-1.5 font-bold focus:outline-none focus:ring-1 focus:ring-natural-primary cursor-pointer w-full text-right ${
+                isDarkMode 
+                  ? 'border-[#2C374E] bg-[#1A212E] text-white' 
+                  : 'border-natural-border bg-white text-natural-text'
+              }`}
             >
               <option value="auto">تحديد تلقائي (Auto)</option>
               <option value="ar">العربية (Arabic)</option>
@@ -1932,7 +1967,11 @@ ${originalPrompt}
               type="button"
               onClick={handleSwap}
               title="تبديل النصوص واللغات"
-              className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl bg-natural-primary/10 text-natural-primary hover:bg-natural-primary hover:text-white transition-all shadow-sm border border-natural-primary/20 active:scale-95 shrink-0"
+              className={`flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl transition-all shadow-sm active:scale-95 shrink-0 ${
+                isDarkMode 
+                  ? 'bg-amber-400/10 text-amber-400 hover:bg-amber-400 hover:text-black border border-amber-400/20' 
+                  : 'bg-natural-primary/10 text-natural-primary hover:bg-natural-primary hover:text-white border border-natural-primary/20'
+              }`}
             >
               <ArrowLeftRight size={13} />
             </button>
@@ -1940,11 +1979,17 @@ ${originalPrompt}
 
           {/* Left side (RTL, translated text label with dropdown) */}
           <div className="flex flex-col text-left w-full min-w-0">
-            <span className="text-[9px] sm:text-[10px] font-black text-[#4A4A35] block w-full text-right truncate">لغة الترجمة الفورية</span>
+            <span className={`text-[9px] sm:text-[10px] font-black block w-full text-center truncate ${
+              isDarkMode ? 'text-[#B4C6D8]' : 'text-[#4A4A35]'
+            }`}>لغة الترجمة الفورية</span>
             <select
               value={tgtLang}
               onChange={(e) => setTgtLang(e.target.value)}
-              className="mt-1 text-[10px] sm:text-[11px] rounded-lg border border-natural-border px-1.5 sm:px-2 py-1.5 bg-white font-bold text-natural-text focus:outline-none focus:ring-1 focus:ring-natural-primary cursor-pointer w-full text-right"
+              className={`mt-1 text-[10px] sm:text-[11px] rounded-lg border px-1.5 sm:px-2 py-1.5 font-bold focus:outline-none focus:ring-1 focus:ring-natural-primary cursor-pointer w-full text-right ${
+                isDarkMode 
+                  ? 'border-[#2C374E] bg-[#1A212E] text-white' 
+                  : 'border-natural-border bg-white text-natural-text'
+              }`}
             >
               <option value="en">الإنجليزية (English)</option>
               <option value="ar">العربية (Arabic)</option>
@@ -1963,10 +2008,25 @@ ${originalPrompt}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Box 1: Original text */}
           <div className="flex flex-col space-y-1.5 text-right w-full">
-            <div className="flex items-center justify-between px-1">
-              <span className="text-[10px] font-extrabold text-[#4A4A35] flex items-center gap-1">
+            <div className="flex items-center justify-between px-1" dir="rtl">
+              <span className={`text-[10px] font-extrabold flex items-center gap-1 ${
+                isDarkMode ? 'text-[#B4C6D8]' : 'text-[#4A4A35]'
+              }`}>
                 ✍️ النص الأصلي/الفعلي
               </span>
+              <button
+                type="button"
+                onClick={() => handleCopyCustom(promptText, 'النص الأصلي')}
+                disabled={!promptText.trim()}
+                className={`text-[9px] font-bold px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 disabled:opacity-50 cursor-pointer ${
+                  isDarkMode 
+                    ? 'bg-[#1A212E] hover:bg-[#212B3B] text-amber-400 border border-[#2C374E]' 
+                    : 'bg-white hover:bg-neutral-50 text-natural-primary border border-natural-border shadow-xs'
+                }`}
+              >
+                <Copy size={10} />
+                نسخ الأصلي
+              </button>
             </div>
             <div className="relative">
               <textarea
@@ -1977,7 +2037,11 @@ ${originalPrompt}
                   setPromptText(e.target.value);
                 }}
                 placeholder="اكتب البرومبت هنا أو استخدم صانع البرومبت في الأعلى لإنشائه تلقائياً..."
-                className="w-full h-56 text-right rounded-2xl border border-natural-border bg-white px-4 py-3.5 font-medium text-natural-text leading-relaxed tracking-wide resize-y focus:outline-none focus:ring-1 focus:ring-natural-primary shadow-inner"
+                className={`w-full h-56 text-right rounded-2xl border px-4 py-3.5 font-medium leading-relaxed tracking-wide resize-y focus:outline-none focus:ring-1 focus:ring-natural-primary shadow-inner transition-colors ${
+                  isDarkMode 
+                    ? 'border-[#2C374E] bg-[#1A212E] text-white placeholder:text-gray-500' 
+                    : 'border-natural-border bg-white text-natural-text placeholder:text-natural-muted'
+                }`}
                 dir={isRtl(promptText) ? 'rtl' : 'ltr'}
                 style={{ textAlign: isRtl(promptText) ? 'right' : 'left', fontSize: `${fontSize}px` }}
               />
@@ -1986,24 +2050,47 @@ ${originalPrompt}
 
           {/* Box 2: Translation */}
           <div className="flex flex-col space-y-1.5 text-right w-full">
-            <div className="flex items-center justify-between px-1">
-              <span className="text-[10px] font-extrabold text-[#4A4A35] flex items-center gap-1">
+            <div className="flex items-center justify-between px-1" dir="rtl">
+              <span className={`text-[10px] font-extrabold flex items-center gap-1 ${
+                isDarkMode ? 'text-[#B4C6D8]' : 'text-[#4A4A35]'
+              }`}>
                 🔄 الترجمة اللحظية المباشرة
               </span>
+              <button
+                type="button"
+                onClick={() => handleCopyCustom(translatedPromptText, 'الترجمة')}
+                disabled={!translatedPromptText.trim()}
+                className={`text-[9px] font-bold px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 disabled:opacity-50 cursor-pointer ${
+                  isDarkMode 
+                    ? 'bg-[#1A212E] hover:bg-[#212B3B] text-amber-400 border border-[#2C374E]' 
+                    : 'bg-white hover:bg-neutral-50 text-natural-primary border border-natural-border shadow-xs'
+                }`}
+              >
+                <Copy size={10} />
+                نسخ الترجمة
+              </button>
             </div>
             <div className="relative w-full flex-1 flex flex-col">
               <textarea
                 readOnly
                 value={translatedPromptText}
                 placeholder="الترجمة اللحظية ستظهر هنا تلقائياً..."
-                className="w-full h-56 text-right rounded-2xl border border-natural-border bg-neutral-50 px-4 py-3.5 font-medium text-natural-text leading-relaxed tracking-wide resize-y focus:outline-none shadow-inner"
+                className={`w-full h-56 text-right rounded-2xl border px-4 py-3.5 font-medium leading-relaxed tracking-wide resize-y focus:outline-none shadow-inner transition-colors ${
+                  isDarkMode 
+                    ? 'border-[#2C374E] bg-[#111822] text-white placeholder:text-gray-600' 
+                    : 'border-natural-border bg-neutral-50 text-natural-text placeholder:text-natural-muted'
+                }`}
                 style={{ textAlign: isRtl(translatedPromptText) ? 'right' : 'left', fontSize: `${fontSize}px` }}
                 dir={isRtl(translatedPromptText) ? 'rtl' : 'ltr'}
               />
               {/* Translating loader indicator inside field */}
               {isTranslating && (
-                <div className="absolute inset-0 bg-white/60 backdrop-blur-[0.5px] flex items-center justify-center rounded-2xl">
-                  <div className="flex items-center gap-2 text-natural-primary bg-white px-3 py-1.5 rounded-lg shadow-sm border border-natural-border">
+                <div className={`absolute inset-0 backdrop-blur-[0.5px] flex items-center justify-center rounded-2xl ${
+                  isDarkMode ? 'bg-black/60' : 'bg-white/60'
+                }`}>
+                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg shadow-sm border ${
+                    isDarkMode ? 'text-amber-400 bg-[#1A212E] border-[#2C374E]' : 'text-natural-primary bg-white border-natural-border'
+                  }`}>
                     <RefreshCw size={12} className="animate-spin" />
                     <span className="text-[10px] font-black">جاري الترجمة فوراً...</span>
                   </div>
@@ -2043,7 +2130,29 @@ ${originalPrompt}
         </AnimatePresence>
 
         {/* Action button bar: Copy, AI Enhance, and Clear */}
-        <div className="flex flex-col gap-2.5">
+        <div className="flex flex-col gap-3">
+          {/* Custom Enhance Instructions Input */}
+          <div className="flex flex-col space-y-1.5 text-left w-full">
+            <label className={`text-[10px] font-extrabold flex items-center gap-1 justify-start ${
+              isDarkMode ? 'text-[#B4C6D8]' : 'text-[#4A4A35]'
+            }`}>
+              <span>✍️ ملاحظات وتوجيهات خاصة للتحسين</span>
+            </label>
+            <textarea
+              ref={instructionsRef}
+              rows={1}
+              value={enhanceInstructions}
+              onChange={(e) => setEnhanceInstructions(e.target.value)}
+              placeholder="مثال: الخلفية بلون رمادي داكن، أو إضاءة ظلال النوافذ..."
+              className={`w-full text-right rounded-xl border px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-natural-primary shadow-xs transition-colors resize-none overflow-hidden min-h-[42px] max-h-[250px] ${
+                isDarkMode
+                  ? 'bg-[#1A212E] border-[#2C374E] text-white placeholder:text-gray-500'
+                  : 'bg-white border-natural-border text-natural-text placeholder:text-natural-muted'
+              }`}
+              dir="rtl"
+            />
+          </div>
+
           {/* AI Enhance Button */}
           <button
             onClick={handleEnhancePrompt}
