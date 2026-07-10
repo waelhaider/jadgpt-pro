@@ -533,7 +533,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
                 className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3"
               >
                 {previews.map((prev, index) => {
-                  const models = ['gpt-2', 'grok', 'banana-2', 'flux', 'wan 2.7'];
+                  const models = ['gpt-2', 'grok', 'banana-2', 'flux', 'wan 2.7', 'تغشية'];
                   const isFile = prev.startsWith('file:');
                   const fileName = isFile ? prev.split(':')[1] : '';
                   const fileType = isFile ? prev.split(':')[2] : '';
@@ -608,6 +608,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
                             <div className="flex-1 flex flex-col gap-1 pb-1 justify-center">
                               {models.map((model) => {
                                 const isSelected = selectedModels[index] === model;
+                                const isBlurModel = model === 'تغشية';
                                 return (
                                   <button
                                     key={model}
@@ -620,16 +621,22 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
                                     }}
                                     className={`w-full py-0.5 rounded text-[8px] sm:text-[9px] font-black cursor-pointer transition-all border text-center truncate whitespace-nowrap overflow-hidden ${
                                       isSelected
-                                        ? isDarkMode
-                                          ? 'bg-[#16af75] text-white border-transparent shadow-xs'
-                                          : 'bg-[#4A4A35] text-white border-transparent shadow-xs'
-                                        : isDarkMode
-                                          ? 'bg-[#1a212e] text-gray-300 border-[#656c74]/50 hover:bg-[#2C374E]'
-                                          : 'bg-white text-natural-muted border-natural-border/60 hover:bg-natural-bg/80'
+                                        ? isBlurModel
+                                          ? 'bg-amber-600 text-white border-transparent shadow-xs'
+                                          : isDarkMode
+                                            ? 'bg-[#16af75] text-white border-transparent shadow-xs'
+                                            : 'bg-[#4A4A35] text-white border-transparent shadow-xs'
+                                        : isBlurModel
+                                          ? isDarkMode
+                                            ? 'bg-amber-950/40 text-amber-300 border-amber-900/50 hover:bg-amber-900/30'
+                                            : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/50'
+                                          : isDarkMode
+                                            ? 'bg-[#1a212e] text-gray-300 border-[#656c74]/50 hover:bg-[#2C374E]'
+                                            : 'bg-white text-natural-muted border-natural-border/60 hover:bg-natural-bg/80'
                                     }`}
                                     title={model}
                                   >
-                                    {model}
+                                    {isBlurModel ? '👁️ تغشية' : model}
                                   </button>
                                 );
                               })}

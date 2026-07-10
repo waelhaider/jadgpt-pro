@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Post, OperationType, Board } from '../types';
 import { db, auth } from '../lib/firebase';
 import { doc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { MoreHorizontal, Trash2, Edit3, Check, X, Clock, Copy, Loader2, Image as ImageIcon, Plus, Sparkles, Pin, ArrowUp, ArrowDown, Move } from 'lucide-react';
+import { MoreHorizontal, Trash2, Edit3, Check, X, Clock, Copy, Loader2, Image as ImageIcon, Plus, Sparkles, Pin, ArrowUp, ArrowDown, Move, EyeOff } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'motion/react';
@@ -279,6 +279,7 @@ export default function PostCard({
    const [isSaving, setIsSaving] = useState(false);
   const [status, setStatus] = useState('');
   const [failedImageUrls, setFailedImageUrls] = useState<Record<string, boolean>>({});
+  const [revealedImages, setRevealedImages] = useState<Record<string, boolean>>({});
   
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -953,13 +954,13 @@ export default function PostCard({
       const isMeta = url.includes('fbcdn.net') || url.includes('facebook.com') || url.includes('instagram.com') || url.includes('scontent');
 
       if (isDrive) {
-        mainErrorMsg = 'الصورة غير متوفرة في Google Drive';
+        mainErrorMsg = 'الصورة غير متوفرة';
         subErrorMsg = '(قد تكون حُذفت أو صلاحيات الوصول مقيدة)';
       } else if (isMeta) {
-        mainErrorMsg = 'رابط خارجي مؤقت من فيسبوك وانتهت صلاحيته';
-        subErrorMsg = '(روابط فيسبوك تنتهي صلاحيتها تلقائياً بعد فترة قصيرة)';
+        mainErrorMsg = 'رابط فيسبوك انتهت صلاحيته';
+        subErrorMsg = '(روابط فيسبوك تنتهي صلاحيتها تلقائياً بعد فترة)';
       } else {
-        mainErrorMsg = 'رابط الصورة الخارجي غير متوفر أو منتهي الصلاحية';
+        mainErrorMsg = 'رابط الصورة غير متوفر';
         subErrorMsg = '(روابط المواقع الخارجية قد تتغير أو تنتهي صلاحيتها بمرور الوقت)';
       }
 
@@ -972,6 +973,40 @@ export default function PostCard({
           <p className="text-[8px] font-medium text-gray-400 dark:text-gray-500 mt-1 max-w-[90%]" dir="rtl">
             {subErrorMsg}
           </p>
+        </div>
+      );
+    }
+
+    const origIdx = imageUrls.indexOf(url);
+    const isObscured = post.imageModels && post.imageModels[origIdx] === 'تغشية';
+    const isRevealed = revealedImages[url];
+
+    if (isObscured && !isRevealed) {
+      return (
+        <div className={`relative overflow-hidden select-none ${className}`}>
+          <img
+            src={url}
+            alt={alt}
+            className="h-full w-full object-cover blur-xl scale-110 pointer-events-none brightness-75 transition-all duration-300"
+            onError={() => setFailedImageUrls(prev => ({ ...prev, [url]: true }))}
+            referrerPolicy="no-referrer"
+            {...extraProps}
+          />
+          <div 
+            className="absolute inset-0 flex flex-col items-center justify-center bg-black/35 hover:bg-black/45 transition-colors cursor-pointer z-10"
+            onClick={(e) => {
+              e.stopPropagation();
+              setRevealedImages(prev => ({ ...prev, [url]: true }));
+            }}
+            title="انقر لإظهار الصورة"
+          >
+            <div className="p-2 bg-white/20 dark:bg-black/40 rounded-full backdrop-blur-md border border-white/25 text-white transform hover:scale-110 transition-transform shadow-lg">
+              <EyeOff size={18} className="stroke-[2.5]" />
+            </div>
+            <span className="text-[8px] font-black text-white mt-1.5 drop-shadow-md select-none bg-black/40 px-2 py-0.5 rounded-full border border-white/10" dir="rtl">
+              صورة مغشية - انقر لإظهار
+            </span>
+          </div>
         </div>
       );
     }
@@ -1013,7 +1048,7 @@ export default function PostCard({
           <div className="relative z-30 flex items-center justify-between px-4 py-2.5 border-b-2 border-red-500 bg-red-500/10 text-red-600 text-xs font-black rounded-t-xl" dir="rtl">
             <div className="flex items-center gap-1.5">
               <Move size={14} className="animate-bounce text-red-500" />
-              <span>وضع ترتيب المنشورات (اسحب للأعلى أو الأسفل)</span>
+              <span>المنشور في وضع تعديل الترتيب</span>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -1066,7 +1101,7 @@ export default function PostCard({
         )}
 
         {isMoveMode && (
-          <div className="absolute inset-x-0 bottom-0 top-[45px] bg-white/80 dark:bg-black/85 backdrop-blur-[2.5px] z-20 rounded-b-xl flex flex-col items-center justify-center pointer-events-auto select-none border-t border-red-500/20">
+          <div className="absolute inset-x-0 bottom-0 top-[45px] bg-white/65 dark:bg-black/70 backdrop-blur-[1.5px] z-20 rounded-b-xl flex flex-col items-center justify-center pointer-events-auto select-none border-t border-red-500/20">
             <div className="flex flex-col items-center gap-2 p-4 bg-white dark:bg-[#111822] rounded-2xl border-2 border-red-500 shadow-[0_10px_25px_-5px_rgba(239,68,68,0.3)] max-w-[85%] text-center">
               <div className="p-3 bg-red-500/10 dark:bg-red-500/20 rounded-full text-red-500 animate-pulse">
                 <Move size={24} />
@@ -1075,9 +1110,9 @@ export default function PostCard({
                 المنشور مقفل أثناء تغيير الترتيب
               </p>
               <p className="text-xs text-gray-600 dark:text-gray-300 font-bold leading-relaxed">
-                تم تعطيل أزرار المنشور لتجنب النقر بالخطأ.
+               .-.-.-.-.-.
                 <br />
-                استخدم أزرار النقل بالأعلى أو اضغط <span className="text-emerald-600 dark:text-emerald-400 font-black">"تم"</span> لإنهاء الترتيب.
+                استخدم أزرار النقل بالأعلى ثم اضغط <span className="text-emerald-600 dark:text-emerald-400 font-black">"تم"</span>.
               </p>
             </div>
           </div>
@@ -1362,7 +1397,7 @@ export default function PostCard({
                       const isFile = !isUrlAnImage(url, index);
                       const fName = editedFileNames[index] || 'ملف';
                       const isApk = fName.toLowerCase().endsWith('.apk') || (editedFileTypes[index] || '').includes('vnd.android.package-archive');
-                      const models = ['gpt-2', 'grok', 'banana-2', 'flux', 'wan 2.7'];
+                      const models = ['gpt-2', 'grok', 'banana-2', 'flux', 'wan 2.7', 'تغشية'];
                       
                       return (
                         <div key={`edit-model-exist-${index}`} className="flex flex-col gap-1.5 p-2 rounded-lg border border-natural-border/40 bg-zinc-50">
@@ -1404,6 +1439,7 @@ export default function PostCard({
                                 {models.map((model, mIdx) => {
                                   const isSelected = editedImageModels[index] === model;
                                   const isLastOdd = mIdx === models.length - 1 && models.length % 2 !== 0;
+                                  const isBlurModel = model === 'تغشية';
                                   return (
                                     <button
                                       key={model}
@@ -1417,12 +1453,16 @@ export default function PostCard({
                                         isLastOdd ? 'col-span-2' : ''
                                       } ${
                                         isSelected
-                                          ? 'bg-[#4A4A35] text-white border-transparent'
-                                          : 'bg-white text-natural-muted border-natural-border/60 hover:bg-natural-bg/80'
+                                          ? isBlurModel
+                                            ? 'bg-amber-600 text-white border-transparent'
+                                            : 'bg-[#4A4A35] text-white border-transparent'
+                                          : isBlurModel
+                                            ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/50'
+                                            : 'bg-white text-natural-muted border-natural-border/60 hover:bg-natural-bg/80'
                                       }`}
                                       title={model}
                                     >
-                                      {model}
+                                      {isBlurModel ? '👁️ تغشية' : model}
                                     </button>
                                   );
                                 })}
@@ -1439,7 +1479,7 @@ export default function PostCard({
                       const fName = isFile ? prev.split(':')[1] : (newFileNames[index] || 'ملف جديد');
                       const fType = isFile ? prev.split(':')[2] : (newFileTypes[index] || '');
                       const isApk = fName.toLowerCase().endsWith('.apk') || fType.includes('vnd.android.package-archive');
-                      const models = ['gpt-2', 'grok', 'banana-2', 'flux', 'wan 2.7'];
+                      const models = ['gpt-2', 'grok', 'banana-2', 'flux', 'wan 2.7', 'تغشية'];
                       
                       return (
                         <div key={`edit-model-new-${index}`} className="flex flex-col gap-1 p-1 rounded-lg border border-green-200 bg-green-50/20">
@@ -1482,6 +1522,7 @@ export default function PostCard({
                                 {models.map((model, mIdx) => {
                                   const isSelected = newImageModels[index] === model;
                                   const isLastOdd = mIdx === models.length - 1 && models.length % 2 !== 0;
+                                  const isBlurModel = model === 'تغشية';
                                   return (
                                     <button
                                       key={model}
@@ -1495,12 +1536,16 @@ export default function PostCard({
                                         isLastOdd ? 'col-span-2' : ''
                                       } ${
                                         isSelected
-                                          ? 'bg-green-700 text-white border-transparent'
-                                          : 'bg-white text-[#4A4A35] border-green-200 hover:bg-green-100/50'
+                                          ? isBlurModel
+                                            ? 'bg-amber-600 text-white border-transparent'
+                                            : 'bg-green-700 text-white border-transparent'
+                                          : isBlurModel
+                                            ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/50'
+                                            : 'bg-white text-[#4A4A35] border-green-200 hover:bg-green-100/50'
                                       }`}
                                       title={model}
                                     >
-                                      {model}
+                                      {isBlurModel ? '👁️ تغشية' : model}
                                     </button>
                                   );
                                 })}
@@ -1986,14 +2031,14 @@ export default function PostCard({
                   const origIdx = imageUrls.indexOf(imagesList[0]);
                   return (
                     <>
-                      {post.imageModels && post.imageModels[origIdx] && (
+                      {post.imageModels && post.imageModels[origIdx] && post.imageModels[origIdx] !== 'تغشية' && (
                         <div className="absolute bottom-1 right-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded px-1.5 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10 font-sans font-bold" style={{ fontSize: '7px' }}>
                           ✨ {post.imageModels[origIdx]}
                         </div>
                       )}
                       {post.imageCaptions && post.imageCaptions[origIdx] && (
-                        <div className="absolute bottom-1 left-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1.5 py-0.5 backdrop-blur-xs select-text z-10" onClick={(e) => e.stopPropagation()}>
-                          <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '5px' }} dir="rtl">
+                        <div className="absolute bottom-1 left-1.5 max-w-[55%] bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10">
+                          <p className="text-white font-bold leading-tight break-words whitespace-normal drop-shadow-md" style={{ fontSize: '5px' }} dir="rtl">
                             {post.imageCaptions[origIdx]}
                           </p>
                         </div>
@@ -2015,14 +2060,14 @@ export default function PostCard({
                       onClick={() => { setLightboxIndex(i); setLightboxOpen(true); }}
                     >
                       {renderPostImage(url, "h-full w-full object-cover")}
-                      {post.imageModels && post.imageModels[origIdx] && (
+                      {post.imageModels && post.imageModels[origIdx] && post.imageModels[origIdx] !== 'تغشية' && (
                         <div className="absolute bottom-1 right-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded px-1.5 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10 font-sans font-bold" style={{ fontSize: '7px' }}>
                           ✨ {post.imageModels[origIdx]}
                         </div>
                       )}
                       {post.imageCaptions && post.imageCaptions[origIdx] && (
-                        <div className="absolute bottom-1 left-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1.5 py-0.5 backdrop-blur-xs select-text z-10" onClick={(e) => e.stopPropagation()}>
-                          <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '5px' }} dir="rtl">
+                        <div className="absolute bottom-1 left-1.5 max-w-[55%] bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10">
+                          <p className="text-white font-bold leading-tight break-words whitespace-normal drop-shadow-md" style={{ fontSize: '5px' }} dir="rtl">
                             {post.imageCaptions[origIdx]}
                           </p>
                         </div>
@@ -2044,14 +2089,14 @@ export default function PostCard({
                     const origIdx = imageUrls.indexOf(imagesList[0]);
                     return (
                       <>
-                        {post.imageModels && post.imageModels[origIdx] && (
+                        {post.imageModels && post.imageModels[origIdx] && post.imageModels[origIdx] !== 'تغشية' && (
                           <div className="absolute bottom-1 right-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded px-1.5 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10 font-sans font-bold" style={{ fontSize: '7px' }}>
                             ✨ {post.imageModels[origIdx]}
                           </div>
                         )}
                         {post.imageCaptions && post.imageCaptions[origIdx] && (
-                          <div className="absolute bottom-1 left-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1.5 py-0.5 backdrop-blur-xs select-text z-10" onClick={(e) => e.stopPropagation()}>
-                            <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '5px' }} dir="rtl">
+                          <div className="absolute bottom-1 left-1.5 max-w-[55%] bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10">
+                            <p className="text-white font-bold leading-tight break-words whitespace-normal drop-shadow-md" style={{ fontSize: '5px' }} dir="rtl">
                               {post.imageCaptions[origIdx]}
                             </p>
                           </div>
@@ -2071,14 +2116,14 @@ export default function PostCard({
                         onClick={() => { setLightboxIndex(actualIndex); setLightboxOpen(true); }}
                       >
                         {renderPostImage(url, "h-full w-full object-cover")}
-                        {post.imageModels && post.imageModels[origIdx] && (
+                        {post.imageModels && post.imageModels[origIdx] && post.imageModels[origIdx] !== 'تغشية' && (
                           <div className="absolute bottom-1 right-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded px-1.5 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10 font-sans font-bold" style={{ fontSize: '7px' }}>
                             ✨ {post.imageModels[origIdx]}
                           </div>
                         )}
                         {post.imageCaptions && post.imageCaptions[origIdx] && (
-                          <div className="absolute bottom-1 left-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1.5 py-0.5 backdrop-blur-xs select-text z-10" onClick={(e) => e.stopPropagation()}>
-                            <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '5px' }} dir="rtl">
+                          <div className="absolute bottom-1 left-1.5 max-w-[55%] bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10">
+                            <p className="text-white font-bold leading-tight break-words whitespace-normal drop-shadow-md" style={{ fontSize: '5px' }} dir="rtl">
                               {post.imageCaptions[origIdx]}
                             </p>
                           </div>
@@ -2101,14 +2146,14 @@ export default function PostCard({
                       onClick={() => { setLightboxIndex(i); setLightboxOpen(true); }}
                     >
                       {renderPostImage(url, "h-full w-full object-cover")}
-                      {post.imageModels && post.imageModels[origIdx] && (
+                      {post.imageModels && post.imageModels[origIdx] && post.imageModels[origIdx] !== 'تغشية' && (
                         <div className="absolute bottom-1 right-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded px-1.5 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10 font-sans font-bold" style={{ fontSize: '7px' }}>
                           ✨ {post.imageModels[origIdx]}
                         </div>
                       )}
                       {post.imageCaptions && post.imageCaptions[origIdx] && (
-                        <div className="absolute bottom-1 left-1.5 bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1.5 py-0.5 backdrop-blur-xs select-text z-10" onClick={(e) => e.stopPropagation()}>
-                          <p className="text-white font-bold leading-none drop-shadow-md" style={{ fontSize: '5px' }} dir="rtl">
+                        <div className="absolute bottom-1 left-1.5 max-w-[55%] bg-black/60 text-[#F5F5EC] border border-white/10 rounded-md px-1 py-0.5 backdrop-blur-xs select-none pointer-events-none z-10">
+                          <p className="text-white font-bold leading-tight break-words whitespace-normal drop-shadow-md" style={{ fontSize: '5px' }} dir="rtl">
                             {post.imageCaptions[origIdx]}
                           </p>
                         </div>
