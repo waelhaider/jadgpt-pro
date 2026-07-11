@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Post, OperationType, Board } from '../types';
 import { db, auth } from '../lib/firebase';
 import { doc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { MoreHorizontal, Trash2, Edit3, Check, X, Clock, Copy, Loader2, Image as ImageIcon, Plus, Sparkles, Pin, ArrowUp, ArrowDown, Move, EyeOff } from 'lucide-react';
+import { MoreHorizontal, Trash2, Edit3, Check, X, Clock, Copy, Loader2, Image as ImageIcon, Plus, Sparkles, Pin, ArrowUp, ArrowDown, Move, EyeOff, ChevronDown } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'motion/react';
@@ -292,6 +292,7 @@ export default function PostCard({
   const [editedText, setEditedText] = useState(post.text);
   const [editedImageUrls, setEditedImageUrls] = useState<string[]>(post.imageUrls || (post.imageUrl ? [post.imageUrl] : []));
   const [editedBoardId, setEditedBoardId] = useState<string | null>(post.boardId || null);
+  const [isEditBoardDropdownOpen, setIsEditBoardDropdownOpen] = useState(false);
   const [newImages, setNewImages] = useState<(File | string)[]>([]);
   const [newPreviews, setNewPreviews] = useState<string[]>([]);
   const [removedImageUrls, setRemovedImageUrls] = useState<string[]>([]);
@@ -1596,55 +1597,193 @@ export default function PostCard({
 
               {/* خيار نقل المنشور لسبورة أخرى */}
               <div 
-                className={`flex flex-col gap-2 rounded-xl border p-3.5 text-right ${
+                className={`flex flex-col gap-2 rounded-xl border p-3.5 text-right w-full ${
                   isDarkMode 
                     ? 'border-[#2C374E] bg-[#111822]/60' 
                     : 'border-[#8C8F7A] bg-natural-bg/50'
                 }`} 
                 dir="rtl"
               >
-                <span className={`text-xs font-black flex items-center gap-1.5 ${isDarkMode ? 'text-[#B4C6D8]' : 'text-[#4A4A35]'}`}>
-                  📁 نقل المنشور إلى لوحة أخرى:
-                </span>
-                <div className="flex flex-wrap gap-1.5 mt-1">
+                <label className={`text-xs font-black flex items-center gap-1.5 ${isDarkMode ? 'text-[#B4C6D8]' : 'text-[#4A4A35]'}`}>
+                  📁 نقل المنشورات إلى لوحة اخرى:
+                </label>
+                <div className="relative w-full">
                   <button
                     type="button"
-                    onClick={() => setEditedBoardId(null)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all border cursor-pointer ${
-                      editedBoardId === null
-                        ? isDarkMode
-                          ? 'bg-[#1A212E] text-[#e4edf7] scale-[1.03] border-2 border-dashed border-[#e4edf7]'
-                          : 'bg-[#4A4A35] text-[#F5F5EC] border-[#4A4A35] shadow-sm'
-                        : isDarkMode
-                          ? 'bg-[#1A212E] text-[#16af75] border border-[#2C374E] hover:bg-[#212B3B]'
-                          : 'bg-white text-natural-muted border-[#8C8F7A] hover:bg-natural-bg'
+                    onClick={() => setIsEditBoardDropdownOpen(!isEditBoardDropdownOpen)}
+                    className={`w-full h-12 px-4 rounded-xl border flex items-center justify-between text-xs sm:text-sm font-bold transition-all shadow-sm cursor-pointer ${
+                      isDarkMode 
+                        ? 'border-[#2C374E] bg-[#1A212E] text-white hover:bg-[#212B3B]' 
+                        : 'border-natural-border bg-white text-natural-text hover:bg-natural-bg/40'
                     }`}
                   >
-                    الرئيسية
+                    <span className="truncate">
+                      {editedBoardId === null && 'الرئيسية'}
+                      {editedBoardId === 'user-board' && 'لوحة شخصية'}
+                      {editedBoardId !== null && editedBoardId !== 'user-board' && (boards.find(b => b.id === editedBoardId)?.name || 'الرئيسية')}
+                    </span>
+                    <ChevronDown size={16} className={`transition-transform shrink-0 ${isEditBoardDropdownOpen ? 'rotate-180' : ''}`} />
                   </button>
 
-                  {boards && boards.map((board) => {
-                    const isSelected = editedBoardId === board.id;
-                    return (
-                      <button
-                        key={board.id}
-                        type="button"
-                        onClick={() => setEditedBoardId(board.id)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all border cursor-pointer ${
-                          isSelected
-                            ? isDarkMode
-                              ? 'bg-[#1A212E] text-[#e4edf7] scale-[1.03] border-2 border-dashed border-[#e4edf7]'
-                              : 'bg-[#4A4A35] text-[#F5F5EC] border-[#4A4A35] shadow-sm'
-                            : isDarkMode
-                              ? 'bg-[#1A212E] text-[#16af75] border border-[#2C374E] hover:bg-[#212B3B]'
-                              : 'bg-white text-natural-muted border-[#8C8F7A] hover:bg-natural-bg'
-                        }`}
-                        title={board.name}
-                      >
-                        {board.name}
-                      </button>
-                    );
-                  })}
+                  <AnimatePresence>
+                    {isEditBoardDropdownOpen && (
+                      <>
+                        {/* --- MOBILE & TABLET FULL-SCREEN / BOTTOM SHEET SELECTION --- */}
+                        <div 
+                          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 md:hidden flex items-end sm:items-center justify-center p-4" 
+                          onClick={() => setIsEditBoardDropdownOpen(false)}
+                        >
+                          <motion.div
+                            initial={{ y: '100%', opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            exit={{ y: '100%', opacity: 0 }}
+                            transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className={`w-full max-w-md sm:max-w-lg rounded-t-2xl sm:rounded-2xl p-5 text-right shadow-2xl flex flex-col max-h-[85vh] ${
+                              isDarkMode ? 'bg-[#111822] text-white border border-[#2C374E]' : 'bg-white text-natural-text border border-natural-border'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-800 mb-4" dir="rtl">
+                              <span className="text-sm sm:text-base font-black">نقل المنشورات إلى لوحة اخرى</span>
+                              <button 
+                                type="button" 
+                                onClick={() => setIsEditBoardDropdownOpen(false)}
+                                className="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
+                              >
+                                <X size={18} />
+                              </button>
+                            </div>
+                            
+                            <div className="overflow-y-auto space-y-2.5 flex-1 pb-4" dir="rtl">
+                              {/* Option 1: الرئيسية */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditedBoardId(null);
+                                  setIsEditBoardDropdownOpen(false);
+                                }}
+                                className={`w-full text-right py-3.5 px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all border cursor-pointer flex items-center justify-between ${
+                                  editedBoardId === null
+                                    ? isDarkMode ? 'bg-[#1A212E] text-amber-400 border-amber-400/50' : 'bg-natural-bg text-natural-primary border-natural-primary/50 shadow-xs'
+                                    : isDarkMode ? 'bg-[#1A212E]/40 border-[#2C374E] text-gray-300' : 'bg-neutral-50 border-neutral-200 text-neutral-600'
+                                }`}
+                              >
+                                <span>الرئيسية</span>
+                                {editedBoardId === null && <span className="text-xs">✨</span>}
+                              </button>
+
+                              {/* Option 2: لوحة شخصية */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditedBoardId('user-board');
+                                  setIsEditBoardDropdownOpen(false);
+                                }}
+                                className={`w-full text-right py-3.5 px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all border cursor-pointer flex items-center justify-between ${
+                                  editedBoardId === 'user-board'
+                                    ? isDarkMode ? 'bg-[#1A212E] text-amber-400 border-amber-400/50' : 'bg-natural-bg text-natural-primary border-natural-primary/50 shadow-xs'
+                                    : isDarkMode ? 'bg-[#1A212E]/40 border-[#2C374E] text-gray-300' : 'bg-neutral-50 border-neutral-200 text-neutral-600'
+                                }`}
+                              >
+                                <span>لوحة شخصية</span>
+                                {editedBoardId === 'user-board' && <span className="text-xs">👤</span>}
+                              </button>
+
+                              {/* list options: boards */}
+                              {boards && boards.map((board) => {
+                                const isSelected = editedBoardId === board.id;
+                                return (
+                                  <button
+                                    key={board.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setEditedBoardId(board.id);
+                                      setIsEditBoardDropdownOpen(false);
+                                    }}
+                                    className={`w-full text-right py-3.5 px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all border cursor-pointer flex items-center justify-between ${
+                                      isSelected
+                                        ? isDarkMode ? 'bg-[#1A212E] text-amber-400 border-amber-400/50' : 'bg-natural-bg text-natural-primary border-natural-primary/50 shadow-xs'
+                                        : isDarkMode ? 'bg-[#1A212E]/40 border-[#2C374E] text-gray-300' : 'bg-neutral-50 border-neutral-200 text-neutral-600'
+                                    }`}
+                                  >
+                                    <span className="truncate">{board.name}</span>
+                                    {isSelected && <span className="text-xs">📂</span>}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </motion.div>
+                        </div>
+
+                        {/* --- DESKTOP ONLY DROPDOWN --- */}
+                        <div className="hidden md:block fixed inset-0 z-40" onClick={() => setIsEditBoardDropdownOpen(false)} />
+                        <motion.div
+                          initial={{ opacity: 0, y: -8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -8 }}
+                          className={`hidden md:block absolute left-0 right-0 mt-1.5 rounded-xl border shadow-xl z-50 overflow-hidden max-h-60 overflow-y-auto ${
+                            isDarkMode 
+                              ? 'bg-[#111822] border-[#2C374E] divide-y divide-[#2C374E]' 
+                              : 'bg-white border-[#8C8F7A] divide-y divide-[#8C8F7A]/30'
+                          }`}
+                        >
+                          {/* option 1: الرئيسية */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditedBoardId(null);
+                              setIsEditBoardDropdownOpen(false);
+                            }}
+                            className={`w-full text-right px-4 py-3 text-xs sm:text-sm font-bold transition-colors cursor-pointer ${
+                              editedBoardId === null
+                                ? isDarkMode ? 'bg-[#1A212E] text-amber-400' : 'bg-natural-bg text-natural-primary'
+                                : isDarkMode ? 'text-gray-300 hover:bg-[#1A212E]' : 'text-natural-text hover:bg-neutral-50'
+                            }`}
+                          >
+                            الرئيسية
+                          </button>
+
+                          {/* option 2: لوحة شخصية */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditedBoardId('user-board');
+                              setIsEditBoardDropdownOpen(false);
+                            }}
+                            className={`w-full text-right px-4 py-3 text-xs sm:text-sm font-bold transition-colors cursor-pointer ${
+                              editedBoardId === 'user-board'
+                                ? isDarkMode ? 'bg-[#1A212E] text-amber-400' : 'bg-natural-bg text-natural-primary'
+                                : isDarkMode ? 'text-gray-300 hover:bg-[#1A212E]' : 'text-natural-text hover:bg-neutral-50'
+                            }`}
+                          >
+                            لوحة شخصية
+                          </button>
+
+                          {/* list options: boards */}
+                          {boards && boards.map((board) => {
+                            const isSelected = editedBoardId === board.id;
+                            return (
+                              <button
+                                key={board.id}
+                                type="button"
+                                onClick={() => {
+                                  setEditedBoardId(board.id);
+                                  setIsEditBoardDropdownOpen(false);
+                                }}
+                                className={`w-full text-right px-4 py-3 text-xs sm:text-sm font-bold transition-colors cursor-pointer ${
+                                  isSelected
+                                    ? isDarkMode ? 'bg-[#1A212E] text-amber-400' : 'bg-natural-bg text-natural-primary'
+                                    : isDarkMode ? 'text-gray-300 hover:bg-[#1A212E]' : 'text-natural-text hover:bg-neutral-50'
+                                }`}
+                              >
+                                {board.name}
+                              </button>
+                            );
+                          })}
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
 
