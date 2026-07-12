@@ -235,10 +235,8 @@ export default function Feed({ isAdmin, boardId, boards, onTestPrompt, isDarkMod
 
   // Save scroll position on scroll
   useEffect(() => {
-    if (loading) return;
-
     const handleScroll = () => {
-      if (boardId) {
+      if (boardId && !loading) {
         boardScrollPositions[boardId] = window.scrollY;
       }
     };
@@ -249,17 +247,19 @@ export default function Feed({ isAdmin, boardId, boards, onTestPrompt, isDarkMod
     };
   }, [boardId, loading]);
 
-  const hasRestoredScrollRef = useRef<string | null>(null);
-
+  // Instantly restore scroll position or scroll to top on boardId change
   useEffect(() => {
-    hasRestoredScrollRef.current = null;
+    if (boardId) {
+      const savedScroll = boardScrollPositions[boardId];
+      const targetScroll = savedScroll !== undefined ? savedScroll : 0;
+      window.scrollTo(0, targetScroll);
+    }
   }, [boardId]);
 
-  // Restore scroll position when loading finishes
+  // Maintain scroll position when posts finish loading / rendering
   useEffect(() => {
-    if (!loading && boardId && posts.length > 0 && hasRestoredScrollRef.current !== boardId) {
+    if (!loading && boardId) {
       const savedScroll = boardScrollPositions[boardId];
-      hasRestoredScrollRef.current = boardId;
       const targetScroll = savedScroll !== undefined ? savedScroll : 0;
 
       // Try scrolling immediately
@@ -271,10 +271,10 @@ export default function Feed({ isAdmin, boardId, boards, onTestPrompt, isDarkMod
           top: targetScroll,
           behavior: 'instant' as any
         });
-      }, 60);
+      }, 30);
       return () => clearTimeout(timer);
     }
-  }, [loading, boardId, posts]);
+  }, [loading, boardId, posts.length]);
 
   if (loading) {
     return (

@@ -66,6 +66,12 @@ export default function Header({
   const [isEditingKey, setIsEditingKey] = useState(false);
   const [isRecycleBinOpen, setIsRecycleBinOpen] = useState(false);
   
+  // Safe board password states
+  const [showSafePasswordModal, setShowSafePasswordModal] = useState(false);
+  const [safePasswordInput, setSafePasswordInput] = useState('');
+  const [safePasswordError, setSafePasswordError] = useState(false);
+  const [onSuccessCallback, setOnSuccessCallback] = useState<(() => void) | null>(null);
+  
   const [postFontSize, setPostFontSize] = useState<number>(() => {
     const saved = localStorage.getItem('post_font_size');
     return saved ? parseInt(saved, 10) : 14;
@@ -402,7 +408,7 @@ export default function Header({
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className={`fixed inset-y-0 right-0 z-[1001] w-72 shadow-2xl transition-colors border-l ${
+              className={`fixed inset-y-0 right-0 z-[1001] w-72 sm:w-96 shadow-2xl transition-colors border-l ${
                 isDarkMode 
                   ? 'bg-[#151D2A] text-white border-[#2C374E]' 
                   : 'bg-white text-natural-text border-natural-border'
@@ -468,8 +474,16 @@ export default function Header({
                         <button
                           key={board.id}
                           onClick={() => {
-                            onSelectBoard(board.id);
-                            setIsBoardsDrawerOpen(false);
+                            if (board.id === 'safe-board') {
+                              setOnSuccessCallback(() => () => {
+                                onSelectBoard(board.id);
+                                setIsBoardsDrawerOpen(false);
+                              });
+                              setShowSafePasswordModal(true);
+                            } else {
+                              onSelectBoard(board.id);
+                              setIsBoardsDrawerOpen(false);
+                            }
                           }}
                           className={`w-full flex items-center justify-between p-3 rounded-2xl border text-right transition-all cursor-pointer ${
                             isSelected
@@ -1286,6 +1300,114 @@ export default function Header({
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Password Modal for "الخزنة" */}
+      <AnimatePresence>
+        {showSafePasswordModal && (
+          <>
+            {/* Backdrop Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[3000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+              onClick={() => {
+                setShowSafePasswordModal(false);
+                setSafePasswordInput('');
+                setSafePasswordError(false);
+              }}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                className={`relative w-full max-w-sm rounded-3xl p-6 shadow-2xl border text-right transition-colors ${
+                  isDarkMode 
+                    ? 'border-[#2C374E] bg-[#111822] text-white' 
+                    : 'border-natural-border bg-white text-natural-text'
+                }`}
+                onClick={(e) => e.stopPropagation()}
+                dir="rtl"
+              >
+                <div className="flex flex-col items-center text-center gap-3">
+                  <div className="h-12 w-12 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 text-2xl animate-bounce">
+                    🔒
+                  </div>
+                  <h3 className={`text-base font-black ${isDarkMode ? 'text-white' : 'text-[#3A3A28]'}`}>
+                    قسم الخزنة مغلق
+                  </h3>
+                  <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-natural-muted'}`}>
+                    هذه اللوحة محمية برقم سري، يرجى إدخال رقم المرور للمتابعة.
+                  </p>
+                </div>
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (safePasswordInput === '88775500') {
+                      setShowSafePasswordModal(false);
+                      setSafePasswordInput('');
+                      setSafePasswordError(false);
+                      if (onSuccessCallback) onSuccessCallback();
+                    } else {
+                      setSafePasswordError(true);
+                    }
+                  }}
+                  className="mt-4 space-y-3"
+                >
+                  <input
+                    type="password"
+                    autoFocus
+                    placeholder="أدخل كلمة السر..."
+                    value={safePasswordInput}
+                    onChange={(e) => {
+                      setSafePasswordInput(e.target.value);
+                      setSafePasswordError(false);
+                    }}
+                    className={`w-full text-center text-sm font-bold border rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 transition-all ${
+                      safePasswordError
+                        ? 'border-red-500 focus:ring-red-500 bg-red-500/5'
+                        : isDarkMode
+                          ? 'border-[#2C374E] bg-[#1a212e] text-white focus:ring-[#008D75]'
+                          : 'border-natural-border bg-white text-natural-text focus:ring-natural-primary'
+                    }`}
+                  />
+                  
+                  {safePasswordError && (
+                    <p className="text-red-500 text-[11px] font-bold text-center animate-pulse">
+                      ❌ كلمة السر غير صحيحة، يرجى المحاولة مرة أخرى!
+                    </p>
+                  )}
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      type="submit"
+                      className="flex-1 py-2 rounded-xl text-xs font-bold text-white bg-[#008D75] hover:bg-opacity-90 transition-colors cursor-pointer"
+                    >
+                      تأكيد
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowSafePasswordModal(false);
+                        setSafePasswordInput('');
+                        setSafePasswordError(false);
+                      }}
+                      className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
+                        isDarkMode
+                          ? 'border-[#2C374E] bg-[#1a212e] text-gray-300 hover:bg-[#253042]'
+                          : 'border-natural-border bg-white text-natural-muted hover:bg-neutral-50'
+                      }`}
+                    >
+                      إلغاء
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </>

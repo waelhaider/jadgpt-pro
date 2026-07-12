@@ -29,6 +29,12 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
 
   const [currentUser, setCurrentUser] = useState<any>(auth.currentUser);
 
+  // Safe board password states
+  const [showSafePasswordModal, setShowSafePasswordModal] = useState(false);
+  const [safePasswordInput, setSafePasswordInput] = useState('');
+  const [safePasswordError, setSafePasswordError] = useState(false);
+  const [onSuccessCallback, setOnSuccessCallback] = useState<(() => void) | null>(null);
+
   React.useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       setCurrentUser(user);
@@ -630,45 +636,76 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
 
                         {/* Left side: Attached Model Selector - Only for Images */}
                         {!isFile && (
-                          <div className="w-[100px] sm:w-[120px] shrink-0 flex flex-col justify-between border-r border-natural-border/20 pr-1.5" dir="rtl">
-                            <span className={`text-[8px] sm:text-[9px] font-black select-none mb-0 text-center block ${isDarkMode ? 'text-gray-400' : 'text-[#4A4A35]'}`}>
-                              موديل التوليد:
+                          <div className="w-[105px] sm:w-[125px] shrink-0 flex flex-col justify-between border-r border-natural-border/20 pr-1.5" dir="rtl">
+                            <span className={`text-[8px] sm:text-[9px] font-black select-none mb-0.5 text-center block ${isDarkMode ? 'text-gray-400' : 'text-[#4A4A35]'}`}>
+                              إعدادات الصورة:
                             </span>
                             <div className="flex-1 flex flex-col gap-1 pb-1 justify-center">
-                              {models.map((model) => {
-                                const isSelected = selectedModels[index] === model;
-                                const isBlurModel = model === 'تغشية';
+                              {(() => {
+                                const val = selectedModels[index] || '';
+                                const isObscured = val.includes('تغشية');
+                                const modelName = val.split('|').filter(p => p && p !== 'تغشية')[0] || '';
+                                
                                 return (
-                                  <button
-                                    key={model}
-                                    type="button"
-                                    disabled={loading}
-                                    onClick={() => {
-                                      const updated = [...selectedModels];
-                                      updated[index] = isSelected ? '' : model;
-                                      setSelectedModels(updated);
-                                    }}
-                                    className={`w-full py-0.5 rounded text-[8px] sm:text-[9px] font-black cursor-pointer transition-all border text-center truncate whitespace-nowrap overflow-hidden ${
-                                      isSelected
-                                        ? isBlurModel
+                                  <>
+                                    {/* Obscure Button Toggle */}
+                                    <button
+                                      type="button"
+                                      disabled={loading}
+                                      onClick={() => {
+                                        const nextObscured = !isObscured;
+                                        const updated = [...selectedModels];
+                                        updated[index] = nextObscured ? (modelName ? `${modelName}|تغشية` : 'تغشية') : modelName;
+                                        setSelectedModels(updated);
+                                      }}
+                                      className={`w-full py-1 rounded text-[8px] sm:text-[9px] font-black cursor-pointer transition-all border text-center truncate whitespace-nowrap overflow-hidden ${
+                                        isObscured
                                           ? 'bg-amber-600 text-white border-transparent shadow-xs'
                                           : isDarkMode
-                                            ? 'bg-[#16af75] text-white border-transparent shadow-xs'
-                                            : 'bg-[#4A4A35] text-white border-transparent shadow-xs'
-                                        : isBlurModel
-                                          ? isDarkMode
-                                            ? 'bg-amber-950/40 text-amber-300 border-amber-900/50 hover:bg-amber-900/30'
+                                            ? 'bg-amber-955/40 text-amber-300 border-amber-900/50 hover:bg-amber-900/30'
                                             : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/50'
-                                          : isDarkMode
-                                            ? 'bg-[#1a212e] text-gray-300 border-[#656c74]/50 hover:bg-[#2C374E]'
-                                            : 'bg-white text-natural-muted border-natural-border/60 hover:bg-natural-bg/80'
-                                    }`}
-                                    title={model}
-                                  >
-                                    {isBlurModel ? '👁️ تغشية' : model}
-                                  </button>
+                                      }`}
+                                    >
+                                      👁️ تغشية الصورة
+                                    </button>
+                                    
+                                    <div className={`h-[1px] my-0.5 ${isDarkMode ? 'bg-gray-800' : 'bg-gray-200'}`} />
+                                    
+                                    <span className={`text-[7px] sm:text-[8px] font-bold text-center block ${isDarkMode ? 'text-gray-500' : 'text-[#8C8F7A]'}`}>
+                                      اسم الموديل:
+                                    </span>
+                                    
+                                    {['gpt-2', 'grok', 'banana-2', 'flux', 'wan 2.7'].map((m) => {
+                                      const isMSelected = modelName === m;
+                                      return (
+                                        <button
+                                          key={m}
+                                          type="button"
+                                          disabled={loading}
+                                          onClick={() => {
+                                            const nextModel = isMSelected ? '' : m;
+                                            const updated = [...selectedModels];
+                                            updated[index] = isObscured ? (nextModel ? `${nextModel}|تغشية` : 'تغشية') : nextModel;
+                                            setSelectedModels(updated);
+                                          }}
+                                          className={`w-full py-0.5 rounded text-[8px] sm:text-[9px] font-black cursor-pointer transition-all border text-center truncate whitespace-nowrap overflow-hidden ${
+                                            isMSelected
+                                              ? isDarkMode
+                                                ? 'bg-[#16af75] text-white border-transparent shadow-xs'
+                                                : 'bg-[#4A4A35] text-white border-transparent shadow-xs'
+                                              : isDarkMode
+                                                ? 'bg-[#1a212e] text-gray-300 border-[#656c74]/50 hover:bg-[#2C374E]'
+                                                : 'bg-white text-natural-muted border-natural-border/60 hover:bg-natural-bg/80'
+                                          }`}
+                                          title={m}
+                                        >
+                                          {m}
+                                        </button>
+                                      );
+                                    })}
+                                  </>
                                 );
-                              })}
+                              })()}
                             </div>
                           </div>
                         )}
@@ -702,46 +739,17 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
             />
           </div>
 
-          <div className={`mt-0 pt-0 flex flex-col md:flex-row md:items-center gap-2 transition-colors ${isDarkMode ? 'border-[#2C374E]' : 'border-natural-border/30'}`}>
+          <div className={`mt-0 pt-0 flex flex-col gap-2 transition-colors ${isDarkMode ? 'border-[#2C374E]' : 'border-natural-border/30'}`}>
             {isAdmin && (
               <>
-                {/* Desktop View */}
-                <select
-                  value={targetBoardId === null ? 'placeholder' : targetBoardId}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setTargetBoardId(val === 'placeholder' ? null : val);
-                  }}
-                  className={`hidden md:block w-full md:flex-[1.2] min-w-0 rounded-lg border pl-3 pr-3 sm:px-2 h-10 py-0 text-xs sm:text-sm font-bold focus:outline-none cursor-pointer transition-all shadow-md text-center ${
-                    isDarkMode 
-                      ? 'border-[#656c74] bg-[#111822] text-[#16af75] hover:bg-[#1a212e] focus:ring-1 focus:ring-[#16af75]' 
-                      : 'border-[#cbd5e1] bg-[#fffaf5] text-[#c26700] hover:bg-[#fef3e6] hover:border-[#c26700]/40 focus:ring-1 focus:ring-[#cbd5e1]'
-                  }`}
-                >
-                  <option value="placeholder" style={{ color: '#dc2626', fontWeight: 'bold' }} className="text-red-600 font-bold bg-white dark:bg-[#111822]">
-                    تحديد لوحة النشر
-                  </option>
-                  <option value="user-board" className={isDarkMode ? 'text-white bg-[#111822]' : 'text-natural-text bg-white'}>
-                    لوحة شخصية
-                  </option>
-                  <option value="main-feed" className={isDarkMode ? 'text-white bg-[#111822]' : 'text-natural-text bg-white'}>
-                    الرئيسية
-                  </option>
-                  {boards && boards.map((b) => (
-                    <option key={b.id} value={b.id} className={isDarkMode ? 'text-white bg-[#111822]' : 'text-natural-text bg-white'}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-
-                {/* Tablet and Mobile View */}
+                {/* Unified Board Selection Button */}
                 <button
                   type="button"
                   onClick={() => {
                     window.dispatchEvent(new Event('lock_posts_layout'));
                     setIsSelectBoardDrawerOpen(true);
                   }}
-                  className={`block md:hidden w-full rounded-lg border px-3 h-10 text-xs sm:text-sm font-bold focus:outline-none cursor-pointer transition-all shadow-md text-center flex items-center justify-between gap-1.5 ${
+                  className={`w-full min-w-0 rounded-lg border px-3 h-10 text-xs sm:text-sm font-bold focus:outline-none cursor-pointer transition-all shadow-md text-center flex items-center justify-between gap-1.5 ${
                     isDarkMode 
                       ? 'border-[#656c74] bg-[#111822] text-[#16af75] hover:bg-[#1a212e]' 
                       : 'border-[#cbd5e1] bg-[#fffaf5] text-[#c26700] hover:bg-[#fef3e6] hover:border-[#c26700]/40'
@@ -757,7 +765,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
               </>
             )}
 
-            <div className="flex gap-2 w-full md:flex-1">
+            <div className="flex gap-2 w-full">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
@@ -856,7 +864,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className={`fixed inset-y-0 right-0 z-[2001] w-72 shadow-2xl border-l transition-colors flex flex-col ${
+              className={`fixed inset-y-0 right-0 z-[2001] w-72 sm:w-96 shadow-2xl border-l transition-colors flex flex-col ${
                 isDarkMode 
                   ? 'bg-[#151D2A] text-white border-[#2C374E]' 
                   : 'bg-white text-natural-text border-natural-border'
@@ -951,9 +959,18 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
                         key={board.id}
                         type="button"
                         onClick={() => {
-                          setTargetBoardId(board.id);
-                          setIsSelectBoardDrawerOpen(false);
-                          window.dispatchEvent(new Event('unlock_posts_layout'));
+                          if (board.id === 'safe-board') {
+                            setOnSuccessCallback(() => () => {
+                              setTargetBoardId(board.id);
+                              setIsSelectBoardDrawerOpen(false);
+                              window.dispatchEvent(new Event('unlock_posts_layout'));
+                            });
+                            setShowSafePasswordModal(true);
+                          } else {
+                            setTargetBoardId(board.id);
+                            setIsSelectBoardDrawerOpen(false);
+                            window.dispatchEvent(new Event('unlock_posts_layout'));
+                          }
                         }}
                         className={`w-full flex items-center justify-between p-3 rounded-2xl border text-right transition-all cursor-pointer ${
                           isSelected
@@ -983,6 +1000,114 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
       </AnimatePresence>,
       document.body
     )}
+
+      {/* Password Modal for "الخزنة" */}
+      <AnimatePresence>
+        {showSafePasswordModal && (
+          <>
+            {/* Backdrop Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[3000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+              onClick={() => {
+                setShowSafePasswordModal(false);
+                setSafePasswordInput('');
+                setSafePasswordError(false);
+              }}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                className={`relative w-full max-w-sm rounded-3xl p-6 shadow-2xl border text-right transition-colors ${
+                  isDarkMode 
+                    ? 'border-[#2C374E] bg-[#111822] text-white' 
+                    : 'border-natural-border bg-white text-natural-text'
+                }`}
+                onClick={(e) => e.stopPropagation()}
+                dir="rtl"
+              >
+                <div className="flex flex-col items-center text-center gap-3">
+                  <div className="h-12 w-12 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 text-2xl animate-bounce">
+                    🔒
+                  </div>
+                  <h3 className={`text-base font-black ${isDarkMode ? 'text-white' : 'text-[#3A3A28]'}`}>
+                    قسم الخزنة مغلق
+                  </h3>
+                  <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-natural-muted'}`}>
+                    هذه اللوحة محمية برقم سري، يرجى إدخال رقم المرور للمتابعة.
+                  </p>
+                </div>
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (safePasswordInput === '88775500') {
+                      setShowSafePasswordModal(false);
+                      setSafePasswordInput('');
+                      setSafePasswordError(false);
+                      if (onSuccessCallback) onSuccessCallback();
+                    } else {
+                      setSafePasswordError(true);
+                    }
+                  }}
+                  className="mt-4 space-y-3"
+                >
+                  <input
+                    type="password"
+                    autoFocus
+                    placeholder="أدخل كلمة السر..."
+                    value={safePasswordInput}
+                    onChange={(e) => {
+                      setSafePasswordInput(e.target.value);
+                      setSafePasswordError(false);
+                    }}
+                    className={`w-full text-center text-sm font-bold border rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 transition-all ${
+                      safePasswordError
+                        ? 'border-red-500 focus:ring-red-500 bg-red-500/5'
+                        : isDarkMode
+                          ? 'border-[#2C374E] bg-[#1a212e] text-white focus:ring-[#008D75]'
+                          : 'border-natural-border bg-white text-natural-text focus:ring-natural-primary'
+                    }`}
+                  />
+                  
+                  {safePasswordError && (
+                    <p className="text-red-500 text-[11px] font-bold text-center animate-pulse">
+                      ❌ كلمة السر غير صحيحة، يرجى المحاولة مرة أخرى!
+                    </p>
+                  )}
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      type="submit"
+                      className="flex-1 py-2 rounded-xl text-xs font-bold text-white bg-[#008D75] hover:bg-opacity-90 transition-colors cursor-pointer"
+                    >
+                      تأكيد
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowSafePasswordModal(false);
+                        setSafePasswordInput('');
+                        setSafePasswordError(false);
+                      }}
+                      className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
+                        isDarkMode
+                          ? 'border-[#2C374E] bg-[#1a212e] text-gray-300 hover:bg-[#253042]'
+                          : 'border-natural-border bg-white text-natural-muted hover:bg-neutral-50'
+                      }`}
+                    >
+                      إلغاء
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
