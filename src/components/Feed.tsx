@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { db } from '../lib/firebase';
 import { collection, query, orderBy, onSnapshot, where } from 'firebase/firestore';
 import { Post, OperationType, Board } from '../types';
@@ -249,23 +249,30 @@ export default function Feed({ isAdmin, boardId, boards, onTestPrompt, isDarkMod
     };
   }, [boardId, loading]);
 
+  const hasRestoredScrollRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    hasRestoredScrollRef.current = null;
+  }, [boardId]);
+
   // Restore scroll position when loading finishes
   useEffect(() => {
-    if (!loading && boardId && posts.length > 0) {
+    if (!loading && boardId && posts.length > 0 && hasRestoredScrollRef.current !== boardId) {
       const savedScroll = boardScrollPositions[boardId];
-      if (savedScroll !== undefined && savedScroll > 0) {
-        // Try scrolling immediately
-        window.scrollTo(0, savedScroll);
-        
-        // Also schedule a micro-task or timeout to ensure layout has updated
-        const timer = setTimeout(() => {
-          window.scrollTo({
-            top: savedScroll,
-            behavior: 'instant' as any
-          });
-        }, 60);
-        return () => clearTimeout(timer);
-      }
+      hasRestoredScrollRef.current = boardId;
+      const targetScroll = savedScroll !== undefined ? savedScroll : 0;
+
+      // Try scrolling immediately
+      window.scrollTo(0, targetScroll);
+      
+      // Also schedule a micro-task or timeout to ensure layout has updated
+      const timer = setTimeout(() => {
+        window.scrollTo({
+          top: targetScroll,
+          behavior: 'instant' as any
+        });
+      }, 60);
+      return () => clearTimeout(timer);
     }
   }, [loading, boardId, posts]);
 

@@ -106,6 +106,16 @@ export default function Header({
     };
   }, []);
   
+  useEffect(() => {
+    const handleOpenBoardsDrawer = () => {
+      setIsBoardsDrawerOpen(true);
+    };
+    window.addEventListener('open_boards_drawer', handleOpenBoardsDrawer);
+    return () => {
+      window.removeEventListener('open_boards_drawer', handleOpenBoardsDrawer);
+    };
+  }, []);
+  
 
 
   // Custom Iframe / Fast login modal state (Bypassing browser prompt restrictions in sandboxed iframe)
@@ -186,7 +196,7 @@ export default function Header({
         console.error(err);
       }
     }
-    alert(cleanKey ? 'تم حفظ مفتاح Gemini API بنجاح! 🎉' : 'تم تفريغ وحذف مفتاح Gemini API بنجاح.');
+    alert(cleanKey ? 'تم حفظ مفتاح Gemini API بنجاح 🎉' : 'تم تفريغ وحذف مفتاح Gemini API بنجاح.');
     setIsEditingKey(false);
   };
 
@@ -266,7 +276,7 @@ export default function Header({
         console.log('Creating board with data:', boardData);
         const docRef = await addDoc(collection(db, 'boards'), boardData);
         onSelectBoard(docRef.id);
-        showToast('تم إنشاء اللوحة بنجاح! تم الانتقال إليها الآن.');
+        showToast('تم إنشاء اللوحة بنجاح.. تم الانتقال إليها');
       } else if (modalState.type === 'edit' && (modalState.targetBoard || currentBoard)) {
         const boardToEdit = modalState.targetBoard || currentBoard;
         if (!boardToEdit) return;
@@ -605,7 +615,7 @@ export default function Header({
                             <button
                               onClick={async () => {
                                 if (notificationPermission === 'granted') {
-                                  showToast('ℹ️ لتعديل أذونات الإشعارات أو إيقافها، يرجى تعديلها من إعدادات المتصفح أو الهاتف.');
+                                  showToast('ℹ️ لتعديل الإشعارات أو إيقافها، يرجى تعديلها من إعدادات المتصفح أو الهاتف.');
                                   return;
                                 }
                                 const perm = await requestNotificationPermission();
@@ -627,7 +637,7 @@ export default function Header({
                           <p className={`text-[9px] text-right font-bold leading-relaxed ${isDarkMode ? 'text-[#B4C6D8]' : 'text-natural-muted'}`}>
                             {notificationPermission === 'granted' 
                               ? 'إشعارات الهاتف وشارات التطبيق (Badge) مفعلة وتعمل تلقائياً دون أي تشغيل خلفي يدوي ✅'
-                              : 'اضغط لتفعيل الإشعارات والنقاط الحمراء على أيقونة التطبيق عند نشر المالك منشورات جديدة.'
+                              : 'اضغط لتفعيل الإشعارات على أيقونة التطبيق عند نشر المالك لمنشورات جديدة.'
                             }
                           </p>
                         </div>

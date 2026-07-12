@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Post, OperationType, Board } from '../types';
 import { db, auth } from '../lib/firebase';
 import { doc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -94,7 +95,8 @@ function renderTextWithLinks(text: string) {
 }
 
 function LightboxBottomOverlay({ modelName, caption, slideSrc }: { modelName?: string; caption?: string; slideSrc: string }) {
-  const [imgRect, setImgRect] = useState<{ bottom: number; left: number; width: number } | null>(null);
+  const [imgRect, setImgRect] = useState<{ bottom: number; left: number; width: number; height: number } | null>(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let rafId: number;
@@ -115,10 +117,15 @@ function LightboxBottomOverlay({ modelName, caption, slideSrc }: { modelName?: s
       if (activeImg) {
         const rect = activeImg.getBoundingClientRect();
         if (rect.width > 0 && rect.height > 0) {
+          let containerHeight = 0;
+          if (containerRef.current) {
+            containerHeight = containerRef.current.getBoundingClientRect().height;
+          }
           setImgRect({
             bottom: rect.bottom,
             left: rect.left,
-            width: rect.width
+            width: rect.width,
+            height: containerHeight
           });
         }
       } else {
@@ -140,44 +147,55 @@ function LightboxBottomOverlay({ modelName, caption, slideSrc }: { modelName?: s
 
   if (!hasModel && !hasCaption) return null;
 
-  return (
-    <>
-      {hasModel && (
-        <div 
-          style={{
-            position: 'fixed',
-            left: `${imgRect.left + imgRect.width - 8}px`,
-            top: `${imgRect.bottom + 12}px`,
-            transform: 'translate3d(-100%, 0, 0)',
-            pointerEvents: 'none',
-            zIndex: 9999,
-          }}
-          className="bg-black/80 text-[#F5F5EC] border border-white/20 rounded-full px-3.5 py-1.5 text-[11px] font-black backdrop-blur-md select-none font-sans tracking-wide shadow-lg flex items-center gap-1.5 whitespace-nowrap animate-fade-in"
-          dir="rtl"
-        >
-          <span>موديل التوليد :</span>
-          <span className="text-amber-200">{modelName}</span>
-        </div>
-      )}
+  const leftPos = imgRect.left < 0 ? 12 : Math.min(imgRect.left, window.innerWidth - 100);
+  const widthPos = imgRect.left < 0 ? (window.innerWidth - 24) : Math.min(window.innerWidth - leftPos - 12, imgRect.width);
+  
+  // Decide if we should dock to bottom of viewport or stick to image bottom
+  // We want to dock to bottom if image bottom + 4px + container height exceeds the viewport height (minus some bottom padding, e.g., 8px)
+  const isCappedAtBottom = (imgRect.bottom + 4 + imgRect.height) >= (window.innerHeight - 8);
 
-      {hasCaption && (
-        <div 
-          style={{
-            position: 'fixed',
-            left: `${imgRect.left + 8}px`,
-            top: `${imgRect.bottom + 12}px`,
-            transform: 'translate3d(0, 0, 0)',
-            pointerEvents: 'none',
-            zIndex: 9999,
-            maxWidth: `${Math.max(200, imgRect.width * 0.45)}px`,
-          }}
-          className="bg-black/80 text-[#F5F5EC] border border-white/20 rounded-xl px-3.5 py-1.5 text-[11px] font-black backdrop-blur-md select-none font-sans tracking-wide shadow-lg flex items-center gap-1.5 whitespace-normal break-words animate-fade-in"
-          dir="rtl"
-        >
-          <span className="text-white font-bold leading-relaxed">{caption}</span>
-        </div>
-      )}
-    </>
+  const style: React.CSSProperties = {
+    position: 'fixed',
+    left: `${leftPos}px`,
+    width: `${widthPos}px`,
+    zIndex: 9999,
+    pointerEvents: 'none',
+  };
+
+  if (isCappedAtBottom) {
+    style.bottom = '8px';
+  } else {
+    style.top = `${imgRect.bottom + 4}px`;
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      style={style}
+      className="flex px-1 items-start gap-1 animate-fade-in"
+      dir="rtl"
+    >
+      {/* Right side: Model Name (30% of width) */}
+      <div className="w-[30%] flex justify-start pointer-events-auto shrink-0">
+        {hasModel ? (
+          <div className="bg-black/90 border border-orange-500 rounded-lg px-1 py-1 text-[7px] backdrop-blur-md shadow-2xl text-amber-200 flex items-center gap-1 w-full justify-center">
+            <span className="text-white/70 font-black shrink-0 text-[7px]">⚙️ الموديل:</span>
+            <span className="font-sans font-black truncate text-[7px]">{modelName}</span>
+          </div>
+        ) : <div />}
+      </div>
+
+      {/* Left side: Notes/Caption (70% of width) */}
+      <div className="w-[70%] flex justify-end pointer-events-auto shrink-0">
+        {hasCaption ? (
+          <div className="bg-black/90 border border-orange-500 rounded-lg px-1 py-1 text-[7px] backdrop-blur-md shadow-2xl text-white text-right w-full">
+            <div className="max-h-24 overflow-y-auto no-scrollbar font-black leading-relaxed break-words text-[7px]">
+              {caption}
+            </div>
+          </div>
+        ) : <div />}
+      </div>
+    </div>
   );
 }
 
@@ -288,11 +306,55 @@ export default function PostCard({
     };
   }, []);
 
+  const [isTransferDrawerOpen, setIsTransferDrawerOpen] = useState(false);
+  const [isLayoutLocked, setIsLayoutLocked] = useState(false);
+
+  useEffect(() => {
+    const handleLock = () => setIsLayoutLocked(true);
+    const handleUnlock = () => setIsLayoutLocked(false);
+    window.addEventListener('lock_posts_layout', handleLock);
+    window.addEventListener('unlock_posts_layout', handleUnlock);
+    return () => {
+      window.removeEventListener('lock_posts_layout', handleLock);
+      window.removeEventListener('unlock_posts_layout', handleUnlock);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isTransferDrawerOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+
+      // Push a history state to capture back gestures/hardware back clicks
+      window.history.pushState({ drawer: 'transfer_post_board' }, '');
+
+      const handlePopState = () => {
+        setIsTransferDrawerOpen(false);
+        window.dispatchEvent(new Event('unlock_posts_layout'));
+      };
+
+      window.addEventListener('popstate', handlePopState);
+
+      return () => {
+        document.body.style.overflow = originalOverflow;
+        window.removeEventListener('popstate', handlePopState);
+        if (window.history.state?.drawer === 'transfer_post_board') {
+          window.history.back();
+        }
+      };
+    }
+  }, [isTransferDrawerOpen]);
+
+  const getEditedBoardName = () => {
+    if (editedBoardId === null) return 'الرئيسية';
+    if (editedBoardId === 'user-board') return 'لوحة شخصية';
+    return boards?.find(b => b.id === editedBoardId)?.name || 'الرئيسية';
+  };
+
   const [isEditing, setIsEditing] = useState(false);
   const [editedText, setEditedText] = useState(post.text);
   const [editedImageUrls, setEditedImageUrls] = useState<string[]>(post.imageUrls || (post.imageUrl ? [post.imageUrl] : []));
   const [editedBoardId, setEditedBoardId] = useState<string | null>(post.boardId || null);
-  const [isEditBoardDropdownOpen, setIsEditBoardDropdownOpen] = useState(false);
   const [newImages, setNewImages] = useState<(File | string)[]>([]);
   const [newPreviews, setNewPreviews] = useState<string[]>([]);
   const [removedImageUrls, setRemovedImageUrls] = useState<string[]>([]);
@@ -687,14 +749,14 @@ export default function PostCard({
         const filtered = parsed.filter((p: any) => p.id !== post.id);
         await saveLocalUserPostsIndexedDB(filtered);
         window.dispatchEvent(new Event('reload_local_posts'));
-        showToast('تم حذف المنشور من لوحتك بنجاح! 🗑️');
+        showToast('تم حذف المنشور من لوحتك');
         setIsDeleting(false);
         setShowDeleteConfirm(false);
         return;
       }
       const boardName = boards.find(b => b.id === post.boardId)?.name || 'غير معروف';
       await movePostToRecycleBin(post, boardName);
-      showToast('تم نقل المنشور إلى سلة المحذوفات بنجاح! 🗑️');
+      showToast('تم نقل المنشور إلى سلة المحذوفات 🗑️');
     } catch (err) {
       console.error('Delete error:', err);
       showToast('حدث خطأ أثناء الحذف: ' + (err instanceof Error ? err.message : String(err)));
@@ -785,7 +847,7 @@ export default function PostCard({
         const isSaved = await saveLocalUserPostsIndexedDB(updated);
         if (isSaved) {
           window.dispatchEvent(new Event('reload_local_posts'));
-          showToast('تم تحديث المنشور محلياً بنجاح! ✅');
+          showToast('تم تحديث المنشور محلياً بنجاح✅');
         }
 
         setIsEditing(false);
@@ -884,7 +946,7 @@ export default function PostCard({
       setRemovedImageUrls([]);
       setNewFileNames([]);
       setNewFileTypes([]);
-      showToast('تم تحديث المنشور بنجاح! ✅');
+      showToast('تم تحديث المنشور بنجاح✅');
     } catch (err) {
       console.error('[PostCard] Fatal update error:', err);
       handleFirestoreError(err, OperationType.UPDATE, `posts/${post.id}`);
@@ -1022,19 +1084,21 @@ export default function PostCard({
             {...extraProps}
           />
           <div 
-            className="absolute inset-0 flex flex-col items-center justify-center bg-black/35 hover:bg-black/45 transition-colors cursor-pointer z-10"
+            className="absolute inset-0 flex items-center justify-center bg-black/25 hover:bg-black/35 transition-colors cursor-pointer z-10"
             onClick={(e) => {
               e.stopPropagation();
               setRevealedImages(prev => ({ ...prev, [url]: true }));
             }}
             title="انقر لإظهار الصورة"
           >
-            <div className="p-2 bg-white/20 dark:bg-black/40 rounded-full backdrop-blur-md border border-white/25 text-white transform hover:scale-110 transition-transform shadow-lg">
-              <EyeOff size={18} className="stroke-[2.5]" />
+            {/* Custom Fake Loading/Obscure Indicator */}
+            <div className="relative w-10 h-10 rounded-full bg-black flex items-center justify-center shadow-2xl border border-white/15 overflow-hidden">
+              {/* Small white dash rotating on the inside perimeter */}
+              <div className="absolute inset-[2.5px] rounded-full border-[1.5px] border-transparent border-t-white animate-spin z-0" />
+              
+              {/* White 'x' inside the center */}
+              <span className="text-white text-xs font-sans font-black select-none relative z-10 leading-none pb-0.5">x</span>
             </div>
-            <span className="text-[8px] font-black text-white mt-1.5 drop-shadow-md select-none bg-black/40 px-2 py-0.5 rounded-full border border-white/10" dir="rtl">
-              صورة مغشية - انقر لإظهار
-            </span>
           </div>
         </div>
       );
@@ -1056,7 +1120,7 @@ export default function PostCard({
     <>
       <motion.div
         ref={cardRef}
-        layout
+        layout={!isLayoutLocked && !(window as any).lockLayoutAnimations}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95 }}
@@ -1087,6 +1151,8 @@ export default function PostCard({
                   if (onMovePost && canMoveUp) {
                     onMovePost(post.id, 'up');
                     if (navigator.vibrate) navigator.vibrate(40);
+
+                    // توسيط المنشور الجديد بنعومة في الشاشة بعد تحديث الـ DOM
                     setTimeout(() => {
                       cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }, 100);
@@ -1108,6 +1174,8 @@ export default function PostCard({
                   if (onMovePost && canMoveDown) {
                     onMovePost(post.id, 'down');
                     if (navigator.vibrate) navigator.vibrate(40);
+
+                    // توسيط المنشور الجديد بنعومة في الشاشة بعد تحديث الـ DOM
                     setTimeout(() => {
                       cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }, 100);
@@ -1423,8 +1491,14 @@ export default function PostCard({
 
               {/* اختيار موديلات الصور عند التعديل */}
               {(editedImageUrls.length > 0 || newPreviews.length > 0) && (
-                <div className="mt-4 border border-natural-border/30 rounded-xl bg-natural-bg/35 p-3 flex flex-col gap-3 text-right" dir="rtl">
-                  <span className="text-xs font-black text-[#4A4A35] flex items-center gap-1.5">
+                <div className={`mt-4 border rounded-xl p-3 flex flex-col gap-3 text-right ${
+                  isDarkMode 
+                    ? 'border-[#2C374E] bg-[#111822]/60' 
+                    : 'border-natural-border/30 bg-natural-bg/35'
+                }`} dir="rtl">
+                  <span className={`text-xs font-black flex items-center gap-1.5 ${
+                    isDarkMode ? 'text-[#B4C6D8]' : 'text-[#4A4A35]'
+                  }`}>
                     ✨ ملاحظات وموديلات المرفقات المضافة:
                   </span>
                   <div className="grid grid-cols-2 gap-2">
@@ -1436,12 +1510,18 @@ export default function PostCard({
                       const models = ['gpt-2', 'grok', 'banana-2', 'flux', 'wan 2.7', 'تغشية'];
                       
                       return (
-                        <div key={`edit-model-exist-${index}`} className="flex flex-col gap-1.5 p-2 rounded-lg border border-natural-border/40 bg-zinc-50">
-                          <div className="relative aspect-video overflow-hidden rounded-md border border-natural-border/20 bg-natural-bg flex items-center justify-center text-center p-1.5">
+                        <div key={`edit-model-exist-${index}`} className={`flex flex-col gap-1.5 p-2 rounded-lg border ${
+                          isDarkMode ? 'border-[#2C374E] bg-[#1A212E]' : 'border-natural-border/40 bg-zinc-50'
+                        }`}>
+                          <div className={`relative aspect-video overflow-hidden rounded-md border flex items-center justify-center text-center p-1.5 ${
+                            isDarkMode ? 'border-[#2C374E]/40 bg-[#111822]' : 'border-natural-border/20 bg-natural-bg'
+                          }`}>
                             {isFile ? (
                               <div className="flex flex-col items-center justify-center text-center w-full min-w-0">
                                 <span className="text-xl">{isApk ? '🤖' : '📄'}</span>
-                                <span className="text-[9px] font-black mt-1 leading-tight text-center break-all text-neutral-600 line-clamp-2 w-full px-1">
+                                <span className={`text-[9px] font-black mt-1 leading-tight text-center break-all line-clamp-2 w-full px-1 ${
+                                  isDarkMode ? 'text-[#B4C6D8]' : 'text-neutral-600'
+                                }`}>
                                   {fName}
                                 </span>
                               </div>
@@ -1452,7 +1532,9 @@ export default function PostCard({
                           
                           {/* Caption Edit Field */}
                           <div className="flex flex-col gap-1 text-right">
-                            <span className="text-[9px] font-bold text-[#4A4A35]">
+                            <span className={`text-[9px] font-bold ${
+                              isDarkMode ? 'text-[#B4C6D8]' : 'text-[#4A4A35]'
+                            }`}>
                               ملاحظة حول {isFile ? 'الملف' : 'الصورة'}:
                             </span>
                             <input
@@ -1464,13 +1546,19 @@ export default function PostCard({
                                 updated[index] = e.target.value;
                                 setEditedImageCaptions(updated);
                               }}
-                              className="w-full text-[10px] font-medium border border-natural-border/60 rounded-md px-2 py-1 bg-white text-natural-text focus:outline-none focus:ring-1 focus:ring-natural-primary"
+                              className={`w-full text-[10px] font-medium border rounded-md px-2 py-1 focus:outline-none focus:ring-1 ${
+                                isDarkMode 
+                                  ? 'border-[#2C374E] bg-[#111822] text-[#e4edf7] focus:ring-[#16af75]' 
+                                  : 'border-natural-border/60 bg-white text-natural-text focus:ring-natural-primary'
+                              }`}
                             />
                           </div>
 
                           {!isFile && (
                             <div className="flex flex-col gap-1">
-                              <span className="text-[9px] font-bold text-[#4A4A35]">موديل توليد الصورة:</span>
+                              <span className={`text-[9px] font-bold ${
+                                isDarkMode ? 'text-[#B4C6D8]' : 'text-[#4A4A35]'
+                              }`}>موديل توليد الصورة:</span>
                               <div className="grid grid-cols-2 gap-1 w-full">
                                 {models.map((model, mIdx) => {
                                   const isSelected = editedImageModels[index] === model;
@@ -1491,10 +1579,16 @@ export default function PostCard({
                                         isSelected
                                           ? isBlurModel
                                             ? 'bg-amber-600 text-white border-transparent'
-                                            : 'bg-[#4A4A35] text-white border-transparent'
+                                            : isDarkMode 
+                                              ? 'bg-[#16af75] text-white border-transparent'
+                                              : 'bg-[#4A4A35] text-white border-transparent'
                                           : isBlurModel
-                                            ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/50'
-                                            : 'bg-white text-natural-muted border-natural-border/60 hover:bg-natural-bg/80'
+                                            ? isDarkMode
+                                              ? 'bg-amber-955/40 text-amber-300 border-amber-900/50 hover:bg-amber-900/30'
+                                              : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/50'
+                                            : isDarkMode
+                                              ? 'bg-[#111822] text-gray-300 border-[#2C374E] hover:bg-[#212B3B]'
+                                              : 'bg-white text-natural-muted border-natural-border/60 hover:bg-natural-bg/80'
                                       }`}
                                       title={model}
                                     >
@@ -1518,12 +1612,18 @@ export default function PostCard({
                       const models = ['gpt-2', 'grok', 'banana-2', 'flux', 'wan 2.7', 'تغشية'];
                       
                       return (
-                        <div key={`edit-model-new-${index}`} className="flex flex-col gap-1 p-1 rounded-lg border border-green-200 bg-green-50/20">
-                          <div className="relative aspect-video overflow-hidden rounded-md border border-green-200/55 bg-white flex items-center justify-center text-center p-1.5">
+                        <div key={`edit-model-new-${index}`} className={`flex flex-col gap-1.5 p-2 rounded-lg border ${
+                          isDarkMode ? 'border-emerald-900/50 bg-emerald-950/10' : 'border-green-200 bg-green-50/20'
+                        }`}>
+                          <div className={`relative aspect-video overflow-hidden rounded-md border flex items-center justify-center text-center p-1.5 ${
+                            isDarkMode ? 'border-emerald-900/40 bg-[#111822]' : 'border-green-200/55 bg-white'
+                          }`}>
                             {isFile ? (
                               <div className="flex flex-col items-center justify-center text-center w-full min-w-0">
                                 <span className="text-xl">{isApk ? '🤖' : '📄'}</span>
-                                <span className="text-[9px] font-black mt-1 leading-tight text-center break-all text-green-800 line-clamp-2 w-full px-1">
+                                <span className={`text-[9px] font-black mt-1 leading-tight text-center break-all line-clamp-2 w-full px-1 ${
+                                  isDarkMode ? 'text-emerald-400' : 'text-green-800'
+                                }`}>
                                   {fName}
                                 </span>
                               </div>
@@ -1535,7 +1635,9 @@ export default function PostCard({
 
                           {/* New Image Caption Edit Field */}
                           <div className="flex flex-col gap-1 text-right">
-                            <span className="text-[9px] font-bold text-green-700">
+                            <span className={`text-[9px] font-bold ${
+                              isDarkMode ? 'text-emerald-400' : 'text-green-700'
+                            }`}>
                               ملاحظة حول {isFile ? 'الملف الجديد' : 'الصورة الجديدة'}:
                             </span>
                             <input
@@ -1547,13 +1649,19 @@ export default function PostCard({
                                 updated[index] = e.target.value;
                                 setNewImageCaptions(updated);
                               }}
-                              className="w-full text-[10px] font-medium border border-green-200 rounded-md px-2 py-1 bg-white text-natural-text focus:outline-none focus:ring-1 focus:ring-green-700"
+                              className={`w-full text-[10px] font-medium border rounded-md px-2 py-1 focus:outline-none focus:ring-1 ${
+                                isDarkMode 
+                                  ? 'border-emerald-900/50 bg-[#111822] text-[#e4edf7] focus:ring-emerald-500' 
+                                  : 'border-green-200 bg-white text-natural-text focus:ring-green-700'
+                              }`}
                             />
                           </div>
 
                           {!isFile && (
                             <div className="flex flex-col gap-1">
-                              <span className="text-[9px] font-bold text-green-700">الموديل للصورة الجديدة:</span>
+                              <span className={`text-[9px] font-bold ${
+                                isDarkMode ? 'text-emerald-400' : 'text-green-700'
+                              }`}>الموديل للصورة الجديدة:</span>
                               <div className="grid grid-cols-2 gap-1 w-full">
                                 {models.map((model, mIdx) => {
                                   const isSelected = newImageModels[index] === model;
@@ -1574,10 +1682,16 @@ export default function PostCard({
                                         isSelected
                                           ? isBlurModel
                                             ? 'bg-amber-600 text-white border-transparent'
-                                            : 'bg-green-700 text-white border-transparent'
+                                            : isDarkMode 
+                                              ? 'bg-[#16af75] text-white border-transparent'
+                                              : 'bg-green-700 text-white border-transparent'
                                           : isBlurModel
-                                            ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/50'
-                                            : 'bg-white text-[#4A4A35] border-green-200 hover:bg-green-100/50'
+                                            ? isDarkMode
+                                              ? 'bg-amber-955/40 text-amber-300 border-amber-900/50 hover:bg-amber-900/30'
+                                              : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/50'
+                                            : isDarkMode
+                                              ? 'bg-[#111822] text-gray-300 border-emerald-950 hover:bg-emerald-900/20'
+                                              : 'bg-white text-[#4A4A35] border-green-200 hover:bg-green-100/50'
                                       }`}
                                       title={model}
                                     >
@@ -1597,197 +1711,82 @@ export default function PostCard({
 
               {/* خيار نقل المنشور لسبورة أخرى */}
               <div 
-                className={`flex flex-col gap-2 rounded-xl border p-3.5 text-right w-full ${
+                className={`flex flex-col gap-2 rounded-xl border p-3.5 text-right ${
                   isDarkMode 
                     ? 'border-[#2C374E] bg-[#111822]/60' 
                     : 'border-[#8C8F7A] bg-natural-bg/50'
                 }`} 
                 dir="rtl"
               >
-                <label className={`text-xs font-black flex items-center gap-1.5 ${isDarkMode ? 'text-[#B4C6D8]' : 'text-[#4A4A35]'}`}>
-                  📁 نقل المنشورات إلى لوحة اخرى:
-                </label>
-                <div className="relative w-full">
+                <span className={`text-xs font-black flex items-center gap-1.5 ${isDarkMode ? 'text-[#B4C6D8]' : 'text-[#4A4A35]'}`}>
+                  📁 نقل المنشور إلى لوحة أخرى:
+                </span>
+                
+                {/* Desktop View */}
+                <div className="hidden md:flex flex-wrap gap-1.5 mt-1">
                   <button
                     type="button"
-                    onClick={() => setIsEditBoardDropdownOpen(!isEditBoardDropdownOpen)}
-                    className={`w-full h-12 px-4 rounded-xl border flex items-center justify-between text-xs sm:text-sm font-bold transition-all shadow-sm cursor-pointer ${
-                      isDarkMode 
-                        ? 'border-[#2C374E] bg-[#1A212E] text-white hover:bg-[#212B3B]' 
-                        : 'border-natural-border bg-white text-natural-text hover:bg-natural-bg/40'
+                    onClick={() => setEditedBoardId(null)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all border cursor-pointer ${
+                      editedBoardId === null
+                        ? isDarkMode
+                          ? 'bg-[#1A212E] text-[#e4edf7] scale-[1.03] border-2 border-dashed border-[#e4edf7]'
+                          : 'bg-[#4A4A35] text-[#F5F5EC] border-[#4A4A35] shadow-sm'
+                        : isDarkMode
+                          ? 'bg-[#1A212E] text-[#16af75] border border-[#2C374E] hover:bg-[#212B3B]'
+                          : 'bg-white text-natural-muted border-[#8C8F7A] hover:bg-natural-bg'
                     }`}
                   >
-                    <span className="truncate">
-                      {editedBoardId === null && 'الرئيسية'}
-                      {editedBoardId === 'user-board' && 'لوحة شخصية'}
-                      {editedBoardId !== null && editedBoardId !== 'user-board' && (boards.find(b => b.id === editedBoardId)?.name || 'الرئيسية')}
-                    </span>
-                    <ChevronDown size={16} className={`transition-transform shrink-0 ${isEditBoardDropdownOpen ? 'rotate-180' : ''}`} />
+                    الرئيسية
                   </button>
 
-                  <AnimatePresence>
-                    {isEditBoardDropdownOpen && (
-                      <>
-                        {/* --- MOBILE & TABLET FULL-SCREEN / BOTTOM SHEET SELECTION --- */}
-                        <div 
-                          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 md:hidden flex items-end sm:items-center justify-center p-4" 
-                          onClick={() => setIsEditBoardDropdownOpen(false)}
-                        >
-                          <motion.div
-                            initial={{ y: '100%', opacity: 0 }}
-                            animate={{ y: 0, opacity: 1 }}
-                            exit={{ y: '100%', opacity: 0 }}
-                            transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-                            onClick={(e) => e.stopPropagation()}
-                            className={`w-full max-w-md sm:max-w-lg rounded-t-2xl sm:rounded-2xl p-5 text-right shadow-2xl flex flex-col max-h-[85vh] ${
-                              isDarkMode ? 'bg-[#111822] text-white border border-[#2C374E]' : 'bg-white text-natural-text border border-natural-border'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-800 mb-4" dir="rtl">
-                              <span className="text-sm sm:text-base font-black">نقل المنشورات إلى لوحة اخرى</span>
-                              <button 
-                                type="button" 
-                                onClick={() => setIsEditBoardDropdownOpen(false)}
-                                className="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
-                              >
-                                <X size={18} />
-                              </button>
-                            </div>
-                            
-                            <div className="overflow-y-auto space-y-2.5 flex-1 pb-4" dir="rtl">
-                              {/* Option 1: الرئيسية */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditedBoardId(null);
-                                  setIsEditBoardDropdownOpen(false);
-                                }}
-                                className={`w-full text-right py-3.5 px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all border cursor-pointer flex items-center justify-between ${
-                                  editedBoardId === null
-                                    ? isDarkMode ? 'bg-[#1A212E] text-amber-400 border-amber-400/50' : 'bg-natural-bg text-natural-primary border-natural-primary/50 shadow-xs'
-                                    : isDarkMode ? 'bg-[#1A212E]/40 border-[#2C374E] text-gray-300' : 'bg-neutral-50 border-neutral-200 text-neutral-600'
-                                }`}
-                              >
-                                <span>الرئيسية</span>
-                                {editedBoardId === null && <span className="text-xs">✨</span>}
-                              </button>
-
-                              {/* Option 2: لوحة شخصية */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditedBoardId('user-board');
-                                  setIsEditBoardDropdownOpen(false);
-                                }}
-                                className={`w-full text-right py-3.5 px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all border cursor-pointer flex items-center justify-between ${
-                                  editedBoardId === 'user-board'
-                                    ? isDarkMode ? 'bg-[#1A212E] text-amber-400 border-amber-400/50' : 'bg-natural-bg text-natural-primary border-natural-primary/50 shadow-xs'
-                                    : isDarkMode ? 'bg-[#1A212E]/40 border-[#2C374E] text-gray-300' : 'bg-neutral-50 border-neutral-200 text-neutral-600'
-                                }`}
-                              >
-                                <span>لوحة شخصية</span>
-                                {editedBoardId === 'user-board' && <span className="text-xs">👤</span>}
-                              </button>
-
-                              {/* list options: boards */}
-                              {boards && boards.map((board) => {
-                                const isSelected = editedBoardId === board.id;
-                                return (
-                                  <button
-                                    key={board.id}
-                                    type="button"
-                                    onClick={() => {
-                                      setEditedBoardId(board.id);
-                                      setIsEditBoardDropdownOpen(false);
-                                    }}
-                                    className={`w-full text-right py-3.5 px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all border cursor-pointer flex items-center justify-between ${
-                                      isSelected
-                                        ? isDarkMode ? 'bg-[#1A212E] text-amber-400 border-amber-400/50' : 'bg-natural-bg text-natural-primary border-natural-primary/50 shadow-xs'
-                                        : isDarkMode ? 'bg-[#1A212E]/40 border-[#2C374E] text-gray-300' : 'bg-neutral-50 border-neutral-200 text-neutral-600'
-                                    }`}
-                                  >
-                                    <span className="truncate">{board.name}</span>
-                                    {isSelected && <span className="text-xs">📂</span>}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </motion.div>
-                        </div>
-
-                        {/* --- DESKTOP ONLY DROPDOWN --- */}
-                        <div className="hidden md:block fixed inset-0 z-40" onClick={() => setIsEditBoardDropdownOpen(false)} />
-                        <motion.div
-                          initial={{ opacity: 0, y: -8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -8 }}
-                          className={`hidden md:block absolute left-0 right-0 mt-1.5 rounded-xl border shadow-xl z-50 overflow-hidden max-h-60 overflow-y-auto ${
-                            isDarkMode 
-                              ? 'bg-[#111822] border-[#2C374E] divide-y divide-[#2C374E]' 
-                              : 'bg-white border-[#8C8F7A] divide-y divide-[#8C8F7A]/30'
-                          }`}
-                        >
-                          {/* option 1: الرئيسية */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditedBoardId(null);
-                              setIsEditBoardDropdownOpen(false);
-                            }}
-                            className={`w-full text-right px-4 py-3 text-xs sm:text-sm font-bold transition-colors cursor-pointer ${
-                              editedBoardId === null
-                                ? isDarkMode ? 'bg-[#1A212E] text-amber-400' : 'bg-natural-bg text-natural-primary'
-                                : isDarkMode ? 'text-gray-300 hover:bg-[#1A212E]' : 'text-natural-text hover:bg-neutral-50'
-                            }`}
-                          >
-                            الرئيسية
-                          </button>
-
-                          {/* option 2: لوحة شخصية */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditedBoardId('user-board');
-                              setIsEditBoardDropdownOpen(false);
-                            }}
-                            className={`w-full text-right px-4 py-3 text-xs sm:text-sm font-bold transition-colors cursor-pointer ${
-                              editedBoardId === 'user-board'
-                                ? isDarkMode ? 'bg-[#1A212E] text-amber-400' : 'bg-natural-bg text-natural-primary'
-                                : isDarkMode ? 'text-gray-300 hover:bg-[#1A212E]' : 'text-natural-text hover:bg-neutral-50'
-                            }`}
-                          >
-                            لوحة شخصية
-                          </button>
-
-                          {/* list options: boards */}
-                          {boards && boards.map((board) => {
-                            const isSelected = editedBoardId === board.id;
-                            return (
-                              <button
-                                key={board.id}
-                                type="button"
-                                onClick={() => {
-                                  setEditedBoardId(board.id);
-                                  setIsEditBoardDropdownOpen(false);
-                                }}
-                                className={`w-full text-right px-4 py-3 text-xs sm:text-sm font-bold transition-colors cursor-pointer ${
-                                  isSelected
-                                    ? isDarkMode ? 'bg-[#1A212E] text-amber-400' : 'bg-natural-bg text-natural-primary'
-                                    : isDarkMode ? 'text-gray-300 hover:bg-[#1A212E]' : 'text-natural-text hover:bg-neutral-50'
-                                }`}
-                              >
-                                {board.name}
-                              </button>
-                            );
-                          })}
-                        </motion.div>
-                      </>
-                    )}
-                  </AnimatePresence>
+                  {boards && boards.map((board) => {
+                    const isSelected = editedBoardId === board.id;
+                    return (
+                      <button
+                        key={board.id}
+                        type="button"
+                        onClick={() => setEditedBoardId(board.id)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all border cursor-pointer ${
+                          isSelected
+                            ? isDarkMode
+                              ? 'bg-[#1A212E] text-[#e4edf7] scale-[1.03] border-2 border-dashed border-[#e4edf7]'
+                              : 'bg-[#4A4A35] text-[#F5F5EC] border-[#4A4A35] shadow-sm'
+                            : isDarkMode
+                              ? 'bg-[#1A212E] text-[#16af75] border border-[#2C374E] hover:bg-[#212B3B]'
+                              : 'bg-white text-natural-muted border-[#8C8F7A] hover:bg-natural-bg'
+                        }`}
+                        title={board.name}
+                      >
+                        {board.name}
+                      </button>
+                    );
+                  })}
                 </div>
+
+                {/* Tablet and Mobile View */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.dispatchEvent(new Event('lock_posts_layout'));
+                    setIsTransferDrawerOpen(true);
+                  }}
+                  className={`block md:hidden w-full rounded-lg border px-3 h-10 text-xs sm:text-sm font-bold focus:outline-none cursor-pointer transition-all shadow-md text-center flex items-center justify-between gap-1.5 ${
+                    isDarkMode 
+                      ? 'border-[#2C374E] bg-[#111822] text-[#16af75] hover:bg-[#1a212e]' 
+                      : 'border-[#8C8F7A] bg-[#fffaf5] text-[#c26700] hover:bg-[#fef3e6] hover:border-[#c26700]/40'
+                  }`}
+                  dir="rtl"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span>📁</span>
+                    <span>{getEditedBoardName()}</span>
+                  </span>
+                  <ChevronDown size={16} />
+                </button>
               </div>
 
-              <div className="flex gap-2 justify-start pt-2 border-t border-natural-border">
+              <div className="flex gap-2 justify-start pt-1">
                 {(() => {
                   const hasNewFilesToUpload = newImages.some(img => typeof img !== 'string');
                   return (
@@ -2428,11 +2427,142 @@ export default function PostCard({
                 modelName={currentModel} 
                 caption={currentCaption}
                 slideSrc={imageUrls[lightboxIndex]} 
+                
               />
             );
           }
         }}
       />
+
+      {/* Dynamic Sliding Drawer to select board to transfer post to (Tablet and Mobile) */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {isTransferDrawerOpen && (
+            <>
+            {/* Background Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                setIsTransferDrawerOpen(false);
+                window.dispatchEvent(new Event('unlock_posts_layout'));
+              }}
+              className="fixed inset-0 z-[2000] bg-black/40 backdrop-blur-sm"
+            />
+            
+            {/* Sliding Drawer Container */}
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className={`fixed inset-y-0 right-0 z-[2001] w-72 shadow-2xl border-l transition-colors flex flex-col ${
+                isDarkMode 
+                  ? 'bg-[#151D2A] text-white border-[#2C374E]' 
+                  : 'bg-white text-natural-text border-natural-border'
+              }`}
+              dir="rtl"
+            >
+              {/* Header */}
+              <div className={`relative flex items-center justify-center py-2.5 px-3 border-b transition-colors ${
+                isDarkMode 
+                  ? 'border-[#2C374E] bg-[#111822]' 
+                  : 'border-natural-border/40 bg-neutral-50/50'
+              }`}>
+                <h2 className={`text-sm font-black text-center ${isDarkMode ? 'text-white' : 'text-[#3A3A28]'}`}>
+                  نقل المنشور إلى لوحة أخرى
+                </h2>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setIsTransferDrawerOpen(false);
+                    window.dispatchEvent(new Event('unlock_posts_layout'));
+                  }}
+                  className={`absolute right-2.5 p-1.5 rounded-lg transition-colors cursor-pointer ${
+                    isDarkMode ? 'text-[#B4C6D8] hover:bg-[#1A212E]' : 'text-natural-muted hover:bg-neutral-100'
+                  }`}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                <p className={`text-xs font-bold mb-4 text-center leading-relaxed ${
+                  isDarkMode ? 'text-[#B4C6D8]' : 'text-natural-muted'
+                }`}>
+                  اختر اللوحة التي تريد نقل هذا المنشور إليها
+                </p>
+
+                <div className="space-y-2">
+                  {/* Main Feed option */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditedBoardId(null);
+                      setIsTransferDrawerOpen(false);
+                      window.dispatchEvent(new Event('unlock_posts_layout'));
+                    }}
+                    className={`w-full flex items-center justify-between p-3 rounded-2xl border text-right transition-all cursor-pointer ${
+                      editedBoardId === null
+                        ? (isDarkMode 
+                            ? 'bg-[#008D75] border-[#008D75] text-white shadow-md font-bold' 
+                            : 'bg-natural-primary border-natural-primary text-white shadow-md font-bold')
+                        : (isDarkMode
+                            ? 'bg-[#111822] border-[#2C374E] hover:bg-[#1A212E] text-white font-normal'
+                            : 'bg-white border-natural-border hover:bg-natural-secondary-bg text-natural-text font-normal')
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="text-lg">🏡</span>
+                      <span> الرئيسية</span>
+                    </span>
+                    {editedBoardId === null && (
+                      <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+                    )}
+                  </button>
+
+                  {/* Dynamic Boards */}
+                  {boards && boards.map((board) => {
+                    const isSelected = editedBoardId === board.id;
+                    return (
+                      <button
+                        key={board.id}
+                        type="button"
+                        onClick={() => {
+                          setEditedBoardId(board.id);
+                          setIsTransferDrawerOpen(false);
+                          window.dispatchEvent(new Event('unlock_posts_layout'));
+                        }}
+                        className={`w-full flex items-center justify-between p-3 rounded-2xl border text-right transition-all cursor-pointer ${
+                          isSelected
+                            ? (isDarkMode 
+                                ? 'bg-[#008D75] border-[#008D75] text-[#e4edf7] shadow-md font-bold' 
+                                : 'bg-natural-primary border-natural-primary text-white shadow-md font-bold')
+                            : (isDarkMode 
+                                ? 'bg-[#111822] border-[#2C374E] hover:bg-[#1A212E] text-white font-normal'
+                                : 'bg-white border-natural-border hover:bg-natural-secondary-bg text-natural-text font-normal')
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="text-lg">{board.locked ? '🔒' : '📁'}</span>
+                          <span>{board.name}</span>
+                        </span>
+                        {isSelected && (
+                          <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>,
+      document.body
+    )}
     </>
   );
 }

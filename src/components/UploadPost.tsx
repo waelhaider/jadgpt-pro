@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { db, auth } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { Image as ImageIcon, Send, X, Loader2, RefreshCw, Paperclip, ChevronDown } from 'lucide-react';
+import { Image as ImageIcon, Send, X, Loader2, RefreshCw, ChevronDown } from 'lucide-react';
 import { getCurrentUser, googleSignIn, getAccessToken } from '../lib/auth';
 import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError } from '../lib/error-handler';
@@ -24,7 +25,7 @@ interface UploadPostProps {
 export default function UploadPost({ activeBoardId, activeBoardName, boards = [], onUploadSuccess, isDarkMode }: UploadPostProps) {
   const [text, setText] = useState('');
   const [targetBoardId, setTargetBoardId] = useState<string | null>(activeBoardId || 'placeholder');
-  const [isBoardDropdownOpen, setIsBoardDropdownOpen] = useState(false);
+  const [isSelectBoardDrawerOpen, setIsSelectBoardDrawerOpen] = useState(false);
 
   const [currentUser, setCurrentUser] = useState<any>(auth.currentUser);
 
@@ -40,6 +41,38 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
   React.useEffect(() => {
     setTargetBoardId(activeBoardId || 'placeholder');
   }, [activeBoardId]);
+
+  React.useEffect(() => {
+    if (isSelectBoardDrawerOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+
+      // Push a history state to capture back gestures/hardware back clicks
+      window.history.pushState({ drawer: 'upload_select_board' }, '');
+
+      const handlePopState = () => {
+        setIsSelectBoardDrawerOpen(false);
+        window.dispatchEvent(new Event('unlock_posts_layout'));
+      };
+
+      window.addEventListener('popstate', handlePopState);
+
+      return () => {
+        document.body.style.overflow = originalOverflow;
+        window.removeEventListener('popstate', handlePopState);
+        if (window.history.state?.drawer === 'upload_select_board') {
+          window.history.back();
+        }
+      };
+    }
+  }, [isSelectBoardDrawerOpen]);
+
+  const getTargetBoardName = () => {
+    if (!targetBoardId || targetBoardId === 'placeholder') return 'تحديد لوحة النشر';
+    if (targetBoardId === 'user-board') return 'لوحة شخصية';
+    if (targetBoardId === 'main-feed') return 'الرئيسية';
+    return boards.find(b => b.id === targetBoardId)?.name || 'الرئيسية';
+  };
 
   // Auto-detect direction helper: returns true if Arabic/RTL is matched
   const isRtl = (val: string): boolean => {
@@ -467,7 +500,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
       setFileNames([]);
       setFileTypes([]);
       setStatus('');
-      showToast('🎉 تم نشر وحفظ الملفات والمنشور بنجاح بنسبة 100%');
+      showToast('🎉تم نشر وحفظ الملفات والمنشور بنجاح');
     } catch (error) {
       console.error('Final upload error track:', error);
       const msg = error instanceof Error ? error.message : String(error);
@@ -486,15 +519,10 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
     }
   };
 
-  const getTargetBoardName = () => {
-    if (targetBoardId === 'user-board') return 'لوحة شخصية';
-    if (targetBoardId === null || targetBoardId === 'placeholder' || targetBoardId === 'main-feed') return 'الرئيسية';
-    return boards.find(b => b.id === targetBoardId)?.name || 'غير معروف';
-  };
    {/* كلاس لوحة النشر كاملا*/}
   return (
     <div className="mx-auto mt-1 w-full max-w-xl">
-      <div className={`overflow-visible rounded-2xl border transition-colors relative ${
+      <div className={`overflow-hidden rounded-2xl border transition-colors relative ${
         isDarkMode 
           ? 'border-[#6980b0] bg-[#111822] shadow-[0_4px_12px_rgba(0,0,0,0.2)]' 
           : 'border-[#C1C3B8] bg-white shadow-[0_4px_12px_rgba(90,90,64,0.05)]'
@@ -674,229 +702,103 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
             />
           </div>
 
-          <div className="flex flex-row items-center gap-1.5 sm:gap-2 w-full transition-colors" dir="rtl">
-            {/* 1. نشر الآن */}
-            <button
-              type="submit"
-              disabled={loading || (!text.trim() && images.length === 0)}
-              className={`flex-1 min-w-0 px-1 sm:px-4 h-10 py-0 flex items-center justify-center rounded-lg text-[11px] sm:text-xs md:text-sm font-bold whitespace-nowrap transition-all disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer ${
-                isDarkMode 
-                  ? 'border border-[#656c74] text-[#16af75] bg-[#111822] hover:bg-[#1a212e] shadow-md' 
-                  : 'text-[#c26700] bg-[#fffaf5] shadow-md hover:bg-[#fef3e6] hover:border-[#c26700]/40 border border-[#cbd5e1]'
-              }`}
-            >
-              {loading ? (
-                <div className="flex items-center gap-1">
-                  <Loader2 size={14} className="animate-spin" />
-                  <span>انتظر...</span>
-                </div>
-              ) : (
-                'نشر الآن'
-              )}
-            </button>
-
-            {/* 2. المرفقات */}
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={loading || images.length >= 6}
-              className={`group flex-1 min-w-0 flex items-center justify-center gap-1 rounded-lg px-1 sm:px-3 h-10 py-0 text-[11px] sm:text-xs md:text-sm font-bold transition-all disabled:opacity-50 cursor-pointer ${
-                isDarkMode 
-                  ? 'border border-[#656c74] text-[#16af75] bg-[#111822] hover:bg-[#1a212e]' 
-                  : 'text-[#c26700] bg-[#fffaf5] shadow-md hover:bg-[#fef3e6] hover:border-[#c26700]/40 border border-[#cbd5e1]'
-              }`}
-            >
-              <Paperclip size={13} className="shrink-0" />
-              <span className="truncate">المرفقات {images.length > 0 && `(${images.length})`}</span>
-            </button>
-            <input
-              type="file"
-              hidden
-              multiple
-              ref={fileInputRef}
-              onChange={handleImageChange}
-              disabled={loading}
-            />
-
-            {/* 3. تحديد لوحة النشر (أعرض وبحدود مقطعة) */}
+          <div className={`mt-0 pt-0 flex flex-col md:flex-row md:items-center gap-2 transition-colors ${isDarkMode ? 'border-[#2C374E]' : 'border-natural-border/30'}`}>
             {isAdmin && (
-              <div className="relative flex-[1.6] sm:flex-[2.2] min-w-0">
-                <button
-                  type="button"
-                  onClick={() => setIsBoardDropdownOpen(!isBoardDropdownOpen)}
-                  className={`w-full h-10 px-2 sm:px-3 rounded-lg border-2 border-dashed flex items-center justify-between text-[11px] sm:text-xs md:text-sm font-bold transition-all shadow-md cursor-pointer ${
+              <>
+                {/* Desktop View */}
+                <select
+                  value={targetBoardId === null ? 'placeholder' : targetBoardId}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setTargetBoardId(val === 'placeholder' ? null : val);
+                  }}
+                  className={`hidden md:block w-full md:flex-[1.2] min-w-0 rounded-lg border pl-3 pr-3 sm:px-2 h-10 py-0 text-xs sm:text-sm font-bold focus:outline-none cursor-pointer transition-all shadow-md text-center ${
                     isDarkMode 
-                      ? 'border-[#16af75]/70 bg-[#111822] text-[#16af75] hover:bg-[#1a212e]' 
-                      : 'border-[#c26700]/60 bg-[#fffaf5] text-[#c26700] hover:bg-[#fef3e6]'
+                      ? 'border-[#656c74] bg-[#111822] text-[#16af75] hover:bg-[#1a212e] focus:ring-1 focus:ring-[#16af75]' 
+                      : 'border-[#cbd5e1] bg-[#fffaf5] text-[#c26700] hover:bg-[#fef3e6] hover:border-[#c26700]/40 focus:ring-1 focus:ring-[#cbd5e1]'
                   }`}
                 >
-                  <ChevronDown size={13} className="shrink-0 ml-1" />
-                  <span className="truncate flex-1 text-center">
-                    {getTargetBoardName() === 'الرئيسية' ? 'تحديد لوحة النشر' : getTargetBoardName()}
+                  <option value="placeholder" style={{ color: '#dc2626', fontWeight: 'bold' }} className="text-red-600 font-bold bg-white dark:bg-[#111822]">
+                    تحديد لوحة النشر
+                  </option>
+                  <option value="user-board" className={isDarkMode ? 'text-white bg-[#111822]' : 'text-natural-text bg-white'}>
+                    لوحة شخصية
+                  </option>
+                  <option value="main-feed" className={isDarkMode ? 'text-white bg-[#111822]' : 'text-natural-text bg-white'}>
+                    الرئيسية
+                  </option>
+                  {boards && boards.map((b) => (
+                    <option key={b.id} value={b.id} className={isDarkMode ? 'text-white bg-[#111822]' : 'text-natural-text bg-white'}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Tablet and Mobile View */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.dispatchEvent(new Event('lock_posts_layout'));
+                    setIsSelectBoardDrawerOpen(true);
+                  }}
+                  className={`block md:hidden w-full rounded-lg border px-3 h-10 text-xs sm:text-sm font-bold focus:outline-none cursor-pointer transition-all shadow-md text-center flex items-center justify-between gap-1.5 ${
+                    isDarkMode 
+                      ? 'border-[#656c74] bg-[#111822] text-[#16af75] hover:bg-[#1a212e]' 
+                      : 'border-[#cbd5e1] bg-[#fffaf5] text-[#c26700] hover:bg-[#fef3e6] hover:border-[#c26700]/40'
+                  }`}
+                  dir="rtl"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span>📁</span>
+                    <span>{getTargetBoardName()}</span>
                   </span>
+                  <ChevronDown size={16} />
                 </button>
-
-                <AnimatePresence>
-                  {isBoardDropdownOpen && (
-                    <>
-                      {/* --- MOBILE & TABLET FULL-SCREEN / BOTTOM SHEET SELECTION --- */}
-                      <div 
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 md:hidden flex items-end sm:items-center justify-center p-4" 
-                        onClick={() => setIsBoardDropdownOpen(false)}
-                      >
-                        <motion.div
-                          initial={{ y: '100%', opacity: 0 }}
-                          animate={{ y: 0, opacity: 1 }}
-                          exit={{ y: '100%', opacity: 0 }}
-                          transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-                          onClick={(e) => e.stopPropagation()}
-                          className={`w-full max-w-md sm:max-w-lg rounded-t-2xl sm:rounded-2xl p-5 text-right shadow-2xl flex flex-col max-h-[85vh] ${
-                            isDarkMode ? 'bg-[#111822] text-white border border-[#2C374E]' : 'bg-white text-natural-text border border-natural-border'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-800 mb-4" dir="rtl">
-                            <span className="text-sm sm:text-base font-black">اختيار لوحة النشر</span>
-                            <button 
-                              type="button" 
-                              onClick={() => setIsBoardDropdownOpen(false)}
-                              className="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
-                            >
-                              <X size={18} />
-                            </button>
-                          </div>
-                          
-                          <div className="overflow-y-auto space-y-2.5 flex-1 pb-4" dir="rtl">
-                            {/* Option 1: الرئيسية */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setTargetBoardId('main-feed');
-                                setIsBoardDropdownOpen(false);
-                              }}
-                              className={`w-full text-right py-3.5 px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all border cursor-pointer flex items-center justify-between ${
-                                (targetBoardId === null || targetBoardId === 'placeholder' || targetBoardId === 'main-feed')
-                                  ? isDarkMode ? 'bg-[#1A212E] text-amber-400 border-amber-400/50' : 'bg-natural-bg text-natural-primary border-natural-primary/50 shadow-xs'
-                                  : isDarkMode ? 'bg-[#1A212E]/40 border-[#2C374E] text-gray-300' : 'bg-neutral-50 border-neutral-200 text-neutral-600'
-                              }`}
-                            >
-                              <span>الرئيسية</span>
-                              {(targetBoardId === null || targetBoardId === 'placeholder' || targetBoardId === 'main-feed') && <span className="text-xs">✨</span>}
-                            </button>
-
-                            {/* Option 2: لوحة شخصية */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setTargetBoardId('user-board');
-                                setIsBoardDropdownOpen(false);
-                              }}
-                              className={`w-full text-right py-3.5 px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all border cursor-pointer flex items-center justify-between ${
-                                targetBoardId === 'user-board'
-                                  ? isDarkMode ? 'bg-[#1A212E] text-amber-400 border-amber-400/50' : 'bg-natural-bg text-natural-primary border-natural-primary/50 shadow-xs'
-                                  : isDarkMode ? 'bg-[#1A212E]/40 border-[#2C374E] text-gray-300' : 'bg-neutral-50 border-neutral-200 text-neutral-600'
-                              }`}
-                            >
-                              <span>لوحة شخصية</span>
-                              {targetBoardId === 'user-board' && <span className="text-xs">👤</span>}
-                            </button>
-
-                            {/* list options: boards */}
-                            {boards && boards.map((b) => {
-                              const isSelected = targetBoardId === b.id;
-                              return (
-                                <button
-                                  key={b.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setTargetBoardId(b.id);
-                                    setIsBoardDropdownOpen(false);
-                                  }}
-                                  className={`w-full text-right py-3.5 px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all border cursor-pointer flex items-center justify-between ${
-                                    isSelected
-                                      ? isDarkMode ? 'bg-[#1A212E] text-amber-400 border-amber-400/50' : 'bg-natural-bg text-natural-primary border-natural-primary/50 shadow-xs'
-                                      : isDarkMode ? 'bg-[#1A212E]/40 border-[#2C374E] text-gray-300' : 'bg-neutral-50 border-neutral-200 text-neutral-600'
-                                  }`}
-                                >
-                                  <span className="truncate">{b.name}</span>
-                                  {isSelected && <span className="text-xs">📂</span>}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </motion.div>
-                      </div>
-
-                      {/* --- DESKTOP ONLY DROPDOWN --- */}
-                      <div className="hidden md:block fixed inset-0 z-40" onClick={() => setIsBoardDropdownOpen(false)} />
-                      <motion.div
-                        initial={{ opacity: 0, y: -6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -6 }}
-                        className={`hidden md:block absolute left-0 right-0 mt-1 rounded-lg border shadow-xl z-50 overflow-hidden max-h-56 overflow-y-auto ${
-                          isDarkMode 
-                            ? 'bg-[#111822] border-[#2C374E] divide-y divide-[#2C374E]' 
-                            : 'bg-white border-natural-border divide-y divide-natural-border/30'
-                        }`}
-                      >
-                        {/* option 1: الرئيسية */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setTargetBoardId('main-feed');
-                            setIsBoardDropdownOpen(false);
-                          }}
-                          className={`w-full text-center px-3 py-2 text-[11px] sm:text-xs font-bold transition-colors cursor-pointer ${
-                            (targetBoardId === null || targetBoardId === 'placeholder' || targetBoardId === 'main-feed')
-                              ? isDarkMode ? 'bg-[#1A212E] text-amber-400' : 'bg-natural-bg text-natural-primary'
-                              : isDarkMode ? 'text-gray-300 hover:bg-[#1A212E]' : 'text-natural-text hover:bg-neutral-50'
-                          }`}
-                        >
-                          الرئيسية
-                        </button>
-
-                        {/* option 2: لوحة شخصية */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setTargetBoardId('user-board');
-                            setIsBoardDropdownOpen(false);
-                          }}
-                          className={`w-full text-center px-3 py-2 text-[11px] sm:text-xs font-bold transition-colors cursor-pointer ${
-                            targetBoardId === 'user-board'
-                              ? isDarkMode ? 'bg-[#1A212E] text-amber-400' : 'bg-natural-bg text-natural-primary'
-                              : isDarkMode ? 'text-gray-300 hover:bg-[#1A212E]' : 'text-natural-text hover:bg-neutral-50'
-                          }`}
-                        >
-                          لوحة شخصية
-                        </button>
-
-                        {/* list options: boards */}
-                        {boards && boards.map((b) => {
-                          const isSelected = targetBoardId === b.id;
-                          return (
-                            <button
-                              key={b.id}
-                              type="button"
-                              onClick={() => {
-                                setTargetBoardId(b.id);
-                                setIsBoardDropdownOpen(false);
-                              }}
-                              className={`w-full text-center px-3 py-2 text-[11px] sm:text-xs font-bold transition-colors cursor-pointer ${
-                                isSelected
-                                  ? isDarkMode ? 'bg-[#1A212E] text-amber-400' : 'bg-natural-bg text-natural-primary'
-                                  : isDarkMode ? 'text-gray-300 hover:bg-[#1A212E]' : 'text-natural-text hover:bg-neutral-50'
-                              }`}
-                            >
-                              {b.name}
-                            </button>
-                          );
-                        })}
-                      </motion.div>
-                    </>
-                  )}
-                </AnimatePresence>
-              </div>
+              </>
             )}
+
+            <div className="flex gap-2 w-full md:flex-1">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={loading || images.length >= 6}
+                className={`group flex-1 min-w-0 flex items-center justify-center gap-1 rounded-lg px-2 sm:px-3 h-10 py-0 text-[12px] sm:text-[11px] font-bold transition-all disabled:opacity-50 cursor-pointer ${
+                  isDarkMode 
+                    ? 'border border-[#656c74] text-[#16af75] bg-[#111822] hover:bg-[#1a212e]' 
+                    : 'text-[#c26700] bg-[#fffaf5] shadow-md hover:bg-[#fef3e6] hover:border-[#c26700]/40 border border-[#cbd5e1]'
+                }`}
+              >
+                <span className="md:hidden">إضافة ملفات أو صور ({images.length}/6)</span>
+                <span className="hidden md:inline">إضافـة ملفات ... أو صـور ({images.length}/6)</span>
+              </button>
+              <input
+                type="file"
+                hidden
+                multiple
+                ref={fileInputRef}
+                onChange={handleImageChange}
+                disabled={loading}
+              />
+
+              <button
+                type="submit"
+                disabled={loading || (!text.trim() && images.length === 0)}
+                className={`flex-1 min-w-0 px-2 sm:px-4 h-10 py-0 flex items-center justify-center rounded-lg text-xs sm:text-sm font-bold whitespace-nowrap transition-all disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer ${
+                  isDarkMode 
+                    ? 'border border-[#656c74] text-[#16af75] bg-[#111822] hover:bg-[#1a212e] shadow-md' 
+                    : 'text-[#c26700] bg-[#fffaf5] shadow-md hover:bg-[#fef3e6] hover:border-[#c26700]/40 border border-[#cbd5e1]'
+                }`}
+              >
+                {loading ? (
+                  <div className="flex items-center gap-1.5">
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>انتظر...</span>
+                  </div>
+                ) : (
+                  'نشر الآن'
+                )}
+              </button>
+            </div>
           </div>
         </form>
       </div>
@@ -930,6 +832,157 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Elegant sliding drawer to select publishing board (Tablet and Mobile) */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {isSelectBoardDrawerOpen && (
+            <>
+            {/* Background Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                setIsSelectBoardDrawerOpen(false);
+                window.dispatchEvent(new Event('unlock_posts_layout'));
+              }}
+              className="fixed inset-0 z-[2000] bg-black/40 backdrop-blur-sm"
+            />
+            
+            {/* Sliding Drawer Container */}
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className={`fixed inset-y-0 right-0 z-[2001] w-72 shadow-2xl border-l transition-colors flex flex-col ${
+                isDarkMode 
+                  ? 'bg-[#151D2A] text-white border-[#2C374E]' 
+                  : 'bg-white text-natural-text border-natural-border'
+              }`}
+              dir="rtl"
+            >
+              {/* Header */}
+              <div className={`relative flex items-center justify-center py-2.5 px-3 border-b transition-colors ${
+                isDarkMode 
+                  ? 'border-[#2C374E] bg-[#111822]' 
+                  : 'border-natural-border/40 bg-neutral-50/50'
+              }`}>
+                <h2 className={`text-sm font-black text-center ${isDarkMode ? 'text-white' : 'text-[#3A3A28]'}`}>
+                  اختر لوحة للنشر
+                </h2>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setIsSelectBoardDrawerOpen(false);
+                    window.dispatchEvent(new Event('unlock_posts_layout'));
+                  }}
+                  className={`absolute right-2.5 p-1.5 rounded-lg transition-colors cursor-pointer ${
+                    isDarkMode ? 'text-[#B4C6D8] hover:bg-[#1A212E]' : 'text-natural-muted hover:bg-neutral-100'
+                  }`}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                <div className="space-y-2">
+                  {/* User Board option */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTargetBoardId('user-board');
+                      setIsSelectBoardDrawerOpen(false);
+                      window.dispatchEvent(new Event('unlock_posts_layout'));
+                    }}
+                    className={`w-full flex items-center justify-between p-3 rounded-2xl border text-right transition-all cursor-pointer ${
+                      targetBoardId === 'user-board'
+                        ? (isDarkMode 
+                            ? 'bg-[#008D75] border-[#008D75] text-white shadow-md font-bold' 
+                            : 'bg-natural-primary border-natural-primary text-white shadow-md font-bold')
+                        : (isDarkMode
+                            ? 'bg-[#111822] border-[#2C374E] hover:bg-[#1A212E] text-white font-normal'
+                            : 'bg-white border-natural-border hover:bg-natural-secondary-bg text-natural-text font-normal')
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="text-lg">👤</span>
+                      <span> لوحة شخصية</span>
+                    </span>
+                    {targetBoardId === 'user-board' && (
+                      <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+                    )}
+                  </button>
+
+                  {/* Main Feed option */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTargetBoardId('main-feed');
+                      setIsSelectBoardDrawerOpen(false);
+                      window.dispatchEvent(new Event('unlock_posts_layout'));
+                    }}
+                    className={`w-full flex items-center justify-between p-3 rounded-2xl border text-right transition-all cursor-pointer ${
+                      targetBoardId === 'main-feed'
+                        ? (isDarkMode 
+                            ? 'bg-[#008D75] border-[#008D75] text-[#e4edf7] shadow-md font-bold' 
+                            : 'bg-natural-primary border-natural-primary text-white shadow-md font-bold')
+                        : (isDarkMode
+                            ? 'bg-[#111822] border-[#2C374E] hover:bg-[#1A212E] text-white font-normal'
+                            : 'bg-white border-natural-border hover:bg-natural-secondary-bg text-natural-text font-normal')
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="text-lg">🏡</span>
+                      <span> الرئيسية</span>
+                    </span>
+                    {targetBoardId === 'main-feed' && (
+                      <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+                    )}
+                  </button>
+
+                  {/* Dynamic Boards */}
+                  {boards && boards.map((board) => {
+                    const isSelected = targetBoardId === board.id;
+                    return (
+                      <button
+                        key={board.id}
+                        type="button"
+                        onClick={() => {
+                          setTargetBoardId(board.id);
+                          setIsSelectBoardDrawerOpen(false);
+                          window.dispatchEvent(new Event('unlock_posts_layout'));
+                        }}
+                        className={`w-full flex items-center justify-between p-3 rounded-2xl border text-right transition-all cursor-pointer ${
+                          isSelected
+                            ? (isDarkMode 
+                                ? 'bg-[#008D75] border-[#008D75] text-[#e4edf7] shadow-md font-bold' 
+                                : 'bg-natural-primary border-natural-primary text-white shadow-md font-bold')
+                            : (isDarkMode 
+                                ? 'bg-[#111822] border-[#2C374E] hover:bg-[#1A212E] text-white font-normal'
+                                : 'bg-white border-natural-border hover:bg-natural-secondary-bg text-natural-text font-normal')
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="text-lg">{board.locked ? '🔒' : '📁'}</span>
+                          <span>{board.name}</span>
+                        </span>
+                        {isSelected && (
+                          <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>,
+      document.body
+    )}
     </div>
   );
 }
