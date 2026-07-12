@@ -484,7 +484,7 @@ export default function PostCard({
       const cleanUrl = href.split('?')[0].split('#')[0];
       const isImg = /\.(jpeg|jpg|gif|png|webp|bmp|svg|tiff)$/i.test(cleanUrl);
       
-      if (isImg && editedImageUrls.length + newImages.length + detectedUrls.length < 6) {
+      if (isImg && editedImageUrls.length + newImages.length + detectedUrls.length < 10) {
         detectedUrls.push(href);
         cleanText = cleanText.replace(match, '');
       }
@@ -968,8 +968,8 @@ export default function PostCard({
     const files = Array.from(e.target.files || []) as File[];
     const totalCount = editedImageUrls.length + newImages.length + files.length;
     
-    if (totalCount > 6) {
-      showToast('يمكنك إضافة 6 مرفقات كحد أقصى.');
+    if (totalCount > 10) {
+      showToast('يمكنك إضافة 10 مرفقات كحد أقصى.');
       return;
     }
 
@@ -1476,7 +1476,7 @@ export default function PostCard({
                     </div>
                   );
                 })}
-                {(editedImageUrls.length + newImages.length < 6) && (
+                {(editedImageUrls.length + newImages.length < 10) && (
                   <button 
                     type="button"
                     onClick={() => fileInputRef.current?.click()}

@@ -244,8 +244,8 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
     const files = Array.from(e.target.files || []) as File[];
     if (files.length === 0) return;
 
-    if (images.length + files.length > 6) {
-      showToast('يمكنك إضافة 6 ملفات كحد أقصى في المنشور الواحد.');
+    if (images.length + files.length > 10) {
+      showToast('يمكنك إضافة 10 ملفات كحد أقصى في المنشور الواحد.');
       return;
     }
 
@@ -769,15 +769,15 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={loading || images.length >= 6}
-                className={`group flex-1 min-w-0 flex items-center justify-center gap-1 rounded-lg px-2 sm:px-3 h-10 py-0 text-[12px] sm:text-[11px] font-bold transition-all disabled:opacity-50 cursor-pointer ${
+                disabled={loading || images.length >= 10}
+                className={`group flex-1 min-w-0 flex items-center justify-center gap-1 rounded-lg px-2 sm:px-3 h-10 py-0 text-[12px] sm:text-[12px] font-bold transition-all disabled:opacity-50 cursor-pointer ${
                   isDarkMode 
                     ? 'border border-[#656c74] text-[#16af75] bg-[#111822] hover:bg-[#1a212e]' 
                     : 'text-[#c26700] bg-[#fffaf5] shadow-md hover:bg-[#fef3e6] hover:border-[#c26700]/40 border border-[#cbd5e1]'
                 }`}
               >
-                <span className="md:hidden">إضافة ملفات أو صور ({images.length}/6)</span>
-                <span className="hidden md:inline">إضافـة ملفات ... أو صـور ({images.length}/6)</span>
+                <span className="md:hidden">إضافة ملفات أو صور ({images.length}/10)</span>
+                <span className="hidden md:inline">إضافـة ملفات أو صـور ({images.length}/10)</span>
               </button>
               <input
                 type="file"
