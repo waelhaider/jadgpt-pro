@@ -2,12 +2,55 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Trash2, RotateCcw, FileText, Image as ImageIcon, LayoutGrid, AlertTriangle, Sparkles, Folder } from 'lucide-react';
+import { X, Trash2, RotateCcw, FileText, Image as ImageIcon, LayoutGrid, AlertTriangle, Sparkles, Folder, Volume2, Video, FileSpreadsheet } from 'lucide-react';
 import { restoreRecycleBinItem, deleteRecycleBinItemPermanently, emptyRecycleBin } from '../lib/recycle-bin';
 import { getAccessToken } from '../lib/auth';
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { showToast } from './Toast';
+
+function isPostUrlAnImage(post: any, url: string, index: number): boolean {
+  if (!post) return false;
+  const type = post.fileTypes?.[index];
+  if (type) {
+    return type.startsWith('image/');
+  }
+  const name = post.fileNames?.[index];
+  if (name) {
+    return /\.(jpeg|jpg|gif|png|webp|bmp|svg|tiff)$/i.test(name);
+  }
+  if (url.includes('drive.google.com/thumbnail') || url.includes('/thumbnail?id=')) {
+    return true;
+  }
+  if (url.startsWith('data:image/')) {
+    return true;
+  }
+  return /\.(jpeg|jpg|gif|png|webp|bmp|svg|tiff)/i.test(url);
+}
+
+function getPostInfo(post: any) {
+  if (!post) return { label: 'منشور مصور', icon: <ImageIcon size={18} className="text-purple-500" /> };
+  
+  const types = post.fileTypes || [];
+  const names = post.fileNames || [];
+  
+  const hasAudio = types.some((t: string) => t.startsWith('audio/')) || names.some((n: string) => /\.(mp3|wav|ogg|m4a|aac|webm)$/i.test(n));
+  if (hasAudio) {
+    return { label: 'منشور صوتي 🎙️', icon: <Volume2 size={18} className="text-emerald-600 animate-pulse" /> };
+  }
+  
+  const hasVideo = types.some((t: string) => t.startsWith('video/')) || names.some((n: string) => /\.(mp4|mov|avi|mkv|webm)$/i.test(n));
+  if (hasVideo) {
+    return { label: 'منشور مرئي 🎥', icon: <Video size={18} className="text-amber-500" /> };
+  }
+
+  const hasDocs = types.some((t: string) => !t.startsWith('image/')) || names.some((n: string) => !/\.(jpeg|jpg|gif|png|webp|bmp|svg|tiff)$/i.test(n));
+  if (hasDocs && names.length > 0) {
+    return { label: 'منشور يحتوي على ملفات 📂', icon: <FileSpreadsheet size={18} className="text-blue-500" /> };
+  }
+  
+  return { label: 'منشور مصور 📸', icon: <ImageIcon size={18} className="text-purple-500" /> };
+}
 
 interface RecycleBinModalProps {
   isOpen: boolean;
@@ -19,6 +62,7 @@ export default function RecycleBinModal({ isOpen, onClose }: RecycleBinModalProp
   const [loading, setLoading] = useState(true);
   const [confirmEmptyOpen, setConfirmEmptyOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<any | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -76,20 +120,8 @@ export default function RecycleBinModal({ isOpen, onClose }: RecycleBinModalProp
     }
   };
 
-  const handleDeletePermanently = async (item: any) => {
-    const confirmDelete = window.confirm('⚠️ هل أنت متأكد من حذف هذا العنصر نهائياً؟ لا يمكن التراجع عن هذه العملية مطلقاً وسيتم مسح جميع الملفات والصور المرتبطة بها!');
-    if (!confirmDelete) return;
-
-    setActionLoading(item.id);
-    try {
-      const token = getAccessToken();
-      await deleteRecycleBinItemPermanently(item, token);
-      showToast('🗑️ تم الحذف النهائي بنجاح!');
-    } catch (err: any) {
-      showToast('⚠️ فشل في الحذف النهائي: ' + (err.message || err));
-    } finally {
-      setActionLoading(null);
-    }
+  const handleDeletePermanently = (item: any) => {
+    setItemToDelete(item);
   };
 
   const handleEmptyTrash = async () => {
@@ -207,14 +239,14 @@ export default function RecycleBinModal({ isOpen, onClose }: RecycleBinModalProp
                       <div className="flex items-center gap-2">
                         <div className="p-2 rounded-xl bg-[#F4F4EB] text-natural-primary shrink-0">
                           {item.type === 'prompt' && <FileText size={18} />}
-                          {item.type === 'post' && <ImageIcon size={18} />}
+                          {item.type === 'post' && getPostInfo(item.data?.post).icon}
                           {item.type === 'board' && <LayoutGrid size={18} />}
                         </div>
                         <div className="text-right">
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-black text-natural-primary">
                               {item.type === 'prompt' && 'نص برومبت أصلي'}
-                              {item.type === 'post' && 'منشور مصور'}
+                              {item.type === 'post' && getPostInfo(item.data?.post).label}
                               {item.type === 'board' && 'لوحة تبويب كاملة'}
                             </span>
                             <span className="text-[10px] text-natural-muted">
@@ -278,19 +310,70 @@ export default function RecycleBinModal({ isOpen, onClose }: RecycleBinModalProp
                           <p className="whitespace-pre-wrap font-bold text-natural-text">
                             {item.data?.post?.text}
                           </p>
-                          {/* Image Thumbnails */}
+                          {/* Attachments (Separated into Images & Files) */}
                           {item.data?.post && (
-                            <div className="flex flex-wrap gap-1.5 pt-1">
-                              {(item.data.post.imageUrls || (item.data.post.imageUrl ? [item.data.post.imageUrl] : [])).map((url: string, index: number) => (
-                                <div key={index} className="relative h-14 w-14 rounded-lg overflow-hidden border border-natural-border bg-white shadow-sm shrink-0">
-                                  <img
-                                    src={url}
-                                    referrerPolicy="no-referrer"
-                                    className="h-full w-full object-cover"
-                                    alt="Preview"
-                                  />
-                                </div>
-                              ))}
+                            <div className="space-y-2 pt-1">
+                              {/* Images */}
+                              {(() => {
+                                const urls = item.data.post.imageUrls || (item.data.post.imageUrl ? [item.data.post.imageUrl] : []);
+                                const imagesOnly = urls.filter((url: string, index: number) => isPostUrlAnImage(item.data.post, url, index));
+                                if (imagesOnly.length === 0) return null;
+                                return (
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {imagesOnly.map((url: string, index: number) => (
+                                      <div key={index} className="relative h-14 w-14 rounded-lg overflow-hidden border border-natural-border bg-white shadow-sm shrink-0">
+                                        <img
+                                          src={url}
+                                          referrerPolicy="no-referrer"
+                                          className="h-full w-full object-cover"
+                                          alt="Preview"
+                                        />
+                                      </div>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
+
+                              {/* Files / Audio */}
+                              {(() => {
+                                const urls = item.data.post.imageUrls || (item.data.post.imageUrl ? [item.data.post.imageUrl] : []);
+                                const filesOnly = urls
+                                  .map((url: string, index: number) => ({ url, index, name: item.data.post.fileNames?.[index], type: item.data.post.fileTypes?.[index] }))
+                                  .filter(fileObj => !isPostUrlAnImage(item.data.post, fileObj.url, fileObj.index));
+                                
+                                if (filesOnly.length === 0) return null;
+                                return (
+                                  <div className="flex flex-col gap-1.5 border-t border-neutral-100 pt-2 mt-2">
+                                    <span className="text-[10px] font-black text-amber-600 block">
+                                      📎 المرفقات المحذوفة ({filesOnly.length}):
+                                    </span>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                      {filesOnly.map((fileObj, idx) => {
+                                        const isAudio = fileObj.type?.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|aac|webm)$/i.test(fileObj.name || '');
+                                        const isApk = fileObj.name?.toLowerCase().endsWith('.apk') || fileObj.type?.includes('vnd.android.package-archive');
+                                        return (
+                                          <div
+                                            key={idx}
+                                            className="flex items-center gap-2 p-1.5 rounded-xl border border-natural-border/60 bg-white text-natural-text text-[11px]"
+                                          >
+                                            <span className="text-xl shrink-0">
+                                              {isAudio ? '🎙️' : isApk ? '🤖' : '📄'}
+                                            </span>
+                                            <div className="flex-1 min-w-0 text-right">
+                                              <p className="font-bold truncate text-[10px]" title={fileObj.name || 'ملف'}>
+                                                {fileObj.name || 'ملف بدون اسم'}
+                                              </p>
+                                              <p className="text-[9px] text-natural-muted leading-none mt-0.5">
+                                                {isAudio ? 'ملف صوتي' : isApk ? 'تطبيق أندرويد' : (fileObj.type || 'ملف')}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                             </div>
                           )}
                         </div>
@@ -371,6 +454,71 @@ export default function RecycleBinModal({ isOpen, onClose }: RecycleBinModalProp
               <button
                 type="button"
                 onClick={() => setConfirmEmptyOpen(false)}
+                className="bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold text-xs px-4 py-2.5 rounded-xl transition-colors cursor-pointer"
+              >
+                تراجع
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Confirmation Overlay for Permanent Delete of Single Item */}
+      {itemToDelete && (
+        <div className="fixed inset-0 z-[1200] flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setItemToDelete(null)}
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          />
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 text-right z-10 border border-red-100"
+            dir="rtl"
+          >
+            <div className="flex items-center gap-2 text-red-600 pb-3 border-b border-neutral-100 mb-4">
+              <AlertTriangle size={24} className="text-red-500 animate-pulse" />
+              <h4 className="text-base font-black">تأكيد الحذف النهائي! ⚠️</h4>
+            </div>
+            
+            <p className="text-xs text-natural-text leading-relaxed mb-6">
+              هل أنت متأكد تماماً من **حذف هذا العنصر نهائياً**؟
+              <br />
+              <span className="font-black text-red-600 mt-1 block">
+                هذه الخطوة نهائية تماماً ولا يمكن الرجوع عنها مطلقاً!
+              </span>
+              سيتم مسح جميع النصوص والملفات والصور المرفقة المرتبطة بهذا العنصر من حساب Google Drive وتفريغ المساحة.
+            </p>
+
+            <div className="flex gap-2.5 justify-end">
+              <button
+                type="button"
+                disabled={actionLoading !== null}
+                onClick={async () => {
+                  const item = itemToDelete;
+                  setItemToDelete(null);
+                  setActionLoading(item.id);
+                  try {
+                    const token = getAccessToken();
+                    await deleteRecycleBinItemPermanently(item, token);
+                    showToast('🗑️ تم الحذف النهائي بنجاح!');
+                  } catch (err: any) {
+                    showToast('⚠️ فشل في الحذف النهائي: ' + (err.message || err));
+                  } finally {
+                    setActionLoading(null);
+                  }
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
+              >
+                {actionLoading === itemToDelete.id ? 'جاري الحذف...' : 'نعم، احذف نهائياً 🗑️'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setItemToDelete(null)}
                 className="bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold text-xs px-4 py-2.5 rounded-xl transition-colors cursor-pointer"
               >
                 تراجع

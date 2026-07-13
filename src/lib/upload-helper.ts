@@ -6,7 +6,7 @@ import { injectPromptIntoImage } from './metadata-injector';
  * Safely upload an image with 100% original full size and quality directly to Google Drive.
  * Includes optional prompt metadata injection into PNG/JPEG files prior to upload.
  */
-export async function uploadPostImage(file: File, userId: string, prompt?: string): Promise<string> {
+export async function uploadPostImage(file: File, userId: string, prompt?: string, onProgress?: (percent: number) => void): Promise<string> {
   const token = getAccessToken();
   if (!token || token === 'local-dummy-token') {
     throw new Error('AUTH_REQUIRED');
@@ -20,7 +20,7 @@ export async function uploadPostImage(file: File, userId: string, prompt?: strin
     }
     
     console.log('[UploadHelper] Uploading to Google Drive at 100% original resolution:', finalFile.name);
-    const driveUrl = await uploadToDrive(finalFile, token);
+    const driveUrl = await uploadToDrive(finalFile, token, onProgress);
     console.log('[UploadHelper] Google Drive upload succeeded:', driveUrl);
     return driveUrl;
   } catch (error: any) {

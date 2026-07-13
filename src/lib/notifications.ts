@@ -18,7 +18,7 @@ export const requestNotificationPermission = async (): Promise<NotificationPermi
   try {
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
-      showToast('🔔 تم تفعيل الإشعارات بنجاح! ستتلقى تنبيهات عند إضافة منشورات جديدة.');
+      showToast('🔔 تم تفعيل الإشعارات . ستتلقى تنبيهات عند إضافة منشورات جديدة');
       // Show an immediate welcome notification to let the user experience it!
       sendLocalNotification('مرحباً بك في JADGPT! 🎉', {
         body: 'تم تفعيل نظام الإشعارات الذكي بنجاح. ستظهر لك التنبيهات ونقاط شارة التطبيق عند نشر منشورات جديدة من قبل المالك.',

@@ -207,12 +207,12 @@ export default function Header({
   };
 
   const renderApiKeySection = () => (
-    <div className="pt-4 border-t border-natural-border/60 text-right space-y-3">
-      <div className="flex items-center gap-1.5 justify-between">
-        <span className="text-xs font-black text-[#4A4A35]">إعدادات الذكاء الاصطناعي</span>
-        <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded-md">مفتاح Gemini</span>
+    <div className="pt-1 border-t border-natural-border/60 text-right space-y-2">
+      <div className="flex items-center gap-1 justify-between">
+        <span className="text-xs font-normal text-[#4A4A35]">إعدادات الذكاء الاصطناعي</span>
+        <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1 py-0.5 rounded-md">مفتاح Gemini</span>
       </div>
-      <p className="text-[10px] text-natural-muted leading-relaxed">
+      <p className="text-[8px] text-natural-muted leading-relaxed">
         أدخل مفتاح Gemini API الخاص بك لتفعيل "تحسين البرومبت".
       </p>
       <form onSubmit={handleSaveGeminiKey} className="space-y-2">
@@ -557,7 +557,7 @@ export default function Header({
                 {/* Sidebar Content */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
                   {user ? (
-                    <div className="space-y-6">
+                    <div className="space-y-3">
                       {/* User Info */}
                       <div className="flex flex-col items-center text-center space-y-2">
                         <div>
@@ -624,7 +624,7 @@ export default function Header({
                               ) : (
                                 <BellOff size={16} className="text-natural-muted" />
                               )}
-                              <span className="text-xs font-black">إشعارات التطبيق والشارب</span>
+                              <span className="text-xs font-black">إشعارات التطبيق</span>
                             </div>
                             <button
                               onClick={async () => {
@@ -651,7 +651,7 @@ export default function Header({
                           <p className={`text-[9px] text-right font-bold leading-relaxed ${isDarkMode ? 'text-[#B4C6D8]' : 'text-natural-muted'}`}>
                             {notificationPermission === 'granted' 
                               ? 'إشعارات الهاتف وشارات التطبيق (Badge) مفعلة وتعمل تلقائياً دون أي تشغيل خلفي يدوي ✅'
-                              : 'اضغط لتفعيل الإشعارات على أيقونة التطبيق عند نشر المالك لمنشورات جديدة.'
+                              : 'اضغط لتفعيل الإشعارات على أيقونة التطبيق'
                             }
                           </p>
                         </div>
@@ -854,7 +854,7 @@ export default function Header({
                         )}
 
                         {isAdmin && (
-                          <div className={`space-y-2 w-full pt-1 border-t ${isDarkMode ? 'border-[#2C374E]' : 'border-natural-border'}`}>
+                          <div className={`space-y-2 w-full pt-0 ${isDarkMode ? 'border-[#2C374E]' : 'border-natural-border'}`}>
                             
                             <button
                               onClick={() => {
@@ -863,7 +863,7 @@ export default function Header({
                               }}
                               className={`flex w-full items-center gap-3 p-2 rounded-xl transition-all border cursor-pointer shadow-sm font-black ${
                                 isDarkMode 
-                                  ? 'bg-[#1C1517] hover:bg-[#2A1D1F] text-red-400 border-red-950/60 hover:border-dashed hover:border-red-500/50' 
+                                  ? 'bg-[#1C1517] hover:bg-[#2A1D1F] text-red-400 border-red-900 border-dashed hover:border-dashed hover:border-red-500/50' 
                                   : 'bg-red-50/80 hover:bg-red-100 text-red-700 border-red-100 hover:border-dashed hover:border-red-300'
                               }`}
                             >

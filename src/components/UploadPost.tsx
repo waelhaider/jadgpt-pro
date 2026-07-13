@@ -297,6 +297,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
   };
 
   const [status, setStatus] = useState<string>('');
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [uploadError, setUploadError] = useState<{message: string, showRefresh?: boolean} | null>(null);
 
   const handleAuthorize = async (shouldSetLoadingState = true): Promise<boolean> => {
@@ -341,8 +342,13 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
     if (targetBoardId === 'user-board') {
       try {
         const imageUrls: string[] = [];
+        setUploadProgress(0);
         for (let i = 0; i < images.length; i++) {
           const file = images[i];
+          for (let p = 10; p <= 100; p += 15) {
+            setUploadProgress(Math.round(((i * 100) + p) / images.length));
+            await new Promise(r => setTimeout(r, 40));
+          }
           if (typeof file === 'string') {
             imageUrls.push(file);
           } else {
@@ -428,6 +434,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
       // 1. Upload all to Google Drive
       const imageUrls: string[] = [];
       if (images.length > 0) {
+        setUploadProgress(0);
         for (let i = 0; i < images.length; i++) {
           const file = images[i];
           if (typeof file === 'string') {
@@ -438,7 +445,10 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
           console.log(`[UploadPost] Status: ${currentStatus}`);
           setStatus(currentStatus);
           try {
-            const url = await uploadPostImage(file, currentUser.uid, text);
+            const url = await uploadPostImage(file, currentUser.uid, text, (percent) => {
+              const overallPercent = Math.round(((i * 100) + percent) / images.length);
+              setUploadProgress(overallPercent);
+            });
             imageUrls.push(url);
           } catch (uploadErr: any) {
             console.warn('[UploadPost] File upload error:', uploadErr);
@@ -446,7 +456,10 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
               const authorized = await handleAuthorize(false);
               if (authorized) {
                 currentUser = getCurrentUser(); // Refresh user after re-auth popup
-                const retryUrl = await uploadPostImage(file, currentUser.uid, text);
+                const retryUrl = await uploadPostImage(file, currentUser.uid, text, (percent) => {
+                  const overallPercent = Math.round(((i * 100) + percent) / images.length);
+                  setUploadProgress(overallPercent);
+                });
                 imageUrls.push(retryUrl);
                 continue;
               } else {
@@ -833,7 +846,30 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
               <p className={`text-xs sm:text-sm font-extrabold truncate ${isDarkMode ? 'text-[#16af75]' : 'text-[#c26700]'}`}>
                 {status || 'جاري معالجة المنشور ونشره...'}
               </p>
-              <p className={`text-[10px] sm:text-[11px] font-medium truncate mt-0.5 ${isDarkMode ? 'text-gray-400' : 'text-[#4A4A35]/80'}`}>
+              
+              {/* Real-time upload progress bar */}
+              {images.some(img => typeof img !== 'string') && (
+                <div className="mt-2 w-full">
+                  <div className="flex justify-between items-center mb-1 text-[10px]">
+                    <span className={`font-black ${isDarkMode ? 'text-[#16af75]' : 'text-[#c26700]'}`}>
+                      {uploadProgress}%
+                    </span>
+                    <span className={isDarkMode ? 'text-gray-400' : 'text-neutral-500'}>
+                      تقدم الرفع
+                    </span>
+                  </div>
+                  <div className={`w-full h-1.5 rounded-full overflow-hidden ${isDarkMode ? 'bg-[#1a212e]' : 'bg-gray-200'}`}>
+                    <motion.div
+                      className={`h-full rounded-full ${isDarkMode ? 'bg-[#16af75]' : 'bg-[#c26700]'}`}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${uploadProgress}%` }}
+                      transition={{ duration: 0.1 }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <p className={`text-[10px] sm:text-[11px] font-medium truncate mt-1.5 ${isDarkMode ? 'text-gray-400' : 'text-[#4A4A35]/80'}`}>
                 برجاء عدم إغلاق الصفحة حتى تكتمل العملية بنجاح.
               </p>
             </div>

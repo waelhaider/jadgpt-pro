@@ -375,6 +375,7 @@ export default function PostCard({
   const [newFileTypes, setNewFileTypes] = useState<string[]>([]);
    const [isSaving, setIsSaving] = useState(false);
   const [status, setStatus] = useState('');
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [failedImageUrls, setFailedImageUrls] = useState<Record<string, boolean>>({});
   const [revealedImages, setRevealedImages] = useState<Record<string, boolean>>({});
   
@@ -761,7 +762,9 @@ export default function PostCard({
         setShowDeleteConfirm(false);
         return;
       }
-      const boardName = boards.find(b => b.id === post.boardId)?.name || 'غير معروف';
+      const boardName = post.boardId === null 
+        ? 'الرئيسية' 
+        : (boards.find(b => b.id === post.boardId)?.name || 'الرئيسية');
       await movePostToRecycleBin(post, boardName);
       showToast('تم نقل المنشور إلى سلة المحذوفات 🗑️');
     } catch (err) {
@@ -803,12 +806,18 @@ export default function PostCard({
 
     setIsSaving(true);
     setStatus('جاري الحفظ...');
+    setUploadProgress(0);
 
     try {
       if (isLocalPost) {
         setStatus('جاري حفظ التعديلات محلياً...');
         const newUrls: string[] = [];
-        for (const file of newImages) {
+        for (let i = 0; i < newImages.length; i++) {
+          const file = newImages[i];
+          for (let p = 10; p <= 100; p += 15) {
+            setUploadProgress(Math.round(((i * 100) + p) / newImages.length));
+            await new Promise(r => setTimeout(r, 40));
+          }
           if (typeof file === 'string') {
             newUrls.push(file);
           } else {
@@ -893,7 +902,10 @@ export default function PostCard({
         for (let i = 0; i < filesToUpload.length; i++) {
           setStatus(`يتم رفع الملف ${i + 1}/${filesToUpload.length} إلى G-Drive`);
           try {
-            const url = await uploadPostImage(filesToUpload[i], post.authorId, editedText);
+            const url = await uploadPostImage(filesToUpload[i], post.authorId, editedText, (percent) => {
+              const overallPercent = Math.round(((i * 100) + percent) / filesToUpload.length);
+              setUploadProgress(overallPercent);
+            });
             finalImageUrls.push(url);
           } catch (uploadErr: any) {
             console.warn('[PostCard] File upload error:', uploadErr);
@@ -905,7 +917,10 @@ export default function PostCard({
                 setStatus('');
                 return;
               }
-              const url = await uploadPostImage(filesToUpload[i], post.authorId, editedText);
+              const url = await uploadPostImage(filesToUpload[i], post.authorId, editedText, (percent) => {
+                const overallPercent = Math.round(((i * 100) + percent) / filesToUpload.length);
+                setUploadProgress(overallPercent);
+              });
               finalImageUrls.push(url);
               continue;
             }
@@ -1042,6 +1057,39 @@ export default function PostCard({
       modelName: post.imageModels?.[origIdx] || ''
     };
   });
+
+  const handleDownloadFile = async (e: React.MouseEvent, url: string, name: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Determine the final URL to fetch/download
+    let downloadUrl = url;
+    const activeToken = getAccessToken();
+
+    // If it's Google Drive, construct the direct download link
+    let fileId: string | null = null;
+    try {
+      const urlObj = new URL(url);
+      fileId = urlObj.searchParams.get('id');
+    } catch (err) {
+      // Not a valid URL
+    }
+
+    if (fileId && (url.includes('drive.google.com') || url.includes('googleusercontent'))) {
+      downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+    }
+
+    // Create a proxy URL pointing to our backend download proxy
+    let proxyUrl = `/api/download?url=${encodeURIComponent(downloadUrl)}&name=${encodeURIComponent(name)}`;
+    if (activeToken && activeToken !== 'local-dummy-token') {
+      proxyUrl += `&access_token=${encodeURIComponent(activeToken)}`;
+    }
+
+    // Direct system download via window.location.href
+    // Since the server response will have Content-Disposition: attachment,
+    // this will trigger direct download on BOTH iOS/Android and desktop immediately, without opening tabs or navigating.
+    window.location.href = proxyUrl;
+  };
 
   const renderPostImage = (url: string, className: string, alt: string = "", extraProps: any = {}) => {
     if (failedImageUrls[url]) {
@@ -1804,6 +1852,28 @@ export default function PostCard({
                   <ChevronDown size={16} />
                 </button>
               </div>
+              
+              {/* Real-time upload progress bar */}
+              {isSaving && newImages.some(img => typeof img !== 'string') && (
+                <div className="w-full mt-2" dir="rtl">
+                  <div className="flex justify-between items-center mb-1 text-[10px]">
+                    <span className={`font-black ${isDarkMode ? 'text-[#16af75]' : 'text-natural-primary'}`}>
+                      {uploadProgress}%
+                    </span>
+                    <span className={isDarkMode ? 'text-gray-400' : 'text-neutral-500'}>
+                      تقدم معالجة ورفع الملفات
+                    </span>
+                  </div>
+                  <div className={`w-full h-1.5 rounded-full overflow-hidden ${isDarkMode ? 'bg-gray-800' : 'bg-gray-200'}`}>
+                    <motion.div
+                      className={`h-full rounded-full ${isDarkMode ? 'bg-[#16af75]' : 'bg-[#4A4A35]'}`}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${uploadProgress}%` }}
+                      transition={{ duration: 0.1 }}
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="flex gap-2 justify-start pt-1">
                 {(() => {
@@ -2403,6 +2473,8 @@ export default function PostCard({
                   <a
                     key={fIdx}
                     href={file.url}
+                    download={file.name || 'file'}
+                    onClick={(e) => handleDownloadFile(e, file.url, file.name || 'file')}
                     target="_blank"
                     rel="noopener noreferrer"
                     className={`flex items-center gap-2.5 p-2 rounded-xl border transition-all hover:scale-[1.01] ${

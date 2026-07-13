@@ -90,6 +90,64 @@ async function startServer() {
     res.json({ status: 'ok', time: new Date() });
   });
 
+  // File download proxy to force downloads instead of opening in a new tab (especially for mobile & audio/MP3 files)
+  app.get('/api/download', async (req, res) => {
+    try {
+      const { url, name, access_token } = req.query;
+      if (!url || typeof url !== 'string') {
+        return res.status(400).send('URL is required');
+      }
+
+      const fileName = typeof name === 'string' ? name : 'download';
+      console.log(`[Proxy Download] Downloading: ${url} with output name: ${fileName}`);
+
+      // Handle base64 data URLs
+      if (url.startsWith('data:')) {
+        const matches = url.match(/^data:([^;]+);base64,(.*)$/);
+        if (!matches || matches.length !== 3) {
+          return res.status(400).send('Invalid data URL');
+        }
+        const contentType = matches[1];
+        const buffer = Buffer.from(matches[2], 'base64');
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"; filename*=UTF-8''${encodeURIComponent(fileName)}`);
+        return res.send(buffer);
+      }
+
+      // Handle standard URLs
+      const headers: Record<string, string> = {};
+      if (access_token && typeof access_token === 'string' && access_token !== 'local-dummy-token') {
+        headers['Authorization'] = `Bearer ${access_token}`;
+      }
+
+      const fetchRes = await fetch(url, { headers });
+      if (!fetchRes.ok) {
+        console.warn(`[Proxy Download] Authenticated fetch failed: ${fetchRes.status}. Attempting public fetch without token...`);
+        const publicRes = await fetch(url);
+        if (!publicRes.ok) {
+          throw new Error(`Failed to fetch file: ${publicRes.status} ${publicRes.statusText}`);
+        }
+        
+        const contentType = publicRes.headers.get('content-type') || 'application/octet-stream';
+        const buffer = await publicRes.arrayBuffer();
+        
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"; filename*=UTF-8''${encodeURIComponent(fileName)}`);
+        return res.send(Buffer.from(buffer));
+      }
+
+      const contentType = fetchRes.headers.get('content-type') || 'application/octet-stream';
+      const buffer = await fetchRes.arrayBuffer();
+
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"; filename*=UTF-8''${encodeURIComponent(fileName)}`);
+      return res.send(Buffer.from(buffer));
+    } catch (err: any) {
+      console.error('[Proxy Download] Error during download proxy:', err);
+      return res.status(500).send(`Download failed: ${err.message}`);
+    }
+  });
+
   // API Upload Endpoint
   app.post('/api/upload', (req, res) => {
     try {

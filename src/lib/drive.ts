@@ -5,7 +5,9 @@ interface DriveUploadResponse {
   webContentLink: string;
 }
 
-export async function uploadToDrive(file: File, accessToken: string): Promise<string> {
+export async function uploadToDrive(file: File, accessToken: string, onProgress?: (percent: number) => void): Promise<string> {
+  if (onProgress) onProgress(5); // Start metadata creation
+
   // 1. Create file metadata
   const metadata = {
     name: `horizon_${Date.now()}_${file.name}`,
@@ -29,20 +31,48 @@ export async function uploadToDrive(file: File, accessToken: string): Promise<st
   const fileData = await createResponse.json();
   const fileId = fileData.id;
 
-  // 2. Upload file content
-  const uploadResponse = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
-    method: 'PATCH',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': file.type,
-    },
-    body: file,
+  if (onProgress) onProgress(15); // Metadata created, start upload
+
+  // 2. Upload file content with real-time progress tracking
+  const uploadUrl = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`;
+  
+  const uploadResponse = await new Promise<{ ok: boolean; statusText: string; text: string }>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    // Register events before calling open() to guarantee compatibility
+    if (onProgress && xhr.upload) {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          // Map file upload progress (0% - 100%) to (15% - 90%)
+          const percent = Math.round(15 + (event.loaded / event.total) * 75);
+          onProgress(percent);
+        }
+      };
+    }
+    
+    xhr.open('PATCH', uploadUrl, true);
+    xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    
+    xhr.onload = () => {
+      resolve({
+        ok: xhr.status >= 200 && xhr.status < 300,
+        statusText: xhr.statusText,
+        text: xhr.responseText
+      });
+    };
+    
+    xhr.onerror = () => {
+      reject(new Error('Network error during Google Drive upload.'));
+    };
+    
+    xhr.send(file);
   });
 
   if (!uploadResponse.ok) {
-    const errorBody = await uploadResponse.text();
-    throw new Error(`Drive upload content failed: ${uploadResponse.statusText} - ${errorBody}`);
+    throw new Error(`Drive upload content failed: ${uploadResponse.statusText} - ${uploadResponse.text}`);
   }
+
+  if (onProgress) onProgress(93); // Setting permissions
 
   // 3. Set permissions to public view
   const permResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
@@ -60,6 +90,8 @@ export async function uploadToDrive(file: File, accessToken: string): Promise<st
   if (!permResponse.ok) {
     console.warn('Failed to set public permissions on Drive file');
   }
+
+  if (onProgress) onProgress(100); // Complete!
 
   // 4. Return a viewable link
   // The thumbnail API is more reliable for direct embedding than uc?export=view
