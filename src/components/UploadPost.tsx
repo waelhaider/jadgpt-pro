@@ -13,6 +13,7 @@ import { ADMIN_CONFIG } from '../config';
 import { compressImage } from '../lib/imageCompressor';
 import { saveLocalUserPostsIndexedDB, getLocalUserPostsIndexedDB } from '../lib/indexedDbService';
 import { showToast } from './Toast';
+import { encryptText, encryptArray } from '../lib/encryption';
 
 interface UploadPostProps {
   activeBoardId: string | null;
@@ -145,7 +146,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
       const cleanUrl = href.split('?')[0].split('#')[0];
       const isImg = /\.(jpeg|jpg|gif|png|webp|bmp|svg|tiff)$/i.test(cleanUrl);
       
-      if (isImg && images.length + detectedUrls.length < 6) {
+      if (isImg && images.length + detectedUrls.length < 15) {
         detectedUrls.push(href);
         cleanText = cleanText.replace(match, '');
       }
@@ -244,8 +245,8 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
     const files = Array.from(e.target.files || []) as File[];
     if (files.length === 0) return;
 
-    if (images.length + files.length > 10) {
-      showToast('يمكنك إضافة 10 ملفات كحد أقصى في المنشور الواحد.');
+    if (images.length + files.length > 15) {
+      showToast('يمكنك إضافة 15 ملفاً كحد أقصى في المنشور الواحد.');
       return;
     }
 
@@ -298,7 +299,38 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
 
   const [status, setStatus] = useState<string>('');
   const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const targetProgressRef = useRef<number>(0);
+  const imagesLengthRef = useRef<number>(images.length);
+  imagesLengthRef.current = images.length;
   const [uploadError, setUploadError] = useState<{message: string, showRefresh?: boolean} | null>(null);
+
+  React.useEffect(() => {
+    if (!loading) {
+      setUploadProgress(0);
+      targetProgressRef.current = 0;
+      return;
+    }
+
+    targetProgressRef.current = 5;
+    let tickCount = 0;
+
+    const interval = setInterval(() => {
+      setUploadProgress((prev) => {
+        if (prev >= 100) return 100;
+
+        const target = targetProgressRef.current;
+        if (prev < target) {
+          // Smoothly and continuously increment 1% or 2% to catch up to target without big jumps
+          const diff = target - prev;
+          const step = diff > 40 ? 2 : 1;
+          return Math.min(100, prev + step);
+        }
+        return prev;
+      });
+    }, 15);
+
+    return () => clearInterval(interval);
+  }, [loading]);
 
   const handleAuthorize = async (shouldSetLoadingState = true): Promise<boolean> => {
     if (shouldSetLoadingState) setLoading(true);
@@ -345,9 +377,9 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
         setUploadProgress(0);
         for (let i = 0; i < images.length; i++) {
           const file = images[i];
-          for (let p = 10; p <= 100; p += 15) {
+          for (let p = 1; p <= 100; p++) {
             setUploadProgress(Math.round(((i * 100) + p) / images.length));
-            await new Promise(r => setTimeout(r, 40));
+            await new Promise(r => setTimeout(r, 6));
           }
           if (typeof file === 'string') {
             imageUrls.push(file);
@@ -429,12 +461,13 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
     
     setLoading(true);
     setUploadError(null);
+    setUploadProgress(5);
+    targetProgressRef.current = 5;
     
     try {
       // 1. Upload all to Google Drive
       const imageUrls: string[] = [];
       if (images.length > 0) {
-        setUploadProgress(0);
         for (let i = 0; i < images.length; i++) {
           const file = images[i];
           if (typeof file === 'string') {
@@ -447,7 +480,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
           try {
             const url = await uploadPostImage(file, currentUser.uid, text, (percent) => {
               const overallPercent = Math.round(((i * 100) + percent) / images.length);
-              setUploadProgress(overallPercent);
+              targetProgressRef.current = Math.max(targetProgressRef.current, overallPercent);
             });
             imageUrls.push(url);
           } catch (uploadErr: any) {
@@ -458,7 +491,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
                 currentUser = getCurrentUser(); // Refresh user after re-auth popup
                 const retryUrl = await uploadPostImage(file, currentUser.uid, text, (percent) => {
                   const overallPercent = Math.round(((i * 100) + percent) / images.length);
-                  setUploadProgress(overallPercent);
+                  targetProgressRef.current = Math.max(targetProgressRef.current, overallPercent);
                 });
                 imageUrls.push(retryUrl);
                 continue;
@@ -474,6 +507,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
       }
 
       // 2. Save document to Firestore
+      targetProgressRef.current = 95;
       const postsPath = 'posts';
       const currentStatusSave = 'جاري الحفظ في قاعدة البيانات';
       console.log(`[UploadPost] Status: ${currentStatusSave}`);
@@ -482,13 +516,20 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
       // Always get the absolute latest user credentials before Firestore payload construction
       currentUser = getCurrentUser();
       
+      const isSafeBoard = targetBoardId === 'safe-board';
+      const vaultKey = sessionStorage.getItem('safe_vault_password') || '';
+
+      const textToSave = isSafeBoard && vaultKey ? encryptText(text.trim(), vaultKey) : text.trim();
+      const captionsToSave = isSafeBoard && vaultKey ? encryptArray(imageCaptions, vaultKey) : imageCaptions;
+      const fileNamesToSave = isSafeBoard && vaultKey ? encryptArray(fileNames, vaultKey) : fileNames;
+
       const payload = {
-        text: text.trim(),
+        text: textToSave,
         imageUrl: imageUrls.length > 0 ? imageUrls[0] : null,
         imageUrls: imageUrls,
         imageModels: selectedModels,
-        imageCaptions: imageCaptions,
-        fileNames: fileNames,
+        imageCaptions: captionsToSave,
+        fileNames: fileNamesToSave,
         fileTypes: fileTypes,
         boardId: (targetBoardId === 'placeholder' || targetBoardId === 'main-feed' || !targetBoardId) ? null : targetBoardId, // Explicitly null for main feed
         authorId: currentUser.uid,
@@ -509,6 +550,10 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
         console.error('[UploadPost] Firestore Save Internal Error:', err);
         handleFirestoreError(err, OperationType.CREATE, postsPath);
       }
+
+      // Complete to 100% smoothly
+      targetProgressRef.current = 100;
+      await new Promise(resolve => setTimeout(resolve, 450));
 
       // Reset form
       setText('');
@@ -782,15 +827,15 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={loading || images.length >= 10}
+                disabled={loading || images.length >= 15}
                 className={`group flex-1 min-w-0 flex items-center justify-center gap-1 rounded-lg px-2 sm:px-3 h-10 py-0 text-[12px] sm:text-[12px] font-bold transition-all disabled:opacity-50 cursor-pointer ${
                   isDarkMode 
                     ? 'border border-[#656c74] text-[#16af75] bg-[#111822] hover:bg-[#1a212e]' 
                     : 'text-[#c26700] bg-[#fffaf5] shadow-md hover:bg-[#fef3e6] hover:border-[#c26700]/40 border border-[#cbd5e1]'
                 }`}
               >
-                <span className="md:hidden">إضافة ملفات أو صور ({images.length}/10)</span>
-                <span className="hidden md:inline">إضافـة ملفات أو صـور ({images.length}/10)</span>
+                <span className="md:hidden">إضافة ملفات أو صور ({images.length}/15)</span>
+                <span className="hidden md:inline">إضافـة ملفات أو صـور ({images.length}/15)</span>
               </button>
               <input
                 type="file"
@@ -996,12 +1041,19 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
                         type="button"
                         onClick={() => {
                           if (board.id === 'safe-board') {
-                            setOnSuccessCallback(() => () => {
+                            const savedPass = sessionStorage.getItem('safe_vault_password');
+                            if (savedPass === '88775500') {
                               setTargetBoardId(board.id);
                               setIsSelectBoardDrawerOpen(false);
                               window.dispatchEvent(new Event('unlock_posts_layout'));
-                            });
-                            setShowSafePasswordModal(true);
+                            } else {
+                              setOnSuccessCallback(() => () => {
+                                setTargetBoardId(board.id);
+                                setIsSelectBoardDrawerOpen(false);
+                                window.dispatchEvent(new Event('unlock_posts_layout'));
+                              });
+                              setShowSafePasswordModal(true);
+                            }
                           } else {
                             setTargetBoardId(board.id);
                             setIsSelectBoardDrawerOpen(false);
@@ -1081,6 +1133,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
                   onSubmit={(e) => {
                     e.preventDefault();
                     if (safePasswordInput === '88775500') {
+                      sessionStorage.setItem('safe_vault_password', safePasswordInput);
                       setShowSafePasswordModal(false);
                       setSafePasswordInput('');
                       setSafePasswordError(false);

@@ -47,7 +47,18 @@ export default function Feed({ isAdmin, boardId, boards, onTestPrompt, isDarkMod
 
   const getSortValue = (p: Post) => {
     if (p.customOrder !== undefined) return p.customOrder;
-    return (p.isPinned ? 1e13 : 0) + getPostMillis(p);
+    return getPostMillis(p);
+  };
+
+  const comparePosts = (a: Post, b: Post) => {
+    const pinA = a.isPinned ? 1 : 0;
+    const pinB = b.isPinned ? 1 : 0;
+    if (pinA !== pinB) {
+      return pinB - pinA;
+    }
+    const valA = getSortValue(a);
+    const valB = getSortValue(b);
+    return valB - valA;
   };
 
   const handleMovePost = async (postId: string, direction: 'up' | 'down') => {
@@ -60,6 +71,9 @@ export default function Feed({ isAdmin, boardId, boards, onTestPrompt, isDarkMod
 
     const currentPost = posts[idx];
     const siblingPost = posts[targetIdx];
+
+    // Safety guard: cannot swap posts of different pinning status (priority to pinning)
+    if (currentPost.isPinned !== siblingPost.isPinned) return;
 
     let currentVal = getSortValue(currentPost);
     let siblingVal = getSortValue(siblingPost);
@@ -83,11 +97,7 @@ export default function Feed({ isAdmin, boardId, boards, onTestPrompt, isDarkMod
     updatedPosts[targetIdx] = { ...siblingPost, customOrder: newSiblingOrder };
     
     // Sort descending
-    updatedPosts.sort((a, b) => {
-      const orderA = getSortValue(a);
-      const orderB = getSortValue(b);
-      return orderB - orderA;
-    });
+    updatedPosts.sort(comparePosts);
     setPosts(updatedPosts);
 
     try {
@@ -152,11 +162,7 @@ export default function Feed({ isAdmin, boardId, boards, onTestPrompt, isDarkMod
             } as any,
           }));
 
-          mapped.sort((a, b) => {
-            const orderA = getSortValue(a);
-            const orderB = getSortValue(b);
-            return orderB - orderA;
-          });
+          mapped.sort(comparePosts);
 
           setPosts(mapped);
           setLoading(false);
@@ -209,11 +215,7 @@ export default function Feed({ isAdmin, boardId, boards, onTestPrompt, isDarkMod
         ...doc.data(),
       } as Post));
       
-      postsData.sort((a, b) => {
-        const orderA = getSortValue(a);
-        const orderB = getSortValue(b);
-        return orderB - orderA;
-      });
+      postsData.sort(comparePosts);
 
       setPosts(postsData);
       setLoading(false);
@@ -319,8 +321,8 @@ export default function Feed({ isAdmin, boardId, boards, onTestPrompt, isDarkMod
               onTestPrompt={onTestPrompt} 
               isDarkMode={isDarkMode} 
               onMovePost={handleMovePost}
-              canMoveUp={index > 0}
-              canMoveDown={index < posts.length - 1}
+              canMoveUp={index > 0 && posts[index - 1].isPinned === post.isPinned}
+              canMoveDown={index < posts.length - 1 && posts[index + 1].isPinned === post.isPinned}
             />
           </div>
         ))}

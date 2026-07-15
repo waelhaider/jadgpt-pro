@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
+import { Readable } from 'stream';
 
 async function verifyFirebaseIdToken(token: string): Promise<any> {
   try {
@@ -114,34 +115,209 @@ async function startServer() {
         return res.send(buffer);
       }
 
-      // Handle standard URLs
-      const headers: Record<string, string> = {};
-      if (access_token && typeof access_token === 'string' && access_token !== 'local-dummy-token') {
-        headers['Authorization'] = `Bearer ${access_token}`;
+      // Check if it is a Google Drive URL and extract file ID
+      let isGoogleDrive = false;
+      let fileId: string | null = null;
+      if (url.includes('googleapis.com/drive/v3/files/')) {
+        isGoogleDrive = true;
+        const matches = url.match(/\/files\/([^\/?#]+)/);
+        if (matches) fileId = matches[1];
+      } else if (url.includes('drive.google.com') || url.includes('googleusercontent')) {
+        isGoogleDrive = true;
+        try {
+          const u = new URL(url);
+          fileId = u.searchParams.get('id');
+        } catch (_) {}
       }
 
-      const fetchRes = await fetch(url, { headers });
-      if (!fetchRes.ok) {
-        console.warn(`[Proxy Download] Authenticated fetch failed: ${fetchRes.status}. Attempting public fetch without token...`);
-        const publicRes = await fetch(url);
-        if (!publicRes.ok) {
-          throw new Error(`Failed to fetch file: ${publicRes.status} ${publicRes.statusText}`);
+      // Helper function to fetch Google Drive files publicly with confirmation bypass for large files
+      const fetchDrivePublic = async (fId: string): Promise<Response> => {
+        const publicUrl = `https://drive.google.com/uc?export=download&id=${fId}`;
+        const initialRes = await fetch(publicUrl);
+        if (!initialRes.ok) {
+          return initialRes;
         }
-        
-        const contentType = publicRes.headers.get('content-type') || 'application/octet-stream';
-        const buffer = await publicRes.arrayBuffer();
-        
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"; filename*=UTF-8''${encodeURIComponent(fileName)}`);
-        return res.send(Buffer.from(buffer));
+
+        const type = initialRes.headers.get('content-type') || '';
+        if (type.includes('text/html')) {
+          const cloneRes = initialRes.clone();
+          const html = await cloneRes.text();
+          // Look for confirm query parameter or form value in Google Drive virus warning page
+          const confirmMatch = html.match(/confirm=([a-zA-Z0-9_-]+)/) || html.match(/id="downloadForm".*?confirm.*?value="([a-zA-Z0-9_-]+)"/);
+          if (confirmMatch && confirmMatch[1]) {
+            const confirmCode = confirmMatch[1];
+            console.log(`[Proxy Download] Found Google Drive virus warning confirm code: ${confirmCode}. Re-fetching with confirmation...`);
+            
+            let cookies = '';
+            const headers: Record<string, string> = {};
+            if (typeof initialRes.headers.getSetCookie === 'function') {
+              const cookiesArr = initialRes.headers.getSetCookie();
+              if (cookiesArr && cookiesArr.length > 0) {
+                cookies = cookiesArr.map(c => c.split(';')[0]).join('; ');
+              }
+            } else {
+              const rawCookies = initialRes.headers.get('set-cookie');
+              if (rawCookies) {
+                cookies = rawCookies.split(',').map(c => c.split(';')[0]).join('; ');
+              }
+            }
+            if (cookies) {
+              headers['Cookie'] = cookies;
+            }
+
+            const confirmUrl = `https://drive.google.com/uc?export=download&confirm=${confirmCode}&id=${fId}`;
+            return fetch(confirmUrl, { headers });
+          }
+        }
+        return initialRes;
+      };
+
+      let fetchRes: Response | null = null;
+
+      // 1. If it's Google Drive, prioritize authenticated download first, then fall back to public with confirmation bypass
+      if (isGoogleDrive && fileId) {
+        if (access_token && typeof access_token === 'string' && access_token !== 'local-dummy-token') {
+          try {
+            console.log(`[Proxy Download] Trying authenticated Google Drive API download for file ID: ${fileId}...`);
+            const driveApiUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+            const authRes = await fetch(driveApiUrl, {
+              headers: {
+                'Authorization': `Bearer ${access_token}`
+              }
+            });
+            if (authRes.ok) {
+              fetchRes = authRes;
+              console.log(`[Proxy Download] Authenticated Google Drive API download succeeded.`);
+            } else {
+              console.warn(`[Proxy Download] Authenticated Google Drive API download failed with status ${authRes.status}.`);
+            }
+          } catch (authErr) {
+            console.warn('[Proxy Download] Authenticated Google Drive API download error:', authErr);
+          }
+        }
+
+        if (!fetchRes) {
+          try {
+            console.log(`[Proxy Download] Trying public Google Drive download for file ID: ${fileId}...`);
+            const publicRes = await fetchDrivePublic(fileId);
+            if (publicRes.ok) {
+              fetchRes = publicRes;
+              console.log(`[Proxy Download] Public Google Drive download succeeded.`);
+            } else {
+              console.warn(`[Proxy Download] Public Google Drive download failed with status ${publicRes.status}.`);
+            }
+          } catch (pubErr) {
+            console.warn('[Proxy Download] Public Google Drive download error:', pubErr);
+          }
+        }
+      } else {
+        // For non-Google Drive URLs, try authenticated download first if we have a token
+        if (access_token && typeof access_token === 'string' && access_token !== 'local-dummy-token') {
+          try {
+            console.log(`[Proxy Download] Fetching non-Drive URL with token headers: ${url}`);
+            const authRes = await fetch(url, {
+              headers: {
+                'Authorization': `Bearer ${access_token}`
+              }
+            });
+            if (authRes.ok) {
+              fetchRes = authRes;
+            } else {
+              console.warn(`[Proxy Download] Authenticated fetch failed with status ${authRes.status}.`);
+            }
+          } catch (authErr) {
+            console.warn('[Proxy Download] Authenticated fetch error:', authErr);
+          }
+        }
+      }
+
+      // 2. Fallback: Try a public fetch of the original URL without any token/auth headers
+      if (!fetchRes) {
+        try {
+          console.log(`[Proxy Download] Trying direct public fetch of original URL: ${url}...`);
+          const fallbackRes = await fetch(url);
+          if (fallbackRes.ok) {
+            fetchRes = fallbackRes;
+          }
+        } catch (fallbackErr) {
+          console.warn('[Proxy Download] Direct public fetch error:', fallbackErr);
+        }
+      }
+
+      // If all attempts failed, throw error
+      if (!fetchRes || !fetchRes.ok) {
+        const status = fetchRes ? fetchRes.status : 500;
+        const statusText = fetchRes ? fetchRes.statusText : 'Unknown Error';
+        throw new Error(`Failed to fetch file: ${status} ${statusText}`);
       }
 
       const contentType = fetchRes.headers.get('content-type') || 'application/octet-stream';
-      const buffer = await fetchRes.arrayBuffer();
+      const contentLength = fetchRes.headers.get('content-length');
 
       res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"; filename*=UTF-8''${encodeURIComponent(fileName)}`);
-      return res.send(Buffer.from(buffer));
+      
+      if (contentLength) {
+        res.setHeader('Content-Length', contentLength);
+      }
+
+      // Stream the response body chunk by chunk directly to the browser
+      if (fetchRes.body) {
+        console.log(`[Proxy Download] Streaming file body directly to browser client...`);
+        try {
+          // Case 1: Node.js Readable stream or similar (has .pipe)
+          if (typeof (fetchRes.body as any).pipe === 'function') {
+            (fetchRes.body as any).pipe(res);
+            return;
+          }
+          
+          // Case 2: Web ReadableStream (has .getReader)
+          if (typeof fetchRes.body.getReader === 'function') {
+            const reader = fetchRes.body.getReader();
+            res.on('close', () => {
+              try {
+                reader.cancel().catch(() => {});
+              } catch (_) {}
+            });
+            
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) {
+                break;
+              }
+              res.write(value);
+            }
+            res.end();
+            return;
+          }
+          
+          // Case 3: Node async iterable
+          if (typeof (fetchRes.body as any)[Symbol.asyncIterator] === 'function') {
+            for await (const chunk of (fetchRes.body as any)) {
+              res.write(chunk);
+            }
+            res.end();
+            return;
+          }
+        } catch (streamErr: any) {
+          console.error('[Proxy Download] Streaming error:', streamErr);
+          if (!res.headersSent) {
+            return res.status(500).send(`Streaming error: ${streamErr.message}`);
+          }
+          return;
+        }
+      }
+
+      // Fallback: Read full buffer in case stream is not available/usable
+      try {
+        const buffer = await fetchRes.arrayBuffer();
+        return res.send(Buffer.from(buffer));
+      } catch (bufErr: any) {
+        console.error('[Proxy Download] Buffer fallback error:', bufErr);
+        if (!res.headersSent) {
+          return res.status(500).send(`Failed to read download stream or buffer: ${bufErr.message}`);
+        }
+      }
     } catch (err: any) {
       console.error('[Proxy Download] Error during download proxy:', err);
       return res.status(500).send(`Download failed: ${err.message}`);

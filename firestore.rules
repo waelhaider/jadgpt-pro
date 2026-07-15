@@ -52,8 +52,11 @@ service cloud.firestore {
     function isValidPost(data) {
       return data.text is string && data.text.size() <= 5000 &&
              (data.get('imageUrl', null) == null || data.get('imageUrl', null) is string) &&
-             (data.get('imageUrls', []) is list && data.get('imageUrls', []).size() <= 6) &&
-             (data.get('imageModels', []) is list && data.get('imageModels', []).size() <= 6) &&
+             (data.get('imageUrls', []) is list && data.get('imageUrls', []).size() <= 50) &&
+             (data.get('imageModels', []) is list && data.get('imageModels', []).size() <= 50) &&
+             (data.get('imageCaptions', []) is list && data.get('imageCaptions', []).size() <= 50) &&
+             (data.get('fileNames', []) is list && data.get('fileNames', []).size() <= 50) &&
+             (data.get('fileTypes', []) is list && data.get('fileTypes', []).size() <= 50) &&
              (data.get('boardId', null) == null || data.get('boardId', null) is string) &&
              (data.get('isPinned', null) == null || data.get('isPinned', null) is bool) &&
              data.keys().hasAll(['text', 'boardId', 'authorId', 'authorEmail', 'createdAt']);

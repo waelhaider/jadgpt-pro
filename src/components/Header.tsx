@@ -474,16 +474,8 @@ export default function Header({
                         <button
                           key={board.id}
                           onClick={() => {
-                            if (board.id === 'safe-board') {
-                              setOnSuccessCallback(() => () => {
-                                onSelectBoard(board.id);
-                                setIsBoardsDrawerOpen(false);
-                              });
-                              setShowSafePasswordModal(true);
-                            } else {
-                              onSelectBoard(board.id);
-                              setIsBoardsDrawerOpen(false);
-                            }
+                            onSelectBoard(board.id);
+                            setIsBoardsDrawerOpen(false);
                           }}
                           className={`w-full flex items-center justify-between p-3 rounded-2xl border text-right transition-all cursor-pointer ${
                             isSelected
@@ -650,7 +642,7 @@ export default function Header({
                           
                           <p className={`text-[9px] text-right font-bold leading-relaxed ${isDarkMode ? 'text-[#B4C6D8]' : 'text-natural-muted'}`}>
                             {notificationPermission === 'granted' 
-                              ? 'إشعارات الهاتف وشارات التطبيق (Badge) مفعلة وتعمل تلقائياً دون أي تشغيل خلفي يدوي ✅'
+                              ? 'الإشعارات مفعلة وتعمل تلقائياً✅'
                               : 'اضغط لتفعيل الإشعارات على أيقونة التطبيق'
                             }
                           </p>
@@ -932,12 +924,12 @@ export default function Header({
                               ) : (
                                 <BellOff size={16} className="text-natural-muted" />
                               )}
-                              <span className="text-xs font-black">إشعارات التطبيق والشارب</span>
+                              <span className="text-xs font-black">إشعارات التطبيق</span>
                             </div>
                             <button
                               onClick={async () => {
                                 if (notificationPermission === 'granted') {
-                                  showToast('ℹ️ لتعديل أذونات الإشعارات أو إيقافها، يرجى تعديلها من إعدادات المتصفح أو الهاتف.');
+                                  showToast('ℹ️ لتعديل أذونات الإشعارات أو إيقافها، الدخول لإعدادات المتصفح أو الهاتف.');
                                   return;
                                 }
                                 const perm = await requestNotificationPermission();
@@ -1347,6 +1339,7 @@ export default function Header({
                   onSubmit={(e) => {
                     e.preventDefault();
                     if (safePasswordInput === '88775500') {
+                      sessionStorage.setItem('safe_vault_password', safePasswordInput);
                       setShowSafePasswordModal(false);
                       setSafePasswordInput('');
                       setSafePasswordError(false);

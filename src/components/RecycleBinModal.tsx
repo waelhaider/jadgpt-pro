@@ -29,23 +29,51 @@ function isPostUrlAnImage(post: any, url: string, index: number): boolean {
 }
 
 function getPostInfo(post: any) {
-  if (!post) return { label: 'منشور مصور', icon: <ImageIcon size={18} className="text-purple-500" /> };
+  if (!post) return { label: 'منشور مصور 📸', icon: <ImageIcon size={18} className="text-purple-500" /> };
   
   const types = post.fileTypes || [];
   const names = post.fileNames || [];
+  const urls = post.imageUrls || (post.imageUrl ? [post.imageUrl] : []);
   
-  const hasAudio = types.some((t: string) => t.startsWith('audio/')) || names.some((n: string) => /\.(mp3|wav|ogg|m4a|aac|webm)$/i.test(n));
+  const hasAudio = types.some((t: string) => t.startsWith('audio/')) || 
+                    names.some((n: string) => /\.(mp3|wav|ogg|m4a|aac|webm)$/i.test(n)) ||
+                    urls.some((url: string, idx: number) => {
+                      const name = names[idx] || '';
+                      const type = types[idx] || '';
+                      const isImg = isPostUrlAnImage(post, url, idx);
+                      return !isImg && (
+                        type.startsWith('audio/') || 
+                        /\.(mp3|wav|ogg|m4a|aac|webm)$/i.test(name) ||
+                        /\.(mp3|wav|ogg|m4a|aac|webm)/i.test(url)
+                      );
+                    });
+                    
   if (hasAudio) {
     return { label: 'منشور صوتي 🎙️', icon: <Volume2 size={18} className="text-emerald-600 animate-pulse" /> };
   }
   
-  const hasVideo = types.some((t: string) => t.startsWith('video/')) || names.some((n: string) => /\.(mp4|mov|avi|mkv|webm)$/i.test(n));
+  const hasVideo = types.some((t: string) => t.startsWith('video/')) || 
+                    names.some((n: string) => /\.(mp4|mov|avi|mkv|webm)$/i.test(n)) ||
+                    urls.some((url: string, idx: number) => {
+                      const name = names[idx] || '';
+                      const type = types[idx] || '';
+                      const isImg = isPostUrlAnImage(post, url, idx);
+                      return !isImg && (
+                        type.startsWith('video/') || 
+                        /\.(mp4|mov|avi|mkv|webm)$/i.test(name) ||
+                        /\.(mp4|mov|avi|mkv|webm)/i.test(url)
+                      );
+                    });
+                    
   if (hasVideo) {
     return { label: 'منشور مرئي 🎥', icon: <Video size={18} className="text-amber-500" /> };
   }
 
-  const hasDocs = types.some((t: string) => !t.startsWith('image/')) || names.some((n: string) => !/\.(jpeg|jpg|gif|png|webp|bmp|svg|tiff)$/i.test(n));
-  if (hasDocs && names.length > 0) {
+  const hasDocs = types.some((t: string) => !t.startsWith('image/')) || 
+                   names.some((n: string) => !/\.(jpeg|jpg|gif|png|webp|bmp|svg|tiff)$/i.test(n)) ||
+                   urls.some((url: string, idx: number) => !isPostUrlAnImage(post, url, idx));
+                   
+  if (hasDocs && urls.length > 0) {
     return { label: 'منشور يحتوي على ملفات 📂', icon: <FileSpreadsheet size={18} className="text-blue-500" /> };
   }
   

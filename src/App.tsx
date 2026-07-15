@@ -42,11 +42,15 @@ export default function App() {
 
   const handleSelectBoard = (boardId: string | null) => {
     if (boardId === 'safe-board') {
+      // Force prompt for password when entering 'safe-board'
+      sessionStorage.removeItem('safe_vault_password');
       setOnSuccessCallback(() => () => {
         setActiveBoardId('safe-board');
       });
       setShowSafePasswordModal(true);
     } else {
+      // Clear password when leaving safe board to lock it immediately
+      sessionStorage.removeItem('safe_vault_password');
       setActiveBoardId(boardId);
     }
   };
@@ -652,6 +656,7 @@ export default function App() {
                   onSubmit={(e) => {
                     e.preventDefault();
                     if (safePasswordInput === '88775500') {
+                      sessionStorage.setItem('safe_vault_password', safePasswordInput);
                       setShowSafePasswordModal(false);
                       setSafePasswordInput('');
                       setSafePasswordError(false);

@@ -14,6 +14,7 @@ import { getAccessToken, googleSignIn } from '../lib/auth';
 import { compressImage } from '../lib/imageCompressor';
 import { getLocalUserPostsIndexedDB, saveLocalUserPostsIndexedDB } from '../lib/indexedDbService';
 import { showToast } from './Toast';
+import { encryptText, decryptText, encryptArray, decryptArray } from '../lib/encryption';
 import Lightbox from "yet-another-react-lightbox";
 import Zoom from "yet-another-react-lightbox/plugins/zoom";
 
@@ -228,7 +229,7 @@ const DEFAULT_SITES = [
 ];
 
 export default function PostCard({ 
-  post, 
+  post: originalPost, 
   isAdmin, 
   boards, 
   onTestPrompt, 
@@ -237,6 +238,19 @@ export default function PostCard({
   canMoveUp = false,
   canMoveDown = false
 }: PostCardProps) {
+  const post = React.useMemo(() => {
+    const vaultKey = sessionStorage.getItem('safe_vault_password') || '';
+    if (originalPost.boardId === 'safe-board' && vaultKey) {
+      return {
+        ...originalPost,
+        text: decryptText(originalPost.text, vaultKey),
+        imageCaptions: decryptArray(originalPost.imageCaptions, vaultKey),
+        fileNames: decryptArray(originalPost.fileNames, vaultKey),
+      };
+    }
+    return originalPost;
+  }, [originalPost]);
+
   const isRtl = (val: string): boolean => {
     if (!val) return true; // Default to natural Arabic direction
     let arabicCount = 0;
@@ -373,9 +387,40 @@ export default function PostCard({
   const [editedFileTypes, setEditedFileTypes] = useState<string[]>(post.fileTypes || []);
   const [newFileNames, setNewFileNames] = useState<string[]>([]);
   const [newFileTypes, setNewFileTypes] = useState<string[]>([]);
-   const [isSaving, setIsSaving] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [status, setStatus] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
+  const targetProgressRef = React.useRef(0);
+  const [downloadingFileUrl, setDownloadingFileUrl] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<number>(0);
+
+  React.useEffect(() => {
+    if (!isSaving) {
+      setUploadProgress(0);
+      targetProgressRef.current = 0;
+      return;
+    }
+
+    targetProgressRef.current = 5;
+    let tickCount = 0;
+
+    const interval = setInterval(() => {
+      setUploadProgress((prev) => {
+        if (prev >= 100) return 100;
+
+        const target = targetProgressRef.current;
+        if (prev < target) {
+          // Smoothly and continuously increment 1% or 2% to catch up to target without big jumps
+          const diff = target - prev;
+          const step = diff > 40 ? 2 : 1;
+          return Math.min(100, prev + step);
+        }
+        return prev;
+      });
+    }, 15);
+
+    return () => clearInterval(interval);
+  }, [isSaving]);
   const [failedImageUrls, setFailedImageUrls] = useState<Record<string, boolean>>({});
   const [revealedImages, setRevealedImages] = useState<Record<string, boolean>>({});
   
@@ -485,7 +530,7 @@ export default function PostCard({
       const cleanUrl = href.split('?')[0].split('#')[0];
       const isImg = /\.(jpeg|jpg|gif|png|webp|bmp|svg|tiff)$/i.test(cleanUrl);
       
-      if (isImg && editedImageUrls.length + newImages.length + detectedUrls.length < 10) {
+      if (isImg && editedImageUrls.length + newImages.length + detectedUrls.length < 15) {
         detectedUrls.push(href);
         cleanText = cleanText.replace(match, '');
       }
@@ -806,7 +851,8 @@ export default function PostCard({
 
     setIsSaving(true);
     setStatus('جاري الحفظ...');
-    setUploadProgress(0);
+    setUploadProgress(5);
+    targetProgressRef.current = 5;
 
     try {
       if (isLocalPost) {
@@ -814,9 +860,9 @@ export default function PostCard({
         const newUrls: string[] = [];
         for (let i = 0; i < newImages.length; i++) {
           const file = newImages[i];
-          for (let p = 10; p <= 100; p += 15) {
-            setUploadProgress(Math.round(((i * 100) + p) / newImages.length));
-            await new Promise(r => setTimeout(r, 40));
+          for (let p = 1; p <= 100; p++) {
+            targetProgressRef.current = Math.round(((i * 100) + p) / newImages.length);
+            await new Promise(r => setTimeout(r, 6));
           }
           if (typeof file === 'string') {
             newUrls.push(file);
@@ -866,6 +912,10 @@ export default function PostCard({
           showToast('تم تحديث المنشور محلياً بنجاح✅');
         }
 
+        // Complete progress to 100%
+        targetProgressRef.current = 100;
+        await new Promise(resolve => setTimeout(resolve, 450));
+
         setIsEditing(false);
         setNewImages([]);
         setNewPreviews([]);
@@ -904,7 +954,7 @@ export default function PostCard({
           try {
             const url = await uploadPostImage(filesToUpload[i], post.authorId, editedText, (percent) => {
               const overallPercent = Math.round(((i * 100) + percent) / filesToUpload.length);
-              setUploadProgress(overallPercent);
+              targetProgressRef.current = Math.max(targetProgressRef.current, overallPercent);
             });
             finalImageUrls.push(url);
           } catch (uploadErr: any) {
@@ -919,7 +969,7 @@ export default function PostCard({
               }
               const url = await uploadPostImage(filesToUpload[i], post.authorId, editedText, (percent) => {
                 const overallPercent = Math.round(((i * 100) + percent) / filesToUpload.length);
-                setUploadProgress(overallPercent);
+                targetProgressRef.current = Math.max(targetProgressRef.current, overallPercent);
               });
               finalImageUrls.push(url);
               continue;
@@ -944,24 +994,37 @@ export default function PostCard({
 
       setStatus('جاري الحفظ في Firestore...');
       // 3. Update Firestore
+      targetProgressRef.current = 95;
       const finalImageModels = [...editedImageModels, ...newImageModels];
       const finalImageCaptions = [...editedImageCaptions, ...newImageCaptions];
       const finalFileNames = [...editedFileNames, ...newFileNames];
       const finalFileTypes = [...editedFileTypes, ...newFileTypes];
 
+      const isSafeBoard = editedBoardId === 'safe-board';
+      const vaultKey = sessionStorage.getItem('safe_vault_password') || '';
+
+      const textToSave = isSafeBoard && vaultKey ? encryptText(editedText.trim(), vaultKey) : editedText.trim();
+      const captionsToSave = isSafeBoard && vaultKey ? encryptArray(finalImageCaptions, vaultKey) : finalImageCaptions;
+      const fileNamesToSave = isSafeBoard && vaultKey ? encryptArray(finalFileNames, vaultKey) : finalFileNames;
+
       await updateDoc(doc(db, 'posts', post.id), {
-        text: editedText.trim(),
+        text: textToSave,
         imageUrls: finalImageUrls,
         imageUrl: finalImageUrls.length > 0 ? finalImageUrls[0] : null,
         imageModels: finalImageModels,
-        imageCaptions: finalImageCaptions,
-        fileNames: finalFileNames,
+        imageCaptions: captionsToSave,
+        fileNames: fileNamesToSave,
         fileTypes: finalFileTypes,
         boardId: editedBoardId,
         updatedAt: serverTimestamp(),
       });
 
       console.log('[PostCard] Update successful');
+
+      // Complete progress to 100%
+      targetProgressRef.current = 100;
+      await new Promise(resolve => setTimeout(resolve, 450));
+
       setIsEditing(false);
       setNewImages([]);
       setNewPreviews([]);
@@ -983,8 +1046,8 @@ export default function PostCard({
     const files = Array.from(e.target.files || []) as File[];
     const totalCount = editedImageUrls.length + newImages.length + files.length;
     
-    if (totalCount > 10) {
-      showToast('يمكنك إضافة 10 مرفقات كحد أقصى.');
+    if (totalCount > 15) {
+      showToast('يمكنك إضافة 15 مرفقاً كحد أقصى.');
       return;
     }
 
@@ -1062,22 +1125,12 @@ export default function PostCard({
     e.preventDefault();
     e.stopPropagation();
 
+    // Prevent multiple simultaneous downloads for the same file
+    if (downloadingFileUrl === url) return;
+
     // Determine the final URL to fetch/download
     let downloadUrl = url;
     const activeToken = getAccessToken();
-
-    // If it's Google Drive, construct the direct download link
-    let fileId: string | null = null;
-    try {
-      const urlObj = new URL(url);
-      fileId = urlObj.searchParams.get('id');
-    } catch (err) {
-      // Not a valid URL
-    }
-
-    if (fileId && (url.includes('drive.google.com') || url.includes('googleusercontent'))) {
-      downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
-    }
 
     // Create a proxy URL pointing to our backend download proxy
     let proxyUrl = `/api/download?url=${encodeURIComponent(downloadUrl)}&name=${encodeURIComponent(name)}`;
@@ -1085,10 +1138,84 @@ export default function PostCard({
       proxyUrl += `&access_token=${encodeURIComponent(activeToken)}`;
     }
 
-    // Direct system download via window.location.href
-    // Since the server response will have Content-Disposition: attachment,
-    // this will trigger direct download on BOTH iOS/Android and desktop immediately, without opening tabs or navigating.
-    window.location.href = proxyUrl;
+    setDownloadingFileUrl(url);
+    setDownloadProgress(0);
+    showToast('📥 بدء تنزيل الملف، يرجى الانتظار...');
+
+    try {
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', proxyUrl, true);
+      xhr.responseType = 'blob';
+
+      xhr.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+          setDownloadProgress(percent);
+        } else {
+          // Slowly crawl up to 99% if length is not computable
+          setDownloadProgress((prev) => Math.min(99, prev + 1));
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status === 200) {
+          const blob = xhr.response;
+          const blobUrl = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = name;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(blobUrl);
+          
+          setDownloadProgress(100);
+          setTimeout(() => {
+            setDownloadingFileUrl(null);
+            setDownloadProgress(0);
+            showToast('✅ تم تنزيل الملف بنجاح');
+          }, 450);
+        } else {
+          console.warn(`XHR download failed with status ${xhr.status}, falling back to direct navigation...`);
+          fallbackDownload(proxyUrl);
+        }
+      };
+
+      xhr.onerror = () => {
+        console.warn('XHR download error, falling back to direct navigation...');
+        fallbackDownload(proxyUrl);
+      };
+
+      xhr.send();
+    } catch (err) {
+      console.warn('XHR setup failed, falling back to direct navigation:', err);
+      fallbackDownload(proxyUrl);
+    }
+  };
+
+  const fallbackDownload = (proxyUrl: string) => {
+    try {
+      window.location.href = proxyUrl;
+    } catch (err) {
+      console.warn('Direct redirection failed, attempting hidden iframe download:', err);
+      try {
+        let iframe = document.getElementById('download-iframe') as HTMLIFrameElement | null;
+        if (!iframe) {
+          iframe = document.createElement('iframe');
+          iframe.id = 'download-iframe';
+          iframe.style.display = 'none';
+          document.body.appendChild(iframe);
+        }
+        iframe.src = proxyUrl;
+      } catch (iframeErr) {
+        console.error('All download methods failed:', iframeErr);
+      }
+    }
+    // Clean up states after a short delay
+    setTimeout(() => {
+      setDownloadingFileUrl(null);
+      setDownloadProgress(0);
+    }, 2000);
   };
 
   const renderPostImage = (url: string, className: string, alt: string = "", extraProps: any = {}) => {
@@ -2477,23 +2604,45 @@ export default function PostCard({
                     onClick={(e) => handleDownloadFile(e, file.url, file.name || 'file')}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={`flex items-center gap-2.5 p-2 rounded-xl border transition-all hover:scale-[1.01] ${
+                    className={`relative overflow-hidden flex items-center gap-2.5 p-2 rounded-xl border transition-all hover:scale-[1.01] ${
                       isDarkMode
                         ? 'border-[#2C374E] bg-[#1a212e] text-white hover:bg-[#2C374E]'
                         : 'border-natural-border/60 bg-white text-natural-text hover:bg-natural-bg/40'
                     }`}
                   >
-                    <span className="text-2xl shrink-0">{isApk ? '🤖' : '📄'}</span>
-                    <div className="flex-1 min-w-0 text-right">
+                    {/* Real-time background progress fill */}
+                    {downloadingFileUrl === file.url && (
+                      <div 
+                        className={`absolute top-0 bottom-0 right-0 ${
+                          isDarkMode ? 'bg-[#16af75]/15' : 'bg-[#c26700]/15'
+                        } transition-all duration-150 ease-out z-0`}
+                        style={{ width: `${downloadProgress}%` }}
+                      />
+                    )}
+
+                    <span className="text-2xl shrink-0 z-10 flex items-center justify-center min-w-[28px] h-[28px]">
+                      {downloadingFileUrl === file.url ? (
+                        <span className={`text-[10px] font-black tracking-tighter ${isDarkMode ? 'text-[#16af75]' : 'text-[#c26700]'}`}>
+                          {downloadProgress}%
+                        </span>
+                      ) : (
+                        isApk ? '🤖' : '📄'
+                      )}
+                    </span>
+                    <div className="flex-1 min-w-0 text-right z-10">
                       <p className="text-xs font-bold truncate" title={file.name || 'ملف بدون اسم'}>
                         {file.name || 'ملف بدون اسم'}
                       </p>
                       <p className={`text-[9px] font-medium ${isDarkMode ? 'text-gray-400' : 'text-natural-muted'}`}>
-                        {isApk ? 'تطبيق أندرويد (APK)' : (file.type || 'ملف')}
+                        {downloadingFileUrl === file.url ? (
+                          <span className="animate-pulse font-black text-xs text-[#16af75]">جاري التنزيل...</span>
+                        ) : (
+                          isApk ? 'تطبيق أندرويد (APK)' : (file.type || 'ملف')
+                        )}
                       </p>
                     </div>
                     {post.imageCaptions?.[file.index] && (
-                      <span className="text-[10px] text-gray-500 italic truncate max-w-[80px]">
+                      <span className="text-[10px] text-gray-500 italic truncate max-w-[80px] z-10">
                         {post.imageCaptions[file.index]}
                       </span>
                     )}
@@ -2648,12 +2797,19 @@ export default function PostCard({
                         type="button"
                         onClick={() => {
                           if (board.id === 'safe-board') {
-                            setOnSuccessCallback(() => () => {
+                            const savedPass = sessionStorage.getItem('safe_vault_password');
+                            if (savedPass === '88775500') {
                               setEditedBoardId(board.id);
                               setIsTransferDrawerOpen(false);
                               window.dispatchEvent(new Event('unlock_posts_layout'));
-                            });
-                            setShowSafePasswordModal(true);
+                            } else {
+                              setOnSuccessCallback(() => () => {
+                                setEditedBoardId(board.id);
+                                setIsTransferDrawerOpen(false);
+                                window.dispatchEvent(new Event('unlock_posts_layout'));
+                              });
+                              setShowSafePasswordModal(true);
+                            }
                           } else {
                             setEditedBoardId(board.id);
                             setIsTransferDrawerOpen(false);
@@ -2733,6 +2889,7 @@ export default function PostCard({
                   onSubmit={(e) => {
                     e.preventDefault();
                     if (safePasswordInput === '88775500') {
+                      sessionStorage.setItem('safe_vault_password', safePasswordInput);
                       setShowSafePasswordModal(false);
                       setSafePasswordInput('');
                       setSafePasswordError(false);
