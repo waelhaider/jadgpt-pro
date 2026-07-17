@@ -231,8 +231,8 @@ async function startServer() {
         }
       }
 
-      // 2. Fallback: Try a public fetch of the original URL without any token/auth headers
-      if (!fetchRes) {
+      // 2. Fallback: Try a public fetch of the original URL without any token/auth headers (only if NOT Google Drive, because original URL for Google Drive is a thumbnail URL)
+      if (!fetchRes && !isGoogleDrive) {
         try {
           console.log(`[Proxy Download] Trying direct public fetch of original URL: ${url}...`);
           const fallbackRes = await fetch(url);

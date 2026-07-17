@@ -202,35 +202,49 @@ export function injectMetadataIntoJpeg(arrayBuffer: ArrayBuffer, prompt: string)
 }
 
 /**
- * Injects prompt as metadata inside PNG or JPEG files
+ * Injects prompt as metadata inside PNG or JPEG files using robust binary magic-byte signatures
  */
 export async function injectPromptIntoImage(file: File, prompt: string): Promise<File> {
   if (!prompt || !prompt.trim()) {
     return file;
   }
 
-  const type = file.type.toLowerCase();
-  const name = file.name.toLowerCase();
-  
-  if (type === 'image/png' || name.endsWith('.png')) {
-    try {
-      console.log('[MetadataInjector] Injecting prompt into PNG:', file.name);
-      const buffer = await file.arrayBuffer();
+  try {
+    const buffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+
+    // 1. Verify PNG signature: 89 50 4E 47
+    if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) {
+      console.log('[MetadataInjector] Magic bytes match PNG, injecting metadata:', file.name);
       const modifiedBuffer = injectMetadataIntoPng(buffer, prompt);
-      return new File([modifiedBuffer], file.name, { type: 'image/png' });
-    } catch (e) {
-      console.error('[MetadataInjector] Failed to inject PNG metadata:', e);
+      // Ensure the output file name has a .png extension to match its content
+      let finalName = file.name;
+      if (!finalName.toLowerCase().endsWith('.png')) {
+        const dotIdx = finalName.lastIndexOf('.');
+        const base = dotIdx !== -1 ? finalName.substring(0, dotIdx) : finalName;
+        finalName = `${base}.png`;
+      }
+      return new File([modifiedBuffer], finalName, { type: 'image/png' });
     }
-  } else if (type === 'image/jpeg' || type === 'image/jpg' || name.endsWith('.jpg') || name.endsWith('.jpeg')) {
-    try {
-      console.log('[MetadataInjector] Injecting prompt into JPEG:', file.name);
-      const buffer = await file.arrayBuffer();
+
+    // 2. Verify JPEG signature: FF D8
+    if (bytes[0] === 0xFF && bytes[1] === 0xD8) {
+      console.log('[MetadataInjector] Magic bytes match JPEG, injecting metadata:', file.name);
       const modifiedBuffer = injectMetadataIntoJpeg(buffer, prompt);
-      return new File([modifiedBuffer], file.name, { type: 'image/jpeg' });
-    } catch (e) {
-      console.error('[MetadataInjector] Failed to inject JPEG metadata:', e);
+      // Ensure the output file name has a .jpg extension to match its content
+      let finalName = file.name;
+      if (!finalName.toLowerCase().endsWith('.jpg') && !finalName.toLowerCase().endsWith('.jpeg')) {
+        const dotIdx = finalName.lastIndexOf('.');
+        const base = dotIdx !== -1 ? finalName.substring(0, dotIdx) : finalName;
+        finalName = `${base}.jpg`;
+      }
+      return new File([modifiedBuffer], finalName, { type: 'image/jpeg' });
     }
+
+    console.warn('[MetadataInjector] File bytes do not match PNG or JPEG signature. Skipping injection for:', file.name);
+  } catch (e) {
+    console.error('[MetadataInjector] Binary metadata injection failed:', e);
   }
-  
+
   return file;
 }

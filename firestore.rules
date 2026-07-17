@@ -50,7 +50,7 @@ service cloud.firestore {
     }
 
     function isValidPost(data) {
-      return data.text is string && data.text.size() <= 5000 &&
+      return data.text is string && data.text.size() <= 50000 &&
              (data.get('imageUrl', null) == null || data.get('imageUrl', null) is string) &&
              (data.get('imageUrls', []) is list && data.get('imageUrls', []).size() <= 50) &&
              (data.get('imageModels', []) is list && data.get('imageModels', []).size() <= 50) &&

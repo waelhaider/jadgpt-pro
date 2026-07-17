@@ -209,7 +209,7 @@ export default function Header({
   const renderApiKeySection = () => (
     <div className="pt-1 border-t border-natural-border/60 text-right space-y-2">
       <div className="flex items-center gap-1 justify-between">
-        <span className="text-xs font-normal text-[#4A4A35]">إعدادات الذكاء الاصطناعي</span>
+        <span className="text-xs font-normal text-[#B4C6D8]">إعدادات الذكاء الاصطناعي</span>
         <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1 py-0.5 rounded-md">مفتاح Gemini</span>
       </div>
       <p className="text-[8px] text-natural-muted leading-relaxed">
@@ -604,7 +604,7 @@ export default function Header({
 
                       {/* Notifications Switch */}
                       {isNotificationSupported() && (
-                        <div className={`flex flex-col gap-1.5 w-full p-3 rounded-2xl border transition-all ${
+                        <div className={`flex flex-col gap-0 w-full p-3 rounded-2xl border transition-all ${
                           isDarkMode 
                             ? 'bg-[#111822] border-[#2C374E] text-white' 
                             : 'bg-[#FAF9F5] border-natural-border text-natural-text'
@@ -876,7 +876,7 @@ export default function Header({
                         </button>
                       </div>
                   ) : (
-                    <div className="flex flex-col items-center w-full space-y-6 text-center py-3">
+                    <div className="flex flex-col items-center w-full space-y-3 text-center py-3">
                       <button
                         onClick={handleLogin}
                         className="flex w-full items-center justify-center gap-2 rounded-xl bg-natural-primary p-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-[#4A4A35] active:scale-95 cursor-pointer"
@@ -950,15 +950,15 @@ export default function Header({
                           
                           <p className={`text-[9px] text-right font-bold leading-relaxed ${isDarkMode ? 'text-[#B4C6D8]' : 'text-natural-muted'}`}>
                             {notificationPermission === 'granted' 
-                              ? 'إشعارات الهاتف وشارات التطبيق (Badge) مفعلة وتعمل تلقائياً دون أي تشغيل خلفي يدوي ✅'
-                              : 'اضغط لتفعيل الإشعارات والنقاط الحمراء على أيقونة التطبيق عند نشر المالك منشورات جديدة.'
+                              ? 'إشعارات الهاتف  مفعلة✅'
+                              : 'اضغط لتفعيل الإشعارات'
                             }
                           </p>
                         </div>
                       )}
 
                       {/* Tool Button for Guests as well */}
-                      <div className={`w-full pt-6 border-t space-y-2 ${isDarkMode ? 'border-[#2C374E]' : 'border-natural-border'}`}>
+                      <div className={`w-full pt-2 border-t space-y-2 ${isDarkMode ? 'border-[#2C374E]' : 'border-natural-border'}`}>
                         <h4 className={`text-[10px] font-bold uppercase tracking-widest text-right ${isDarkMode ? 'text-[#B4C6D8]' : 'text-natural-muted'}`}>الأدوات العامة</h4>
                         <div className="flex items-center justify-between gap-2 w-full">
                           {/* Button 1: تعديل النص */}

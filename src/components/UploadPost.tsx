@@ -205,8 +205,17 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
             const fileRes = await cache.match('shared-file');
             if (fileRes) {
               const blob = await fileRes.blob();
-              // Construct a valid File object
-              const file = new File([blob], `shared_${Date.now()}.png`, { type: blob.type || 'image/png' });
+              const mimeType = blob.type || 'image/png';
+              let extension = 'png';
+              if (mimeType.includes('jpeg') || mimeType.includes('jpg')) {
+                extension = 'jpg';
+              } else if (mimeType.includes('webp')) {
+                extension = 'webp';
+              } else if (mimeType.includes('gif')) {
+                extension = 'gif';
+              }
+              // Construct a valid File object with proper extension
+              const file = new File([blob], `shared_${Date.now()}.${extension}`, { type: mimeType });
               
               setImages([file]);
               setSelectedModels(['']);
@@ -564,7 +573,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
       setFileNames([]);
       setFileTypes([]);
       setStatus('');
-      showToast('🎉تم نشر وحفظ الملفات والمنشور بنجاح');
+      showToast('🎉تم نشر الملفات بنجاح');
     } catch (error) {
       console.error('Final upload error track:', error);
       const msg = error instanceof Error ? error.message : String(error);

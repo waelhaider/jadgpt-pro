@@ -61,3 +61,17 @@ export function decryptArray(arr: string[] | undefined | null, key: string): str
   if (!arr || !Array.isArray(arr)) return [];
   return arr.map(item => decryptText(item, key));
 }
+
+/**
+ * Hashes a string using SHA256 (via crypto-js).
+ */
+export function sha256(text: string): string {
+  if (!text) return '';
+  try {
+    return CryptoJS.SHA256(text).toString();
+  } catch (err) {
+    console.error('[E2EE] Hashing failed:', err);
+    return '';
+  }
+}
+

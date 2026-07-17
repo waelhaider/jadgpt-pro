@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Post, OperationType, Board } from '../types';
 import { db, auth } from '../lib/firebase';
 import { doc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { MoreHorizontal, Trash2, Edit3, Check, X, Clock, Copy, Loader2, Image as ImageIcon, Plus, Sparkles, Pin, ArrowUp, ArrowDown, Move, EyeOff, ChevronDown } from 'lucide-react';
+import { MoreHorizontal, Trash2, Edit3, Check, X, Clock, Copy, Loader2, Image as ImageIcon, Plus, Sparkles, Pin, ArrowUp, ArrowDown, Move, EyeOff, ChevronDown, Download } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'motion/react';
@@ -1159,6 +1159,17 @@ export default function PostCard({
 
       xhr.onload = () => {
         if (xhr.status === 200) {
+          const contentType = xhr.getResponseHeader('Content-Type') || '';
+          const isHtml = contentType.includes('text/html');
+          const isTargetHtml = name.toLowerCase().endsWith('.html') || name.toLowerCase().endsWith('.htm');
+          if (isHtml && !isTargetHtml) {
+            console.error('[Download] Received HTML content for a non-HTML file. This is likely a Google Drive permission error page.');
+            setDownloadingFileUrl(null);
+            setDownloadProgress(0);
+            showToast('⚠️ فشل التنزيل: يرجى تفعيل حساب G-Drive أو إعادة تسجيل الدخول لتنزيل الملف بالدقة الكاملة.');
+            return;
+          }
+
           const blob = xhr.response;
           const blobUrl = URL.createObjectURL(blob);
           const link = document.createElement('a');
@@ -1176,8 +1187,10 @@ export default function PostCard({
             showToast('✅ تم تنزيل الملف بنجاح');
           }, 450);
         } else {
-          console.warn(`XHR download failed with status ${xhr.status}, falling back to direct navigation...`);
-          fallbackDownload(proxyUrl);
+          console.warn(`XHR download failed with status ${xhr.status}`);
+          setDownloadingFileUrl(null);
+          setDownloadProgress(0);
+          showToast('⚠️ فشل التنزيل: يرجى تفعيل حساب G-Drive أو إعادة تسجيل الدخول لتنزيل الملف بالدقة الكاملة.');
         }
       };
 
@@ -2687,13 +2700,37 @@ export default function PostCard({
           controls: () => {
             const currentModel = post.imageModels?.[lightboxIndex];
             const currentCaption = post.imageCaptions?.[lightboxIndex];
+            const activeImageUrl = imagesList[lightboxIndex];
+            const origIdx = imageUrls.indexOf(activeImageUrl);
+            const name = post.fileNames?.[origIdx] || `image_${post.id}_${lightboxIndex + 1}.png`;
+            const isDownloadingThis = downloadingFileUrl === activeImageUrl;
+
             return (
-              <LightboxBottomOverlay 
-                modelName={currentModel} 
-                caption={currentCaption}
-                slideSrc={imageUrls[lightboxIndex]} 
-                
-              />
+              <>
+                {/* Custom Original Image Download Button - styled beautifully to merge with Close/Zoom controls */}
+                <button
+                  type="button"
+                  onClick={(e) => handleDownloadFile(e, activeImageUrl, name)}
+                  disabled={isDownloadingThis}
+                  className="yarl__button absolute top-0 right-[144px] z-[999999] flex items-center justify-center text-white/85 hover:text-white active:scale-95 disabled:opacity-50 transition-all bg-transparent border-none outline-none cursor-pointer w-12 h-12 p-0"
+                  title="تحميل الصورة الأصلية بكافة بايتاتها من Google Drive"
+                >
+                  {isDownloadingThis ? (
+                    <div className="relative flex items-center justify-center">
+                      <Loader2 className="animate-spin text-white" size={20} />
+                      <span className="absolute text-[7px] font-black text-white">{downloadProgress}</span>
+                    </div>
+                  ) : (
+                    <Download size={20} className="text-white" />
+                  )}
+                </button>
+
+                <LightboxBottomOverlay 
+                  modelName={currentModel} 
+                  caption={currentCaption}
+                  slideSrc={imageUrls[lightboxIndex]} 
+                />
+              </>
             );
           }
         }}

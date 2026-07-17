@@ -24,6 +24,7 @@ import OwnerLicensePanel from './components/OwnerLicensePanel';
 import LockScreen from './components/LockScreen';
 import ToastContainer, { showToast } from './components/Toast';
 import { updateAppBadge, sendLocalNotification } from './lib/notifications';
+import { sha256 } from './lib/encryption';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -655,7 +656,9 @@ export default function App() {
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
-                    if (safePasswordInput === '88775500') {
+                    const enteredHash = sha256(safePasswordInput);
+                    const targetHash = globalSettings.vaultPasswordHash || '8fdd2979ab916eae720a6bf9cdec715916e41d85aeff2a2b8136e37a64165773';
+                    if (enteredHash === targetHash) {
                       sessionStorage.setItem('safe_vault_password', safePasswordInput);
                       setShowSafePasswordModal(false);
                       setSafePasswordInput('');

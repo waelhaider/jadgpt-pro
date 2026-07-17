@@ -6,6 +6,7 @@ import {
   Shield, Clock, Search, ChevronDown, ChevronUp 
 } from 'lucide-react';
 import { GlobalSettings, License } from '../types';
+import { sha256 } from '../lib/encryption';
 
 interface OwnerLicensePanelProps {
   currentSettings: GlobalSettings;
@@ -24,6 +25,7 @@ export default function OwnerLicensePanel({ currentSettings, onUpdateSettings, c
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [subscriberToDelete, setSubscriberToDelete] = useState<License | null>(null);
+  const [newVaultPassword, setNewVaultPassword] = useState('');
 
   useEffect(() => {
     setTrialDaysInput(currentSettings.trialDays);
@@ -57,6 +59,27 @@ export default function OwnerLicensePanel({ currentSettings, onUpdateSettings, c
       alert('تم حفظ الإعدادات بنجاح!');
     } catch (err: any) {
       alert(`فشل حفظ الإعدادات: ${err.message || err}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveVaultPassword = async () => {
+    const cleanPassword = newVaultPassword.trim();
+    if (!cleanPassword) {
+      alert('يرجى إدخال كلمة مرور جديدة!');
+      return;
+    }
+    setLoading(true);
+    try {
+      const passwordHash = sha256(cleanPassword);
+      await onUpdateSettings({
+        vaultPasswordHash: passwordHash
+      });
+      setNewVaultPassword('');
+      alert('تم تحديث كلمة مرور الخزنة بنجاح وحمايتها بتشفير آمن! 🔒');
+    } catch (err: any) {
+      alert(`فشل تحديث كلمة المرور: ${err.message || err}`);
     } finally {
       setLoading(false);
     }
@@ -313,6 +336,48 @@ export default function OwnerLicensePanel({ currentSettings, onUpdateSettings, c
                   </button>
                 </div>
               )}
+            </div>
+
+            {/* Vault Password Changer */}
+            <div className={`p-2.5 rounded-xl border space-y-2.5 ${
+              isDarkMode ? 'bg-[#111822] border-[#2C374E]' : 'bg-neutral-50/50 border-natural-border/30'
+            }`}>
+              <h4 className={`text-[10px] font-black flex items-center gap-1 border-b pb-1 ${
+                isDarkMode ? 'text-[#008D75] border-[#2C374E]/30' : 'text-[#4A4A35] border-natural-border/10'
+              }`}>
+                <span className="text-xs">🔒</span>
+                <span>تغيير كلمة مرور الخزنة</span>
+              </h4>
+
+              <div className="space-y-1">
+                <label className={`block text-[10px] font-bold ${isDarkMode ? 'text-[#B4C6D8]' : 'text-natural-text'}`}>
+                  كلمة المرور الجديدة لخزنة الصور
+                </label>
+                <input 
+                  type="password" 
+                  placeholder="أدخل كلمة المرور الجديدة..."
+                  value={newVaultPassword}
+                  onChange={(e) => setNewVaultPassword(e.target.value)}
+                  className={`w-full rounded-lg border px-2 py-1 text-right text-[10px] focus:outline-none font-sans ${
+                    isDarkMode 
+                      ? 'border-[#2C374E] bg-[#1A212E] text-white focus:border-[#008D75]' 
+                      : 'border-natural-border/40 bg-white text-natural-text focus:border-natural-primary'
+                  }`}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSaveVaultPassword}
+                disabled={loading}
+                className={`w-full py-1.5 rounded-lg text-[10px] font-black shadow-sm transition-all cursor-pointer ${
+                  isDarkMode 
+                    ? 'bg-[#008D75] hover:bg-[#007460] text-white' 
+                    : 'bg-natural-primary hover:bg-[#3d3d2a] text-white'
+                }`}
+              >
+                {loading ? 'جاري الحفظ...' : 'حفظ كلمة المرور الجديدة 🔒'}
+              </button>
             </div>
 
           </div>

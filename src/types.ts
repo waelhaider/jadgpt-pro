@@ -31,6 +31,7 @@ export interface GlobalSettings {
   ownerEmail: string;
   trialDays: number;
   allFree: boolean;
+  vaultPasswordHash?: string;
 }
 
 export interface License {
