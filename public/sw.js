@@ -1,5 +1,5 @@
 // Core service worker for PWA caching, performance optimization, and Share Target support
-const CACHE_NAME = 'jadgpt-v2';
+const CACHE_NAME = 'jadgpt-v3';
 
 const PRECACHE_ASSETS = [
   '/',
