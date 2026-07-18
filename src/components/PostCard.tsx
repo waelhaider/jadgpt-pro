@@ -1168,105 +1168,149 @@ export default function PostCard({
       setDownloadProgress(0);
     };
 
-    // Determine the final URL to fetch/download
-    let downloadUrl = url;
-    const activeToken = getAccessToken();
+    const startDownloadFlow = async (retryOn401 = true) => {
+      // Determine the final URL to fetch/download
+      let downloadUrl = url;
+      const activeToken = getAccessToken();
 
-    // Determine the backend base URL. If hosted on a static hosting platform (like Netlify),
-    // point to our live secure Cloud Run backend deployment to perform proxying with CORS.
-    const backendBaseUrl = isStaticHost ? 'https://ais-pre-73b5ktfwj7jc3r2bxn3pj5-351201511869.europe-west3.run.app' : '';
+      // Determine the backend base URL. If hosted on a static hosting platform (like Netlify),
+      // point to our live secure Cloud Run backend deployment to perform proxying with CORS.
+      const backendBaseUrl = isStaticHost ? 'https://ais-pre-73b5ktfwj7jc3r2bxn3pj5-351201511869.europe-west3.run.app' : '';
 
-    // Create a proxy URL pointing to our backend download proxy
-    let proxyUrl = `${backendBaseUrl}/api/download?url=${encodeURIComponent(downloadUrl)}&name=${encodeURIComponent(name)}`;
-    if (activeToken && activeToken !== 'local-dummy-token') {
-      proxyUrl += `&access_token=${encodeURIComponent(activeToken)}`;
-    }
+      // Create a proxy URL pointing to our backend download proxy
+      let proxyUrl = `${backendBaseUrl}/api/download?url=${encodeURIComponent(downloadUrl)}&name=${encodeURIComponent(name)}`;
+      if (activeToken && activeToken !== 'local-dummy-token') {
+        proxyUrl += `&access_token=${encodeURIComponent(activeToken)}`;
+      }
 
-    setDownloadingFileUrl(url);
-    setDownloadProgress(0);
-    showToast('📥 بدء تنزيل الملف، يرجى الانتظار...');
+      setDownloadingFileUrl(url);
+      setDownloadProgress(0);
+      showToast('📥 بدء تنزيل الملف، يرجى الانتظار...');
 
-    try {
-      const xhr = new XMLHttpRequest();
-      xhr.open('GET', proxyUrl, true);
-      xhr.responseType = 'blob';
+      try {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', proxyUrl, true);
+        xhr.responseType = 'blob';
 
-      xhr.onprogress = (event) => {
-        if (event.lengthComputable) {
-          const percent = Math.round((event.loaded / event.total) * 100);
-          setDownloadProgress(percent);
-        } else {
-          // Slowly crawl up to 99% if length is not computable
-          setDownloadProgress((prev) => Math.min(99, prev + 1));
-        }
-      };
+        xhr.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percent = Math.round((event.loaded / event.total) * 100);
+            setDownloadProgress(percent);
+          } else {
+            // Slowly crawl up to 99% if length is not computable
+            setDownloadProgress((prev) => Math.min(99, prev + 1));
+          }
+        };
 
-      xhr.onload = () => {
-        if (xhr.status === 200) {
-          const contentType = xhr.getResponseHeader('Content-Type') || '';
-          const isHtml = contentType.includes('text/html');
-          const isTargetHtml = name.toLowerCase().endsWith('.html') || name.toLowerCase().endsWith('.htm');
-          if (isHtml && !isTargetHtml) {
-            console.error('[Download] Received HTML content for a non-HTML file. This is likely a Google Drive permission error page or Netlify SPA fallback.');
+        xhr.onload = async () => {
+          if (xhr.status === 200) {
+            const contentType = xhr.getResponseHeader('Content-Type') || '';
+            const isHtml = contentType.includes('text/html');
+            const isTargetHtml = name.toLowerCase().endsWith('.html') || name.toLowerCase().endsWith('.htm');
+            if (isHtml && !isTargetHtml) {
+              console.error('[Download] Received HTML content for a non-HTML file. This is likely a Google Drive permission error page or Netlify SPA fallback.');
+              
+              if (retryOn401 && activeToken && activeToken !== 'local-dummy-token') {
+                console.log('[Download] Access might have expired or requires re-auth. Attempting silent/popup re-authorization...');
+                showToast('🔑 انتهت صلاحية الصلاحيات، يرجى تسجيل الدخول مجدداً لتنزيل الملف بأمان...');
+                try {
+                  const authResult = await googleSignIn();
+                  if (authResult && authResult.accessToken) {
+                    showToast('🔄 تم تجديد الصلاحية بنجاح! جاري التنزيل...');
+                    startDownloadFlow(false);
+                    return;
+                  }
+                } catch (authErr) {
+                  console.error('[Download] Re-authorization failed:', authErr);
+                }
+              }
+
+              if (fileId) {
+                console.log('[Download] Falling back to direct Google Drive download...');
+                triggerDirectDriveDownload(fileId);
+              } else {
+                setDownloadingFileUrl(null);
+                setDownloadProgress(0);
+                showToast('⚠️ فشل التنزيل: يرجى تفعيل حساب G-Drive أو إعادة تسجيل الدخول لتنزيل الملف بالدقة الكاملة.');
+              }
+              return;
+            }
+
+            const blob = xhr.response;
+            const blobUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = name;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(blobUrl);
+            
+            setDownloadProgress(100);
+            setTimeout(() => {
+              setDownloadingFileUrl(null);
+              setDownloadProgress(0);
+              showToast('✅ تم تنزيل الملف بنجاح');
+            }, 450);
+          } else if (xhr.status === 401) {
+            console.warn(`XHR download failed with 401 (Unauthorized)`);
+            if (retryOn401) {
+              console.log('[Download] Received 401. Attempting Google Sign In re-authorization...');
+              showToast('🔑 انتهت صلاحية الصلاحيات، يرجى تسجيل الدخول مجدداً لتنزيل الملف بأمان...');
+              try {
+                const authResult = await googleSignIn();
+                if (authResult && authResult.accessToken) {
+                  showToast('🔄 تم تجديد الصلاحية بنجاح! جاري التنزيل...');
+                  startDownloadFlow(false);
+                  return;
+                }
+              } catch (authErr) {
+                console.error('[Download] Re-authorization failed:', authErr);
+              }
+            }
             
             if (fileId) {
-              console.log('[Download] Falling back to direct Google Drive download...');
+              console.log('[Download] Falling back to direct Google Drive download on failure status...');
               triggerDirectDriveDownload(fileId);
             } else {
               setDownloadingFileUrl(null);
               setDownloadProgress(0);
               showToast('⚠️ فشل التنزيل: يرجى تفعيل حساب G-Drive أو إعادة تسجيل الدخول لتنزيل الملف بالدقة الكاملة.');
             }
-            return;
+          } else {
+            console.warn(`XHR download failed with status ${xhr.status}`);
+            if (fileId) {
+              console.log('[Download] Falling back to direct Google Drive download on failure status...');
+              triggerDirectDriveDownload(fileId);
+            } else {
+              setDownloadingFileUrl(null);
+              setDownloadProgress(0);
+              showToast('⚠️ فشل التنزيل: يرجى تفعيل حساب G-Drive أو إعادة تسجيل الدخول لتنزيل الملف بالدقة الكاملة.');
+            }
           }
+        };
 
-          const blob = xhr.response;
-          const blobUrl = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = blobUrl;
-          link.download = name;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(blobUrl);
-          
-          setDownloadProgress(100);
-          setTimeout(() => {
-            setDownloadingFileUrl(null);
-            setDownloadProgress(0);
-            showToast('✅ تم تنزيل الملف بنجاح');
-          }, 450);
-        } else {
-          console.warn(`XHR download failed with status ${xhr.status}`);
+        xhr.onerror = () => {
+          console.warn('XHR download error, falling back to direct navigation...');
           if (fileId) {
-            console.log('[Download] Falling back to direct Google Drive download on failure status...');
             triggerDirectDriveDownload(fileId);
           } else {
-            setDownloadingFileUrl(null);
-            setDownloadProgress(0);
-            showToast('⚠️ فشل التنزيل: يرجى تفعيل حساب G-Drive أو إعادة تسجيل الدخول لتنزيل الملف بالدقة الكاملة.');
+            fallbackDownload(proxyUrl);
           }
-        }
-      };
+        };
 
-      xhr.onerror = () => {
-        console.warn('XHR download error, falling back to direct navigation...');
+        xhr.send();
+      } catch (err) {
+        console.warn('XHR setup failed, falling back to direct navigation:', err);
         if (fileId) {
           triggerDirectDriveDownload(fileId);
         } else {
           fallbackDownload(proxyUrl);
         }
-      };
-
-      xhr.send();
-    } catch (err) {
-      console.warn('XHR setup failed, falling back to direct navigation:', err);
-      if (fileId) {
-        triggerDirectDriveDownload(fileId);
-      } else {
-        fallbackDownload(proxyUrl);
       }
-    }
+    };
+
+    await startDownloadFlow(true);
   };
 
   const fallbackDownload = (proxyUrl: string) => {

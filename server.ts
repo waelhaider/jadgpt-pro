@@ -189,6 +189,18 @@ async function startServer() {
             const confirmUrl = `https://drive.google.com/uc?export=download&confirm=${confirmCode}&id=${fId}`;
             return fetch(confirmUrl, { headers });
           }
+
+          // If we got HTML but there is no confirm code, and the expected file name is NOT an HTML file,
+          // then this is definitely an error/permission page from Google Drive!
+          const isExpectedHtml = fileName.toLowerCase().endsWith('.html') || fileName.toLowerCase().endsWith('.htm');
+          if (!isExpectedHtml) {
+            console.warn(`[Proxy Download] Public Drive fetch returned HTML but expected non-HTML file. Returning a 403 status to indicate permission required.`);
+            return new Response('Google Drive permission error page or login screen.', {
+              status: 403,
+              statusText: 'Forbidden (Google Drive permission required)',
+              headers: { 'Content-Type': 'text/plain' }
+            });
+          }
         }
         return initialRes;
       };
@@ -211,6 +223,11 @@ async function startServer() {
               console.log(`[Proxy Download] Authenticated Google Drive API download succeeded.`);
             } else {
               console.warn(`[Proxy Download] Authenticated Google Drive API download failed with status ${authRes.status}.`);
+              if (authRes.status === 401) {
+                // Return 401 directly so the frontend can refresh the token
+                res.status(401).json({ error: 'Google Drive authentication expired or invalid.' });
+                return;
+              }
             }
           } catch (authErr) {
             console.warn('[Proxy Download] Authenticated Google Drive API download error:', authErr);
