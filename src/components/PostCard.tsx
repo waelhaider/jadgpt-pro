@@ -1168,17 +1168,16 @@ export default function PostCard({
       setDownloadProgress(0);
     };
 
-    if (isStaticHost && fileId) {
-      triggerDirectDriveDownload(fileId);
-      return;
-    }
-
     // Determine the final URL to fetch/download
     let downloadUrl = url;
     const activeToken = getAccessToken();
 
+    // Determine the backend base URL. If hosted on a static hosting platform (like Netlify),
+    // point to our live secure Cloud Run backend deployment to perform proxying with CORS.
+    const backendBaseUrl = isStaticHost ? 'https://ais-pre-73b5ktfwj7jc3r2bxn3pj5-351201511869.europe-west3.run.app' : '';
+
     // Create a proxy URL pointing to our backend download proxy
-    let proxyUrl = `/api/download?url=${encodeURIComponent(downloadUrl)}&name=${encodeURIComponent(name)}`;
+    let proxyUrl = `${backendBaseUrl}/api/download?url=${encodeURIComponent(downloadUrl)}&name=${encodeURIComponent(name)}`;
     if (activeToken && activeToken !== 'local-dummy-token') {
       proxyUrl += `&access_token=${encodeURIComponent(activeToken)}`;
     }

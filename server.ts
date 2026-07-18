@@ -71,6 +71,7 @@ async function startServer() {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
     res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Authorization, x-gemini-api-key, x-api-key');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Disposition');
     if (req.method === 'OPTIONS') {
       return res.sendStatus(200);
     }
