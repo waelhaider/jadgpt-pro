@@ -1128,7 +1128,7 @@ export default function PostCard({
   const filesList = imageUrls
     .map((url, i) => {
       const fileId = extractFileIdFromUrl(url);
-      const downloadUrl = fileId ? `https://docs.google.com/uc?export=download&id=${fileId}` : url;
+      const downloadUrl = fileId ? `https://drive.usercontent.google.com/download?id=${fileId}&export=download` : url;
       return { url, downloadUrl, name: fileNames[i], type: fileTypes[i], index: i };
     })
     .filter(item => !isUrlAnImage(item.url, item.index));
@@ -1163,7 +1163,7 @@ export default function PostCard({
 
     // Helper to perform direct Google Drive download on static hostings or as a fallback
     const triggerDirectDriveDownload = (fId: string) => {
-      const directUrl = `https://docs.google.com/uc?export=download&id=${fId}`;
+      const directUrl = `https://drive.usercontent.google.com/download?id=${fId}&export=download`;
       showToast('📥 جاري تنزيل الملف مباشرة...');
       
       // Open in a new window/tab to avoid terminating the active page,
