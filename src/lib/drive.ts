@@ -10,7 +10,7 @@ export async function uploadToDrive(file: File, accessToken: string, onProgress?
 
   // 1. Initiate resumable upload session
   const metadata = {
-    name: `horizon_${Date.now()}_${file.name}`,
+    name: file.name,
     mimeType: file.type || 'application/octet-stream',
   };
 

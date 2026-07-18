@@ -100,7 +100,10 @@ async function startServer() {
         return res.status(400).send('URL is required');
       }
 
-      const fileName = typeof name === 'string' ? name : 'download';
+      let fileName = typeof name === 'string' ? name : 'download';
+      if (fileName.startsWith('horizon_')) {
+        fileName = fileName.replace(/^horizon_(?:\d+_)?/, '');
+      }
       console.log(`[Proxy Download] Downloading: ${url} with output name: ${fileName}`);
 
       // Handle base64 data URLs

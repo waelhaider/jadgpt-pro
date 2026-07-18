@@ -1148,6 +1148,12 @@ export default function PostCard({
     // Prevent multiple simultaneous downloads for the same file
     if (downloadingFileUrl === url) return;
 
+    // Sanitize the filename to strip any "horizon_" or "horizon_TIMESTAMP_" prefix
+    let sanitizedName = name || 'file';
+    if (sanitizedName.startsWith('horizon_')) {
+      sanitizedName = sanitizedName.replace(/^horizon_(?:\d+_)?/, '');
+    }
+
     const fileId = extractFileIdFromUrl(url);
     const isStaticHost = 
       window.location.hostname.includes('netlify') || 
@@ -1168,6 +1174,25 @@ export default function PostCard({
       setDownloadProgress(0);
     };
 
+    let progressInterval: NodeJS.Timeout | null = null;
+    const startProgressSimulation = () => {
+      let currentProgress = 0;
+      setDownloadProgress(0);
+      if (progressInterval) clearInterval(progressInterval);
+      progressInterval = setInterval(() => {
+        // Smooth logarithmic visual curve up to 95%
+        currentProgress = Math.min(95, currentProgress + Math.max(1, Math.round((100 - currentProgress) * 0.15)));
+        setDownloadProgress(currentProgress);
+      }, 350);
+    };
+
+    const stopProgressSimulation = () => {
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+      }
+    };
+
     const startDownloadFlow = async (retryOn401 = true) => {
       // Determine the final URL to fetch/download
       let downloadUrl = url;
@@ -1178,13 +1203,13 @@ export default function PostCard({
       const backendBaseUrl = isStaticHost ? 'https://ais-pre-73b5ktfwj7jc3r2bxn3pj5-351201511869.europe-west3.run.app' : '';
 
       // Create a proxy URL pointing to our backend download proxy
-      let proxyUrl = `${backendBaseUrl}/api/download?url=${encodeURIComponent(downloadUrl)}&name=${encodeURIComponent(name)}`;
+      let proxyUrl = `${backendBaseUrl}/api/download?url=${encodeURIComponent(downloadUrl)}&name=${encodeURIComponent(sanitizedName)}`;
       if (activeToken && activeToken !== 'local-dummy-token') {
         proxyUrl += `&access_token=${encodeURIComponent(activeToken)}`;
       }
 
       setDownloadingFileUrl(url);
-      setDownloadProgress(0);
+      startProgressSimulation();
       showToast('📥 بدء تنزيل الملف، يرجى الانتظار...');
 
       try {
@@ -1194,19 +1219,18 @@ export default function PostCard({
 
         xhr.onprogress = (event) => {
           if (event.lengthComputable) {
+            stopProgressSimulation();
             const percent = Math.round((event.loaded / event.total) * 100);
             setDownloadProgress(percent);
-          } else {
-            // Slowly crawl up to 99% if length is not computable
-            setDownloadProgress((prev) => Math.min(99, prev + 1));
           }
         };
 
         xhr.onload = async () => {
+          stopProgressSimulation();
           if (xhr.status === 200) {
             const contentType = xhr.getResponseHeader('Content-Type') || '';
             const isHtml = contentType.includes('text/html');
-            const isTargetHtml = name.toLowerCase().endsWith('.html') || name.toLowerCase().endsWith('.htm');
+            const isTargetHtml = sanitizedName.toLowerCase().endsWith('.html') || sanitizedName.toLowerCase().endsWith('.htm');
             if (isHtml && !isTargetHtml) {
               console.error('[Download] Received HTML content for a non-HTML file. This is likely a Google Drive permission error page or Netlify SPA fallback.');
               
@@ -1240,7 +1264,7 @@ export default function PostCard({
             const blobUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = blobUrl;
-            link.download = name;
+            link.download = sanitizedName;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -1291,6 +1315,7 @@ export default function PostCard({
         };
 
         xhr.onerror = () => {
+          stopProgressSimulation();
           console.warn('XHR download error, falling back to direct navigation...');
           if (fileId) {
             triggerDirectDriveDownload(fileId);
@@ -1301,6 +1326,7 @@ export default function PostCard({
 
         xhr.send();
       } catch (err) {
+        stopProgressSimulation();
         console.warn('XHR setup failed, falling back to direct navigation:', err);
         if (fileId) {
           triggerDirectDriveDownload(fileId);
