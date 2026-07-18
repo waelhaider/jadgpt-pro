@@ -130,12 +130,8 @@ self.addEventListener('fetch', (event) => {
     }
   }
 
-  // Fallback pass-through fetch handler for other requests (APIs, Firestore, etc.)
-  event.respondWith(
-    fetch(event.request).catch(() => {
-      return caches.match(event.request);
-    })
-  );
+  // For any other requests (like external APIs, Firestore, or /api/download),
+  // we do NOT call event.respondWith(), allowing the browser to handle them natively.
 });
 
 // Background push notification event listener

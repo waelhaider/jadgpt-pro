@@ -134,7 +134,11 @@ async function startServer() {
       // Helper function to fetch Google Drive files publicly with confirmation bypass for large files
       const fetchDrivePublic = async (fId: string): Promise<Response> => {
         const publicUrl = `https://drive.google.com/uc?export=download&id=${fId}`;
-        const initialRes = await fetch(publicUrl);
+        const initialRes = await fetch(publicUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+          }
+        });
         if (!initialRes.ok) {
           return initialRes;
         }
@@ -143,14 +147,30 @@ async function startServer() {
         if (type.includes('text/html')) {
           const cloneRes = initialRes.clone();
           const html = await cloneRes.text();
-          // Look for confirm query parameter or form value in Google Drive virus warning page
-          const confirmMatch = html.match(/confirm=([a-zA-Z0-9_-]+)/) || html.match(/id="downloadForm".*?confirm.*?value="([a-zA-Z0-9_-]+)"/);
-          if (confirmMatch && confirmMatch[1]) {
-            const confirmCode = confirmMatch[1];
+          
+          let confirmCode = '';
+          const m1 = html.match(/confirm=([a-zA-Z0-9_-]+)/i);
+          if (m1 && m1[1]) {
+            confirmCode = m1[1];
+          } else {
+            const m2 = html.match(/name="confirm"\s+value="([a-zA-Z0-9_-]+)"/i) || html.match(/value="([a-zA-Z0-9_-]+)"\s+name="confirm"/i);
+            if (m2 && m2[1]) {
+              confirmCode = m2[1];
+            } else {
+              const m3 = html.match(/id="downloadForm".*?confirm.*?value="([a-zA-Z0-9_-]+)"/s);
+              if (m3 && m3[1]) {
+                confirmCode = m3[1];
+              }
+            }
+          }
+
+          if (confirmCode) {
             console.log(`[Proxy Download] Found Google Drive virus warning confirm code: ${confirmCode}. Re-fetching with confirmation...`);
             
             let cookies = '';
-            const headers: Record<string, string> = {};
+            const headers: Record<string, string> = {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+            };
             if (typeof initialRes.headers.getSetCookie === 'function') {
               const cookiesArr = initialRes.headers.getSetCookie();
               if (cookiesArr && cookiesArr.length > 0) {
@@ -236,7 +256,11 @@ async function startServer() {
       if (!fetchRes && !isGoogleDrive) {
         try {
           console.log(`[Proxy Download] Trying direct public fetch of original URL: ${url}...`);
-          const fallbackRes = await fetch(url);
+          const fallbackRes = await fetch(url, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+            }
+          });
           if (fallbackRes.ok) {
             fetchRes = fallbackRes;
           }
@@ -255,8 +279,10 @@ async function startServer() {
       const contentType = fetchRes.headers.get('content-type') || 'application/octet-stream';
       const contentLength = fetchRes.headers.get('content-length');
 
+      // Use RFC 5987 standard format: ASCII fallback + encoded UTF-8 for Arabic support
+      const asciiName = fileName.replace(/[^\x20-\x7E]/g, '_');
       res.setHeader('Content-Type', contentType);
-      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"; filename*=UTF-8''${encodeURIComponent(fileName)}`);
+      res.setHeader('Content-Disposition', `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`);
       
       if (contentLength) {
         res.setHeader('Content-Length', contentLength);
