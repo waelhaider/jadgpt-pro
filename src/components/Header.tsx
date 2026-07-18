@@ -222,7 +222,7 @@ export default function Header({
             value={sidebarKey}
             onChange={(e) => setSidebarKey(e.target.value)}
             placeholder="AIzaSy..."
-            className="w-full text-xs rounded-xl border border-natural-border pl-10 pr-3 py-2.5 bg-white font-mono text-left focus:outline-none focus:ring-1 focus:ring-natural-primary"
+            className="w-full text-xs rounded-xl pl-10 pr-3 py-2.5 bg-natural-primary font-mono text-left focus:outline-none focus:ring-1 focus:ring-natural-primary"
           />
           <Key size={14} className="absolute left-3 text-natural-muted/60" />
         </div>
@@ -245,7 +245,7 @@ export default function Header({
                 }
                 alert('تم حذف المفتاح وتصفير الحقل بنجاح.');
               }}
-              className="px-2.5 rounded-xl border border-red-200 bg-red-50 text-red-700 text-[11px] font-bold hover:bg-red-100 transition-colors"
+              className="px-2.5 rounded-xl bg-natural-primary text-white text-[11px] font-bold hover:bg-red-100 transition-colors"
             >
               حذف 🗑️
             </button>

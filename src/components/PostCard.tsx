@@ -507,9 +507,6 @@ export default function PostCard({
     if (url.startsWith('data:image/')) {
       return true;
     }
-    if (!post.fileTypes || post.fileTypes.length === 0) {
-      return true;
-    }
     const cleanUrl = url.split('?')[0].split('#')[0].toLowerCase();
     return /\.(jpeg|jpg|gif|png|webp|bmp|svg|tiff)$/i.test(cleanUrl);
   };
@@ -1104,13 +1101,36 @@ export default function PostCard({
     setNewFileTypes(newFileTypes.filter((_, i) => i !== index));
   };
 
+  const extractFileIdFromUrl = (url: string): string | null => {
+    try {
+      if (!url) return null;
+      if (url.startsWith('data:')) return null;
+      const urlObj = new URL(url);
+      const id = urlObj.searchParams.get('id');
+      if (id) return id;
+      
+      const pathParts = urlObj.pathname.split('/');
+      const dIdx = pathParts.indexOf('d');
+      if (dIdx !== -1 && pathParts[dIdx + 1]) {
+        return pathParts[dIdx + 1];
+      }
+    } catch (e) {
+      // Ignore
+    }
+    return null;
+  };
+
   const imageUrls = post.imageUrls || (post.imageUrl ? [post.imageUrl] : []);
   const fileNames = post.fileNames || [];
   const fileTypes = post.fileTypes || [];
 
   const imagesList = imageUrls.filter((url, i) => isUrlAnImage(url, i));
   const filesList = imageUrls
-    .map((url, i) => ({ url, name: fileNames[i], type: fileTypes[i], index: i }))
+    .map((url, i) => {
+      const fileId = extractFileIdFromUrl(url);
+      const downloadUrl = fileId ? `https://drive.google.com/uc?export=download&id=${fileId}` : url;
+      return { url, downloadUrl, name: fileNames[i], type: fileTypes[i], index: i };
+    })
     .filter(item => !isUrlAnImage(item.url, item.index));
 
   const slides = imagesList.map((url) => {
@@ -1127,6 +1147,31 @@ export default function PostCard({
 
     // Prevent multiple simultaneous downloads for the same file
     if (downloadingFileUrl === url) return;
+
+    const fileId = extractFileIdFromUrl(url);
+    const isStaticHost = 
+      window.location.hostname.includes('netlify') || 
+      window.location.hostname.includes('github') || 
+      window.location.hostname.includes('vercel') ||
+      (window.location.hostname.includes('localhost') === false && !window.location.hostname.includes('run.app'));
+
+    // Helper to perform direct Google Drive download on static hostings or as a fallback
+    const triggerDirectDriveDownload = (fId: string) => {
+      const directUrl = `https://drive.google.com/uc?export=download&id=${fId}`;
+      showToast('📥 جاري تنزيل الملف مباشرة من Google Drive...');
+      
+      // Open in a new window/tab to avoid terminating the active page,
+      // which is extremely robust on mobile devices and browsers.
+      window.open(directUrl, '_blank');
+      
+      setDownloadingFileUrl(null);
+      setDownloadProgress(0);
+    };
+
+    if (isStaticHost && fileId) {
+      triggerDirectDriveDownload(fileId);
+      return;
+    }
 
     // Determine the final URL to fetch/download
     let downloadUrl = url;
@@ -1163,10 +1208,16 @@ export default function PostCard({
           const isHtml = contentType.includes('text/html');
           const isTargetHtml = name.toLowerCase().endsWith('.html') || name.toLowerCase().endsWith('.htm');
           if (isHtml && !isTargetHtml) {
-            console.error('[Download] Received HTML content for a non-HTML file. This is likely a Google Drive permission error page.');
-            setDownloadingFileUrl(null);
-            setDownloadProgress(0);
-            showToast('⚠️ فشل التنزيل: يرجى تفعيل حساب G-Drive أو إعادة تسجيل الدخول لتنزيل الملف بالدقة الكاملة.');
+            console.error('[Download] Received HTML content for a non-HTML file. This is likely a Google Drive permission error page or Netlify SPA fallback.');
+            
+            if (fileId) {
+              console.log('[Download] Falling back to direct Google Drive download...');
+              triggerDirectDriveDownload(fileId);
+            } else {
+              setDownloadingFileUrl(null);
+              setDownloadProgress(0);
+              showToast('⚠️ فشل التنزيل: يرجى تفعيل حساب G-Drive أو إعادة تسجيل الدخول لتنزيل الملف بالدقة الكاملة.');
+            }
             return;
           }
 
@@ -1188,21 +1239,34 @@ export default function PostCard({
           }, 450);
         } else {
           console.warn(`XHR download failed with status ${xhr.status}`);
-          setDownloadingFileUrl(null);
-          setDownloadProgress(0);
-          showToast('⚠️ فشل التنزيل: يرجى تفعيل حساب G-Drive أو إعادة تسجيل الدخول لتنزيل الملف بالدقة الكاملة.');
+          if (fileId) {
+            console.log('[Download] Falling back to direct Google Drive download on failure status...');
+            triggerDirectDriveDownload(fileId);
+          } else {
+            setDownloadingFileUrl(null);
+            setDownloadProgress(0);
+            showToast('⚠️ فشل التنزيل: يرجى تفعيل حساب G-Drive أو إعادة تسجيل الدخول لتنزيل الملف بالدقة الكاملة.');
+          }
         }
       };
 
       xhr.onerror = () => {
         console.warn('XHR download error, falling back to direct navigation...');
-        fallbackDownload(proxyUrl);
+        if (fileId) {
+          triggerDirectDriveDownload(fileId);
+        } else {
+          fallbackDownload(proxyUrl);
+        }
       };
 
       xhr.send();
     } catch (err) {
       console.warn('XHR setup failed, falling back to direct navigation:', err);
-      fallbackDownload(proxyUrl);
+      if (fileId) {
+        triggerDirectDriveDownload(fileId);
+      } else {
+        fallbackDownload(proxyUrl);
+      }
     }
   };
 
@@ -2612,7 +2676,7 @@ export default function PostCard({
                 return (
                   <a
                     key={fIdx}
-                    href={file.url}
+                    href={file.downloadUrl}
                     download={file.name || 'file'}
                     onClick={(e) => handleDownloadFile(e, file.url, file.name || 'file')}
                     target="_blank"
@@ -2698,10 +2762,10 @@ export default function PostCard({
           buttonPrev: slides.length <= 1 ? () => null : undefined,
           buttonNext: slides.length <= 1 ? () => null : undefined,
           controls: () => {
-            const currentModel = post.imageModels?.[lightboxIndex];
-            const currentCaption = post.imageCaptions?.[lightboxIndex];
             const activeImageUrl = imagesList[lightboxIndex];
             const origIdx = imageUrls.indexOf(activeImageUrl);
+            const currentModel = post.imageModels?.[origIdx];
+            const currentCaption = post.imageCaptions?.[origIdx];
             const name = post.fileNames?.[origIdx] || `image_${post.id}_${lightboxIndex + 1}.png`;
             const isDownloadingThis = downloadingFileUrl === activeImageUrl;
 
@@ -2728,7 +2792,7 @@ export default function PostCard({
                 <LightboxBottomOverlay 
                   modelName={currentModel} 
                   caption={currentCaption}
-                  slideSrc={imageUrls[lightboxIndex]} 
+                  slideSrc={activeImageUrl} 
                 />
               </>
             );

@@ -73,28 +73,26 @@ export default function Feed({ isAdmin, boardId, boards, onTestPrompt, isDarkMod
     const siblingPost = posts[targetIdx];
 
     // Safety guard: cannot swap posts of different pinning status (priority to pinning)
-    if (currentPost.isPinned !== siblingPost.isPinned) return;
+    if (!!currentPost.isPinned !== !!siblingPost.isPinned) return;
 
-    let currentVal = getSortValue(currentPost);
-    let siblingVal = getSortValue(siblingPost);
+    const currentVal = getSortValue(currentPost);
+    const siblingVal = getSortValue(siblingPost);
 
-    // If they are identical, we offset them slightly
+    let newCurrentOrder = siblingVal;
+    let newSiblingOrder = currentVal;
+
     if (currentVal === siblingVal) {
       if (direction === 'up') {
-        siblingVal += 1000;
+        newCurrentOrder = siblingVal + 1;
       } else {
-        siblingVal -= 1000;
+        newCurrentOrder = siblingVal - 1;
       }
     }
 
-    // Swap their customOrder values!
-    const newCurrentOrder = siblingVal;
-    const newSiblingOrder = currentVal;
-
     // 1. Optimistic UI Update: immediately swap positions in state for absolute zero latency
     const updatedPosts = [...posts];
-    updatedPosts[idx] = { ...currentPost, customOrder: newCurrentOrder };
-    updatedPosts[targetIdx] = { ...siblingPost, customOrder: newSiblingOrder };
+    updatedPosts[idx] = { ...currentPost, customOrder: newCurrentOrder, isPinned: !!currentPost.isPinned };
+    updatedPosts[targetIdx] = { ...siblingPost, customOrder: newSiblingOrder, isPinned: !!siblingPost.isPinned };
     
     // Sort descending
     updatedPosts.sort(comparePosts);
@@ -210,10 +208,14 @@ export default function Feed({ isAdmin, boardId, boards, onTestPrompt, isDarkMod
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const postsData: Post[] = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      } as Post));
+      const postsData: Post[] = snapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          isPinned: !!data.isPinned,
+        } as Post;
+      });
       
       postsData.sort(comparePosts);
 
@@ -321,8 +323,8 @@ export default function Feed({ isAdmin, boardId, boards, onTestPrompt, isDarkMod
               onTestPrompt={onTestPrompt} 
               isDarkMode={isDarkMode} 
               onMovePost={handleMovePost}
-              canMoveUp={index > 0 && posts[index - 1].isPinned === post.isPinned}
-              canMoveDown={index < posts.length - 1 && posts[index + 1].isPinned === post.isPinned}
+              canMoveUp={index > 0 && !!posts[index - 1].isPinned === !!post.isPinned}
+              canMoveDown={index < posts.length - 1 && !!posts[index + 1].isPinned === !!post.isPinned}
             />
           </div>
         ))}
