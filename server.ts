@@ -136,7 +136,7 @@ async function startServer() {
 
       // Helper function to fetch Google Drive files publicly with confirmation bypass for large files
       const fetchDrivePublic = async (fId: string): Promise<Response> => {
-        const publicUrl = `https://drive.google.com/uc?export=download&id=${fId}`;
+        const publicUrl = `https://docs.google.com/uc?export=download&id=${fId}`;
         const initialRes = await fetch(publicUrl, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
@@ -156,13 +156,24 @@ async function startServer() {
           if (m1 && m1[1]) {
             confirmCode = m1[1];
           } else {
-            const m2 = html.match(/name="confirm"\s+value="([a-zA-Z0-9_-]+)"/i) || html.match(/value="([a-zA-Z0-9_-]+)"\s+name="confirm"/i);
+            const m2 = html.match(/name="confirm"\s+value="([a-zA-Z0-9_-]+)"/i) || 
+                       html.match(/value="([a-zA-Z0-9_-]+)"\s+name="confirm"/i) ||
+                       html.match(/id="confirm"\s+value="([a-zA-Z0-9_-]+)"/i);
             if (m2 && m2[1]) {
               confirmCode = m2[1];
             } else {
-              const m3 = html.match(/id="downloadForm".*?confirm.*?value="([a-zA-Z0-9_-]+)"/s);
+              const m3 = html.match(/id="downloadForm".*?confirm.*?value="([a-zA-Z0-9_-]+)"/s) ||
+                         html.match(/["']confirm["']\s*:\s*["']([a-zA-Z0-9_-]+)["']/i) ||
+                         html.match(/confirm\s*:\s*["']([a-zA-Z0-9_-]+)["']/i);
               if (m3 && m3[1]) {
                 confirmCode = m3[1];
+              } else {
+                const m4 = html.match(/confirm_token=([a-zA-Z0-9_-]+)/i) ||
+                           html.match(/confirmToken=([a-zA-Z0-9_-]+)/i) ||
+                           html.match(/&amp;confirm=([a-zA-Z0-9_-]+)/i);
+                if (m4 && m4[1]) {
+                  confirmCode = m4[1];
+                }
               }
             }
           }
@@ -189,7 +200,7 @@ async function startServer() {
               headers['Cookie'] = cookies;
             }
 
-            const confirmUrl = `https://drive.google.com/uc?export=download&confirm=${confirmCode}&id=${fId}`;
+            const confirmUrl = `https://docs.google.com/uc?export=download&confirm=${confirmCode}&id=${fId}`;
             return fetch(confirmUrl, { headers });
           }
 
