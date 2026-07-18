@@ -39,6 +39,12 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
+  // Bypass service worker entirely for API requests and cross-origin requests
+  // (such as Firebase, Firestore, Google Drive, or our backend api/download)
+  if (url.pathname.startsWith('/api/') || url.origin !== self.location.origin) {
+    return;
+  }
+
   // Intercept the Share Target POST request
   if (event.request.method === 'POST' && url.pathname === '/share') {
     event.respondWith(
