@@ -284,10 +284,12 @@ export default async (req: Request) => {
       "Content-Type": contentType,
       "Content-Disposition": `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`,
       "Access-Control-Allow-Origin": "*",
+      "Access-Control-Expose-Headers": "Content-Length, Content-Disposition, x-file-size",
     });
 
     if (contentLength) {
       responseHeaders.set("Content-Length", contentLength);
+      responseHeaders.set("x-file-size", contentLength);
     }
 
     // Pass fetchRes.body directly as the response body

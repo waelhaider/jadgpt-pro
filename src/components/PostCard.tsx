@@ -246,6 +246,7 @@ export default function PostCard({
         text: decryptText(originalPost.text, vaultKey),
         imageCaptions: decryptArray(originalPost.imageCaptions, vaultKey),
         fileNames: decryptArray(originalPost.fileNames, vaultKey),
+        fileSizes: decryptArray(originalPost.fileSizes || [], vaultKey),
       };
     }
     return originalPost;
@@ -385,8 +386,10 @@ export default function PostCard({
   const [newImageCaptions, setNewImageCaptions] = useState<string[]>([]);
   const [editedFileNames, setEditedFileNames] = useState<string[]>(post.fileNames || []);
   const [editedFileTypes, setEditedFileTypes] = useState<string[]>(post.fileTypes || []);
+  const [editedFileSizes, setEditedFileSizes] = useState<string[]>(post.fileSizes || []);
   const [newFileNames, setNewFileNames] = useState<string[]>([]);
   const [newFileTypes, setNewFileTypes] = useState<string[]>([]);
+  const [newFileSizes, setNewFileSizes] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [status, setStatus] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -992,10 +995,11 @@ export default function PostCard({
       setStatus('جاري الحفظ في Firestore...');
       // 3. Update Firestore
       targetProgressRef.current = 95;
-      const finalImageModels = [...editedImageModels, ...newImageModels];
+       const finalImageModels = [...editedImageModels, ...newImageModels];
       const finalImageCaptions = [...editedImageCaptions, ...newImageCaptions];
       const finalFileNames = [...editedFileNames, ...newFileNames];
       const finalFileTypes = [...editedFileTypes, ...newFileTypes];
+      const finalFileSizes = [...editedFileSizes, ...newFileSizes];
 
       const isSafeBoard = editedBoardId === 'safe-board';
       const vaultKey = sessionStorage.getItem('safe_vault_password') || '';
@@ -1003,6 +1007,7 @@ export default function PostCard({
       const textToSave = isSafeBoard && vaultKey ? encryptText(editedText.trim(), vaultKey) : editedText.trim();
       const captionsToSave = isSafeBoard && vaultKey ? encryptArray(finalImageCaptions, vaultKey) : finalImageCaptions;
       const fileNamesToSave = isSafeBoard && vaultKey ? encryptArray(finalFileNames, vaultKey) : finalFileNames;
+      const fileSizesToSave = isSafeBoard && vaultKey ? encryptArray(finalFileSizes, vaultKey) : finalFileSizes;
 
       await updateDoc(doc(db, 'posts', post.id), {
         text: textToSave,
@@ -1012,6 +1017,7 @@ export default function PostCard({
         imageCaptions: captionsToSave,
         fileNames: fileNamesToSave,
         fileTypes: finalFileTypes,
+        fileSizes: fileSizesToSave,
         boardId: editedBoardId,
         updatedAt: serverTimestamp(),
       });
@@ -1028,6 +1034,7 @@ export default function PostCard({
       setRemovedImageUrls([]);
       setNewFileNames([]);
       setNewFileTypes([]);
+      setNewFileSizes([]);
       showToast('تم تحديث المنشور بنجاح✅');
     } catch (err) {
       console.error('[PostCard] Fatal update error:', err);
@@ -1037,6 +1044,14 @@ export default function PostCard({
       setIsSaving(false);
       setStatus('');
     }
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (!bytes || bytes <= 0) return '';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
   const handleImageAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1054,6 +1069,7 @@ export default function PostCard({
     const nextNewCaptions = [...newImageCaptions];
     const nextNewFileNames = [...newFileNames];
     const nextNewFileTypes = [...newFileTypes];
+    const nextNewFileSizes = [...newFileSizes];
 
     files.forEach(file => {
       nextNewImages.push(file);
@@ -1061,6 +1077,7 @@ export default function PostCard({
       nextNewCaptions.push(''); 
       nextNewFileNames.push(file.name);
       nextNewFileTypes.push(file.type || 'application/octet-stream');
+      nextNewFileSizes.push(formatFileSize(file.size));
 
       const isImg = file.type.startsWith('image/');
       if (isImg) {
@@ -1079,6 +1096,7 @@ export default function PostCard({
     setNewImageCaptions(nextNewCaptions);
     setNewFileNames(nextNewFileNames);
     setNewFileTypes(nextNewFileTypes);
+    setNewFileSizes(nextNewFileSizes);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -1089,6 +1107,7 @@ export default function PostCard({
     setEditedImageCaptions(editedImageCaptions.filter((_, i) => i !== index));
     setEditedFileNames(editedFileNames.filter((_, i) => i !== index));
     setEditedFileTypes(editedFileTypes.filter((_, i) => i !== index));
+    setEditedFileSizes(editedFileSizes.filter((_, i) => i !== index));
     setRemovedImageUrls([...removedImageUrls, url]);
   };
 
@@ -1099,6 +1118,7 @@ export default function PostCard({
     setNewImageCaptions(newImageCaptions.filter((_, i) => i !== index));
     setNewFileNames(newFileNames.filter((_, i) => i !== index));
     setNewFileTypes(newFileTypes.filter((_, i) => i !== index));
+    setNewFileSizes(newFileSizes.filter((_, i) => i !== index));
   };
 
   const extractFileIdFromUrl = (url: string): string | null => {
@@ -1129,7 +1149,7 @@ export default function PostCard({
     .map((url, i) => {
       const fileId = extractFileIdFromUrl(url);
       const downloadUrl = fileId ? `https://drive.usercontent.google.com/download?id=${fileId}&export=download` : url;
-      return { url, downloadUrl, name: fileNames[i], type: fileTypes[i], index: i };
+      return { url, downloadUrl, name: fileNames[i], type: fileTypes[i], size: post.fileSizes?.[i], index: i };
     })
     .filter(item => !isUrlAnImage(item.url, item.index));
 
@@ -1183,9 +1203,22 @@ export default function PostCard({
       setDownloadProgress(0);
       if (progressInterval) clearInterval(progressInterval);
       progressInterval = setInterval(() => {
-        // Smooth logarithmic visual curve up to 95%
-        currentProgress = Math.min(95, currentProgress + Math.max(1, Math.round((100 - currentProgress) * 0.15)));
-        setDownloadProgress(currentProgress);
+        // Smooth logarithmic visual curve with progressive slow-down so the progress bar never freezes
+        let increment = 1;
+        if (currentProgress < 50) {
+          increment = Math.max(1.5, (50 - currentProgress) * 0.08);
+        } else if (currentProgress < 80) {
+          increment = Math.max(0.8, (80 - currentProgress) * 0.04);
+        } else if (currentProgress < 95) {
+          increment = Math.max(0.4, (95 - currentProgress) * 0.02);
+        } else {
+          // Crawl very slowly so it feels active but never exceeds 99% until fully done
+          increment = 0.15;
+        }
+
+        currentProgress = Math.min(99, currentProgress + increment);
+        const roundedProgress = currentProgress >= 95 ? parseFloat(currentProgress.toFixed(1)) : Math.round(currentProgress);
+        setDownloadProgress(roundedProgress);
       }, 350);
     };
 
@@ -1221,9 +1254,22 @@ export default function PostCard({
         xhr.responseType = 'blob';
 
         xhr.onprogress = (event) => {
-          if (event.lengthComputable) {
+          let totalBytes = event.total;
+          
+          // Try to extract the original file size from custom header 'x-file-size' or standard 'Content-Length'
+          if (!totalBytes || totalBytes <= 0) {
+            const rawSize = xhr.getResponseHeader('x-file-size') || xhr.getResponseHeader('Content-Length');
+            if (rawSize) {
+              const parsed = parseInt(rawSize, 10);
+              if (!isNaN(parsed) && parsed > 0) {
+                totalBytes = parsed;
+              }
+            }
+          }
+
+          if (totalBytes && totalBytes > 0) {
             stopProgressSimulation();
-            const percent = Math.round((event.loaded / event.total) * 100);
+            const percent = Math.min(100, Math.round((event.loaded / totalBytes) * 100));
             setDownloadProgress(percent);
           }
         };
@@ -2777,10 +2823,19 @@ export default function PostCard({
                       )}
                     </span>
                     <div className="flex-1 min-w-0 text-right z-10">
-                      <p className="text-xs font-bold truncate" title={file.name || 'ملف بدون اسم'}>
-                        {file.name || 'ملف بدون اسم'}
-                      </p>
-                      <p className={`text-[9px] font-medium ${isDarkMode ? 'text-gray-400' : 'text-natural-muted'}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-bold truncate flex-1" title={file.name || 'ملف بدون اسم'}>
+                          {file.name || 'ملف بدون اسم'}
+                        </p>
+                        {file.size && (
+                          <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
+                            isDarkMode ? 'bg-[#2C374E]/80 text-[#16af75]' : 'bg-[#c26700]/10 text-[#c26700]'
+                          } shrink-0`} dir="ltr">
+                            {file.size}
+                          </span>
+                        )}
+                      </div>
+                      <p className={`text-[9px] font-medium mt-0.5 ${isDarkMode ? 'text-gray-400' : 'text-natural-muted'}`}>
                         {downloadingFileUrl === file.url ? (
                           <span className="animate-pulse font-black text-xs text-[#16af75]">جاري التنزيل...</span>
                         ) : (

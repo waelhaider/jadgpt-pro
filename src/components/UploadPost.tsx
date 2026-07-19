@@ -103,12 +103,22 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
     const rtlChar = /[\u0600-\u06FF\u0750-\u077F\u0590-\u05FF\uFE70-\uFEFC]/;
     return rtlChar.test(val);
   };
+
+  const formatFileSize = (bytes: number): string => {
+    if (!bytes || bytes <= 0) return '';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
   const [images, setImages] = useState<(File | string)[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [imageCaptions, setImageCaptions] = useState<string[]>([]);
   const [fileNames, setFileNames] = useState<string[]>([]);
   const [fileTypes, setFileTypes] = useState<string[]>([]);
+  const [fileSizes, setFileSizes] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -264,6 +274,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
     const newCaptions = [...imageCaptions];
     const newFileNames = [...fileNames];
     const newFileTypes = [...fileTypes];
+    const newFileSizes = [...fileSizes];
 
     files.forEach(file => {
       newImages.push(file);
@@ -271,6 +282,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
       newCaptions.push(''); // No caption initially
       newFileNames.push(file.name);
       newFileTypes.push(file.type || 'application/octet-stream');
+      newFileSizes.push(formatFileSize(file.size));
       
       if (file.type.startsWith('image/')) {
         const reader = new FileReader();
@@ -288,6 +300,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
     setImageCaptions(newCaptions);
     setFileNames(newFileNames);
     setFileTypes(newFileTypes);
+    setFileSizes(newFileSizes);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -298,12 +311,14 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
     const newCaptions = imageCaptions.filter((_, i) => i !== index);
     const newFileNames = fileNames.filter((_, i) => i !== index);
     const newFileTypes = fileTypes.filter((_, i) => i !== index);
+    const newFileSizes = fileSizes.filter((_, i) => i !== index);
     setImages(newImages);
     setPreviews(newPreviews);
     setSelectedModels(newModels);
     setImageCaptions(newCaptions);
     setFileNames(newFileNames);
     setFileTypes(newFileTypes);
+    setFileSizes(newFileSizes);
   };
 
   const [status, setStatus] = useState<string>('');
@@ -412,6 +427,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
           imageCaptions: imageCaptions,
           fileNames: fileNames,
           fileTypes: fileTypes,
+          fileSizes: fileSizes,
           boardId: 'user-board',
           authorId: currentUser?.uid || 'local-user',
           authorEmail: currentUser?.email || 'local-user@local.com',
@@ -430,6 +446,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
           setImageCaptions([]);
           setFileNames([]);
           setFileTypes([]);
+          setFileSizes([]);
           setStatus('');
           window.dispatchEvent(new Event('reload_local_posts'));
           if (onUploadSuccess) {
@@ -531,6 +548,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
       const textToSave = isSafeBoard && vaultKey ? encryptText(text.trim(), vaultKey) : text.trim();
       const captionsToSave = isSafeBoard && vaultKey ? encryptArray(imageCaptions, vaultKey) : imageCaptions;
       const fileNamesToSave = isSafeBoard && vaultKey ? encryptArray(fileNames, vaultKey) : fileNames;
+      const fileSizesToSave = isSafeBoard && vaultKey ? encryptArray(fileSizes, vaultKey) : fileSizes;
 
       const payload = {
         text: textToSave,
@@ -540,6 +558,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
         imageCaptions: captionsToSave,
         fileNames: fileNamesToSave,
         fileTypes: fileTypes,
+        fileSizes: fileSizesToSave,
         boardId: (targetBoardId === 'placeholder' || targetBoardId === 'main-feed' || !targetBoardId) ? null : targetBoardId, // Explicitly null for main feed
         authorId: currentUser.uid,
         authorEmail: currentUser.email,
@@ -572,6 +591,7 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
       setImageCaptions([]);
       setFileNames([]);
       setFileTypes([]);
+      setFileSizes([]);
       setStatus('');
       showToast('🎉تم نشر الملفات بنجاح');
     } catch (error) {

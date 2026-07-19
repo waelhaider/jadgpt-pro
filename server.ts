@@ -71,7 +71,7 @@ async function startServer() {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
     res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Authorization, x-gemini-api-key, x-api-key');
-    res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Disposition');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Disposition, x-file-size');
     if (req.method === 'OPTIONS') {
       return res.sendStatus(200);
     }
@@ -344,6 +344,7 @@ async function startServer() {
       
       if (contentLength) {
         res.setHeader('Content-Length', contentLength);
+        res.setHeader('x-file-size', contentLength);
       }
 
       // Stream the response body chunk by chunk directly to the browser
