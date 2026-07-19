@@ -1155,20 +1155,23 @@ export default function PostCard({
     }
 
     const fileId = extractFileIdFromUrl(url);
+    const isNetlify = window.location.hostname.includes('netlify');
     const isStaticHost = 
-      window.location.hostname.includes('netlify') || 
-      window.location.hostname.includes('github') || 
-      window.location.hostname.includes('vercel') ||
-      (window.location.hostname.includes('localhost') === false && !window.location.hostname.includes('run.app'));
+      !isNetlify && (
+        window.location.hostname.includes('github') || 
+        window.location.hostname.includes('vercel') ||
+        (window.location.hostname.includes('localhost') === false && !window.location.hostname.includes('run.app'))
+      );
 
     // Helper to perform direct Google Drive download on static hostings or as a fallback
     const triggerDirectDriveDownload = (fId: string) => {
       const directUrl = `https://drive.usercontent.google.com/download?id=${fId}&export=download`;
       showToast('📥 جاري تنزيل الملف مباشرة...');
       
-      // Open in a new window/tab to avoid terminating the active page,
-      // which is extremely robust on mobile devices and browsers.
-      window.open(directUrl, '_blank');
+      // Download directly in the current page without opening a new tab/window.
+      // Google Drive's download endpoint returns Content-Disposition: attachment,
+      // which is native and doesn't disrupt the active page state.
+      window.location.href = directUrl;
       
       setDownloadingFileUrl(null);
       setDownloadProgress(0);
@@ -2748,8 +2751,6 @@ export default function PostCard({
                     href={file.downloadUrl}
                     download={file.name || 'file'}
                     onClick={(e) => handleDownloadFile(e, file.url, file.name || 'file')}
-                    target="_blank"
-                    rel="noopener noreferrer"
                     className={`relative overflow-hidden flex items-center gap-2.5 p-2 rounded-xl border transition-all hover:scale-[1.01] ${
                       isDarkMode
                         ? 'border-[#2C374E] bg-[#1a212e] text-white hover:bg-[#2C374E]'

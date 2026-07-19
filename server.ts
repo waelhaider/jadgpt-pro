@@ -152,27 +152,54 @@ async function startServer() {
           const html = await cloneRes.text();
           
           let confirmCode = '';
-          const m1 = html.match(/confirm=([a-zA-Z0-9_-]+)/i);
-          if (m1 && m1[1]) {
-            confirmCode = m1[1];
-          } else {
-            const m2 = html.match(/name="confirm"\s+value="([a-zA-Z0-9_-]+)"/i) || 
-                       html.match(/value="([a-zA-Z0-9_-]+)"\s+name="confirm"/i) ||
-                       html.match(/id="confirm"\s+value="([a-zA-Z0-9_-]+)"/i);
-            if (m2 && m2[1]) {
-              confirmCode = m2[1];
+
+          // Try from set-cookie header first
+          const setCookieHeader = initialRes.headers.get('set-cookie');
+          if (setCookieHeader) {
+            const mCookie = setCookieHeader.match(/download_warning_[a-zA-Z0-9_-]+=(.*?)(?:;|$)/i);
+            if (mCookie && mCookie[1]) {
+              confirmCode = mCookie[1];
+              console.log(`[Proxy Download] Extracted confirm code from cookie: ${confirmCode}`);
+            }
+          }
+
+          // Try using getSetCookie if available
+          if (!confirmCode && typeof initialRes.headers.getSetCookie === 'function') {
+            const cookiesArr = initialRes.headers.getSetCookie();
+            for (const c of cookiesArr) {
+              const mCookie = c.match(/download_warning_[a-zA-Z0-9_-]+=(.*?)(?:;|$)/i);
+              if (mCookie && mCookie[1]) {
+                confirmCode = mCookie[1];
+                console.log(`[Proxy Download] Extracted confirm code from getSetCookie: ${confirmCode}`);
+                break;
+              }
+            }
+          }
+
+          // Parse from HTML matches as fallback
+          if (!confirmCode) {
+            const m1 = html.match(/confirm=([a-zA-Z0-9_-]+)/i);
+            if (m1 && m1[1]) {
+              confirmCode = m1[1];
             } else {
-              const m3 = html.match(/id="downloadForm".*?confirm.*?value="([a-zA-Z0-9_-]+)"/s) ||
-                         html.match(/["']confirm["']\s*:\s*["']([a-zA-Z0-9_-]+)["']/i) ||
-                         html.match(/confirm\s*:\s*["']([a-zA-Z0-9_-]+)["']/i);
-              if (m3 && m3[1]) {
-                confirmCode = m3[1];
+              const m2 = html.match(/name="confirm"\s+value="([a-zA-Z0-9_-]+)"/i) || 
+                         html.match(/value="([a-zA-Z0-9_-]+)"\s+name="confirm"/i) ||
+                         html.match(/id="confirm"\s+value="([a-zA-Z0-9_-]+)"/i);
+              if (m2 && m2[1]) {
+                confirmCode = m2[1];
               } else {
-                const m4 = html.match(/confirm_token=([a-zA-Z0-9_-]+)/i) ||
-                           html.match(/confirmToken=([a-zA-Z0-9_-]+)/i) ||
-                           html.match(/&amp;confirm=([a-zA-Z0-9_-]+)/i);
-                if (m4 && m4[1]) {
-                  confirmCode = m4[1];
+                const m3 = html.match(/id="downloadForm".*?confirm.*?value="([a-zA-Z0-9_-]+)"/s) ||
+                           html.match(/["']confirm["']\s*:\s*["']([a-zA-Z0-9_-]+)["']/i) ||
+                           html.match(/confirm\s*:\s*["']([a-zA-Z0-9_-]+)["']/i);
+                if (m3 && m3[1]) {
+                  confirmCode = m3[1];
+                } else {
+                  const m4 = html.match(/confirm_token=([a-zA-Z0-9_-]+)/i) ||
+                             html.match(/confirmToken=([a-zA-Z0-9_-]+)/i) ||
+                             html.match(/&amp;confirm=([a-zA-Z0-9_-]+)/i);
+                  if (m4 && m4[1]) {
+                    confirmCode = m4[1];
+                  }
                 }
               }
             }
