@@ -210,7 +210,25 @@ export async function injectPromptIntoImage(file: File, prompt: string): Promise
   }
 
   try {
-    const buffer = await file.arrayBuffer();
+    // Highly compatible ArrayBuffer reader with FileReader fallback for older/mobile browsers
+    let buffer: ArrayBuffer;
+    if (typeof file.arrayBuffer === 'function') {
+      buffer = await file.arrayBuffer();
+    } else {
+      buffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (reader.result instanceof ArrayBuffer) {
+            resolve(reader.result);
+          } else {
+            reject(new Error('Failed to read as ArrayBuffer'));
+          }
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
     const bytes = new Uint8Array(buffer);
 
     // 1. Verify PNG signature: 89 50 4E 47
