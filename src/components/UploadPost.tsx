@@ -14,6 +14,8 @@ import { compressImage } from '../lib/imageCompressor';
 import { saveLocalUserPostsIndexedDB, getLocalUserPostsIndexedDB } from '../lib/indexedDbService';
 import { showToast } from './Toast';
 import { encryptText, encryptArray } from '../lib/encryption';
+import AudioPlayer from './AudioPlayer';
+import VideoPlayer from './VideoPlayer';
 
 interface UploadPostProps {
   activeBoardId: string | null;
@@ -291,7 +293,8 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
         };
         reader.readAsDataURL(file);
       } else {
-        setPreviews(prev => [...prev, `file:${file.name}:${file.type}:${file.size}`]);
+        const localUrl = URL.createObjectURL(file);
+        setPreviews(prev => [...prev, `file:${file.name}:${file.type || 'application/octet-stream'}:${formatFileSize(file.size)}:${localUrl}`]);
       }
     });
 
@@ -305,6 +308,14 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
   };
 
   const removeImage = (index: number) => {
+    const previewToRemove = previews[index];
+    if (previewToRemove && previewToRemove.startsWith('file:')) {
+      const parts = previewToRemove.split(':');
+      const objectUrl = parts[4];
+      if (objectUrl && objectUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    }
     const newImages = images.filter((_, i) => i !== index);
     const newPreviews = previews.filter((_, i) => i !== index);
     const newModels = selectedModels.filter((_, i) => i !== index);
@@ -657,9 +668,14 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
                 {previews.map((prev, index) => {
                   const models = ['gpt-2', 'grok', 'banana-2', 'flux', 'wan 2.7', 'تغشية'];
                   const isFile = prev.startsWith('file:');
-                  const fileName = isFile ? prev.split(':')[1] : '';
-                  const fileType = isFile ? prev.split(':')[2] : '';
+                  const parts = isFile ? prev.split(':') : [];
+                  const fileName = isFile ? parts[1] : '';
+                  const fileType = isFile ? parts[2] : '';
+                  const fileSize = isFile ? parts[3] : '';
+                  const fileUrl = isFile ? parts[4] : '';
                   const isApkFile = isFile && (fileName.toLowerCase().endsWith('.apk') || fileType.includes('vnd.android.package-archive'));
+                  const isAudio = isFile && (fileType.startsWith('audio/') || /\.(mp3|wma|wav|aac|m4a|ogg|flac|amr)$/i.test(fileName));
+                  const isVideo = isFile && (fileType.startsWith('video/') || /\.(mp4|mkv|avi|mov|webm|3gp|wmv|flv|ogv)$/i.test(fileName));
                   
                   return (
                     <div
@@ -676,14 +692,24 @@ export default function UploadPost({ activeBoardId, activeBoardName, boards = []
                         {/* Right side: Image/File and its note stacked vertically */}
                         <div className="flex-1 flex flex-col gap-1.5 min-w-0">
                           {/* Constrained Preview box */}
-                          <div className="relative w-full aspect-video sm:aspect-[4/3] max-h-28 sm:max-h-32 overflow-hidden rounded-lg border border-natural-border/30 bg-black/5 flex items-center justify-center shrink-0">
+                          <div className={`relative w-full ${isAudio ? '' : 'aspect-video sm:aspect-[4/3] max-h-28 sm:max-h-32'} overflow-hidden rounded-lg border border-natural-border/30 bg-black/5 flex items-center justify-center shrink-0`}>
                             {isFile ? (
-                              <div className="flex flex-col items-center justify-center text-center p-2 min-w-0 w-full">
-                                <span className="text-2xl sm:text-3xl">{isApkFile ? '🤖' : '📄'}</span>
-                                <span className="text-[9px] font-black mt-1.5 leading-tight text-center break-all text-neutral-600 line-clamp-2 w-full px-1">
-                                  {fileName}
-                                </span>
-                              </div>
+                              isAudio ? (
+                                <div className="w-full p-1.5" onClick={(e) => e.stopPropagation()}>
+                                  <AudioPlayer src={fileUrl} name={fileName} size={fileSize} isDarkMode={isDarkMode} />
+                                </div>
+                              ) : isVideo ? (
+                                <div className="w-full p-1.5" onClick={(e) => e.stopPropagation()}>
+                                  <VideoPlayer src={fileUrl} name={fileName} size={fileSize} isDarkMode={isDarkMode} />
+                                </div>
+                              ) : (
+                                <div className="flex flex-col items-center justify-center text-center p-2 min-w-0 w-full">
+                                  <span className="text-2xl sm:text-3xl">{isApkFile ? '🤖' : '📄'}</span>
+                                  <span className="text-[9px] font-black mt-1.5 leading-tight text-center break-all text-neutral-600 line-clamp-2 w-full px-1">
+                                    {fileName}
+                                  </span>
+                                </div>
+                              )
                             ) : (
                               <img src={prev} alt={`Preview ${index + 1}`} className="h-full w-full object-cover" />
                             )}

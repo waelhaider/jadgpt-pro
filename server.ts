@@ -135,13 +135,16 @@ async function startServer() {
       }
 
       // Helper function to fetch Google Drive files publicly with confirmation bypass for large files
-      const fetchDrivePublic = async (fId: string): Promise<Response> => {
+      const fetchDrivePublic = async (fId: string, rangeHeader?: string): Promise<Response> => {
         const publicUrl = `https://docs.google.com/uc?export=download&id=${fId}`;
-        const initialRes = await fetch(publicUrl, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
-          }
-        });
+        const headers: Record<string, string> = {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+        };
+        if (rangeHeader) {
+          headers['Range'] = rangeHeader;
+          console.log(`[Proxy Download] Setting Range header for public Drive request: ${rangeHeader}`);
+        }
+        const initialRes = await fetch(publicUrl, { headers });
         if (!initialRes.ok) {
           return initialRes;
         }
@@ -254,14 +257,19 @@ async function startServer() {
           try {
             console.log(`[Proxy Download] Trying authenticated Google Drive API download for file ID: ${fileId}...`);
             const driveApiUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+            const reqHeaders: Record<string, string> = {
+              'Authorization': `Bearer ${access_token}`
+            };
+            if (req.headers.range) {
+              reqHeaders['Range'] = req.headers.range as string;
+              console.log(`[Proxy Download] Authenticated Drive fetch forwarding Range header: ${req.headers.range}`);
+            }
             const authRes = await fetch(driveApiUrl, {
-              headers: {
-                'Authorization': `Bearer ${access_token}`
-              }
+              headers: reqHeaders
             });
             if (authRes.ok) {
               fetchRes = authRes;
-              console.log(`[Proxy Download] Authenticated Google Drive API download succeeded.`);
+              console.log(`[Proxy Download] Authenticated Google Drive API download succeeded with status ${authRes.status}.`);
             } else {
               console.warn(`[Proxy Download] Authenticated Google Drive API download failed with status ${authRes.status}.`);
               if (authRes.status === 401) {
@@ -278,10 +286,10 @@ async function startServer() {
         if (!fetchRes) {
           try {
             console.log(`[Proxy Download] Trying public Google Drive download for file ID: ${fileId}...`);
-            const publicRes = await fetchDrivePublic(fileId);
+            const publicRes = await fetchDrivePublic(fileId, req.headers.range as string | undefined);
             if (publicRes.ok) {
               fetchRes = publicRes;
-              console.log(`[Proxy Download] Public Google Drive download succeeded.`);
+              console.log(`[Proxy Download] Public Google Drive download succeeded with status ${publicRes.status}.`);
             } else {
               console.warn(`[Proxy Download] Public Google Drive download failed with status ${publicRes.status}.`);
             }
@@ -294,10 +302,14 @@ async function startServer() {
         if (access_token && typeof access_token === 'string' && access_token !== 'local-dummy-token') {
           try {
             console.log(`[Proxy Download] Fetching non-Drive URL with token headers: ${url}`);
+            const reqHeaders: Record<string, string> = {
+              'Authorization': `Bearer ${access_token}`
+            };
+            if (req.headers.range) {
+              reqHeaders['Range'] = req.headers.range as string;
+            }
             const authRes = await fetch(url, {
-              headers: {
-                'Authorization': `Bearer ${access_token}`
-              }
+              headers: reqHeaders
             });
             if (authRes.ok) {
               fetchRes = authRes;
@@ -314,10 +326,14 @@ async function startServer() {
       if (!fetchRes && !isGoogleDrive) {
         try {
           console.log(`[Proxy Download] Trying direct public fetch of original URL: ${url}...`);
+          const reqHeaders: Record<string, string> = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+          };
+          if (req.headers.range) {
+            reqHeaders['Range'] = req.headers.range as string;
+          }
           const fallbackRes = await fetch(url, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
-            }
+            headers: reqHeaders
           });
           if (fallbackRes.ok) {
             fetchRes = fallbackRes;
@@ -336,6 +352,8 @@ async function startServer() {
 
       const contentType = fetchRes.headers.get('content-type') || 'application/octet-stream';
       const contentLength = fetchRes.headers.get('content-length');
+      const contentRange = fetchRes.headers.get('content-range');
+      const acceptRanges = fetchRes.headers.get('accept-ranges');
 
       // Use RFC 5987 standard format: ASCII fallback + encoded UTF-8 for Arabic support
       const asciiName = fileName.replace(/[^\x20-\x7E]/g, '_');
@@ -346,6 +364,20 @@ async function startServer() {
         res.setHeader('Content-Length', contentLength);
         res.setHeader('x-file-size', contentLength);
       }
+
+      if (contentRange) {
+        res.setHeader('Content-Range', contentRange);
+        console.log(`[Proxy Download] Setting Content-Range header: ${contentRange}`);
+      }
+
+      if (acceptRanges) {
+        res.setHeader('Accept-Ranges', acceptRanges);
+      } else {
+        res.setHeader('Accept-Ranges', 'bytes');
+      }
+
+      // Forward status code (e.g., 206 Partial Content)
+      res.status(fetchRes.status);
 
       // Stream the response body chunk by chunk directly to the browser
       if (fetchRes.body) {

@@ -155,14 +155,30 @@ export async function deleteFromDrive(fileUrl: string, accessToken: string): Pro
   }
 }
 
-function extractFileIdFromUrl(url: string): string | null {
+export function extractFileIdFromUrl(url: string): string | null {
   try {
+    if (!url) return null;
+    if (url.startsWith('data:')) return null;
+
     const urlObj = new URL(url);
     // Handle https://drive.google.com/thumbnail?id=FILE_ID...
+    // or https://drive.usercontent.google.com/download?id=FILE_ID...
     const id = urlObj.searchParams.get('id');
     if (id) return id;
 
-    // Fallback for other potential formats if needed
+    // Handle path-based formats like https://drive.google.com/file/d/FILE_ID/view
+    const pathParts = urlObj.pathname.split('/');
+    const dIdx = pathParts.indexOf('d');
+    if (dIdx !== -1 && pathParts[dIdx + 1]) {
+      return pathParts[dIdx + 1];
+    }
+
+    // Try regex-based matches for typical Drive links
+    const matches = url.match(/\/files\/([^\/?#]+)/) || url.match(/\/d\/([^\/?#]+)/);
+    if (matches && matches[1]) {
+      return matches[1];
+    }
+
     return null;
   } catch (e) {
     return null;

@@ -1,4 +1,4 @@
-import { uploadToDrive, deleteFromDrive } from './drive';
+import { uploadToDrive, deleteFromDrive, extractFileIdFromUrl } from './drive';
 import { getAccessToken } from './auth';
 import { injectPromptIntoImage } from './metadata-injector';
 
@@ -35,22 +35,29 @@ export async function uploadPostImage(file: File, userId: string, prompt?: strin
 }
 
 /**
- * Safely delete an image from Google Drive.
+ * Safely delete any post file (images, documents, archives, etc.) from Google Drive.
  */
 export async function deletePostImage(url: string, accessToken?: string | null): Promise<void> {
   if (!url) return;
 
-  if (url.startsWith('data:image')) {
-    console.log('[UploadHelper] Delete: local Base64 image, skipping Google Drive deletion');
+  if (url.startsWith('data:image') || url.startsWith('data:')) {
+    console.log('[UploadHelper] Delete: local Base64 content, skipping Google Drive deletion');
     return;
   }
 
-  // Google Drive url formats usually include 'drive.google.com'
-  if (url.includes('drive.google.com') || url.includes('/thumbnail?id=')) {
+  const fileId = extractFileIdFromUrl(url);
+  const isGoogleDriveUrl = fileId !== null || 
+                           url.includes('drive.google.com') || 
+                           url.includes('googleusercontent.com') || 
+                           url.includes('googleapis.com') || 
+                           url.includes('docs.google.com') ||
+                           url.includes('/thumbnail?id=');
+
+  if (isGoogleDriveUrl) {
     const activeToken = accessToken || getAccessToken();
     if (activeToken && activeToken !== 'local-dummy-token') {
       try {
-        console.log('[UploadHelper] Delete: Removing file from Google Drive:', url);
+        console.log('[UploadHelper] Delete: Removing file from Google Drive (ID:', fileId || 'unknown', '):', url);
         await deleteFromDrive(url, activeToken);
         console.log('[UploadHelper] Delete: Succeeded removing from Google Drive');
       } catch (err: any) {

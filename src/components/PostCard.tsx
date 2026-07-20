@@ -17,6 +17,8 @@ import { showToast } from './Toast';
 import { encryptText, decryptText, encryptArray, decryptArray } from '../lib/encryption';
 import Lightbox from "yet-another-react-lightbox";
 import Zoom from "yet-another-react-lightbox/plugins/zoom";
+import AudioPlayer from './AudioPlayer';
+import VideoPlayer from './VideoPlayer';
 
 function isImageUrl(url: string): boolean {
   try {
@@ -1087,7 +1089,8 @@ export default function PostCard({
         };
         reader.readAsDataURL(file);
       } else {
-        nextNewPreviews.push(`file:${file.name}:${file.type || 'application/octet-stream'}`);
+        const localUrl = URL.createObjectURL(file);
+        nextNewPreviews.push(`file:${file.name}:${file.type || 'application/octet-stream'}:${formatFileSize(file.size)}:${localUrl}`);
       }
     });
 
@@ -1112,6 +1115,14 @@ export default function PostCard({
   };
 
   const removeNewImage = (index: number) => {
+    const previewToRemove = newPreviews[index];
+    if (previewToRemove && previewToRemove.startsWith('file:')) {
+      const parts = previewToRemove.split(':');
+      const objectUrl = parts[4];
+      if (objectUrl && objectUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    }
     setNewImages(newImages.filter((_, i) => i !== index));
     setNewPreviews(newPreviews.filter((_, i) => i !== index));
     setNewImageModels(newImageModels.filter((_, i) => i !== index));
@@ -1144,14 +1155,38 @@ export default function PostCard({
   const fileNames = post.fileNames || [];
   const fileTypes = post.fileTypes || [];
 
+  const isAudioFile = (name: string | undefined, type: string | undefined, url: string) => {
+    if (type) {
+      if (type.startsWith('audio/')) return true;
+    }
+    const filename = name || '';
+    if (/\.(mp3|wma|wav|aac|m4a|ogg|flac|amr)$/i.test(filename)) return true;
+    const cleanUrl = url.split('?')[0].split('#')[0].toLowerCase();
+    return /\.(mp3|wma|wav|aac|m4a|ogg|flac|amr)$/i.test(cleanUrl);
+  };
+
+  const isVideoFile = (name: string | undefined, type: string | undefined, url: string) => {
+    if (type) {
+      if (type.startsWith('video/')) return true;
+    }
+    const filename = name || '';
+    if (/\.(mp4|mkv|avi|mov|webm|3gp|wmv|flv|ogv)$/i.test(filename)) return true;
+    const cleanUrl = url.split('?')[0].split('#')[0].toLowerCase();
+    return /\.(mp4|mkv|avi|mov|webm|3gp|wmv|flv|ogv)$/i.test(cleanUrl);
+  };
+
   const imagesList = imageUrls.filter((url, i) => isUrlAnImage(url, i));
-  const filesList = imageUrls
+  const attachmentsList = imageUrls
     .map((url, i) => {
       const fileId = extractFileIdFromUrl(url);
       const downloadUrl = fileId ? `https://drive.usercontent.google.com/download?id=${fileId}&export=download` : url;
       return { url, downloadUrl, name: fileNames[i], type: fileTypes[i], size: post.fileSizes?.[i], index: i };
     })
     .filter(item => !isUrlAnImage(item.url, item.index));
+
+  const audioList = attachmentsList.filter(item => isAudioFile(item.name, item.type, item.url));
+  const videoList = attachmentsList.filter(item => isVideoFile(item.name, item.type, item.url));
+  const filesList = attachmentsList.filter(item => !isAudioFile(item.name, item.type, item.url) && !isVideoFile(item.name, item.type, item.url));
 
   const slides = imagesList.map((url) => {
     const origIdx = imageUrls.indexOf(url);
@@ -2007,35 +2042,50 @@ export default function PostCard({
                       );
                     })}
 
-                    {/* Newly added images */}
-                    {newPreviews.map((prev, index) => {
-                      const isFile = prev.startsWith('file:');
-                      const fName = isFile ? prev.split(':')[1] : (newFileNames[index] || 'ملف جديد');
-                      const fType = isFile ? prev.split(':')[2] : (newFileTypes[index] || '');
-                      const isApk = fName.toLowerCase().endsWith('.apk') || fType.includes('vnd.android.package-archive');
-                      const models = ['gpt-2', 'grok', 'banana-2', 'flux', 'wan 2.7', 'تغشية'];
-                      
-                      return (
-                        <div key={`edit-model-new-${index}`} className={`flex flex-col gap-1.5 p-2 rounded-lg border ${
-                          isDarkMode ? 'border-emerald-900/50 bg-emerald-950/10' : 'border-green-200 bg-green-50/20'
-                        }`}>
-                          <div className={`relative aspect-video overflow-hidden rounded-md border flex items-center justify-center text-center p-1.5 ${
-                            isDarkMode ? 'border-emerald-900/40 bg-[#111822]' : 'border-green-200/55 bg-white'
-                          }`}>
-                            {isFile ? (
-                              <div className="flex flex-col items-center justify-center text-center w-full min-w-0">
-                                <span className="text-xl">{isApk ? '🤖' : '📄'}</span>
-                                <span className={`text-[9px] font-black mt-1 leading-tight text-center break-all line-clamp-2 w-full px-1 ${
-                                  isDarkMode ? 'text-emerald-400' : 'text-green-800'
-                                }`}>
-                                  {fName}
-                                </span>
-                              </div>
-                            ) : (
-                              <img src={prev} alt="" className="h-full w-full object-cover" />
-                            )}
-                            <div className="absolute bottom-1 left-1 bg-green-600 text-[8px] text-white px-1 rounded font-black">جديدة</div>
-                          </div>
+                     {/* Newly added images */}
+                     {newPreviews.map((prev, index) => {
+                       const isFile = prev.startsWith('file:');
+                       const parts = isFile ? prev.split(':') : [];
+                       const fName = isFile ? parts[1] : (newFileNames[index] || 'ملف جديد');
+                       const fType = isFile ? parts[2] : (newFileTypes[index] || '');
+                       const fSize = isFile ? parts[3] : (newFileSizes[index] || '');
+                       const fUrl = isFile ? parts[4] : '';
+                       const isApk = fName.toLowerCase().endsWith('.apk') || fType.includes('vnd.android.package-archive');
+                       const isAudio = isFile && (fType.startsWith('audio/') || /\.(mp3|wma|wav|aac|m4a|ogg|flac|amr)$/i.test(fName));
+                       const isVideo = isFile && (fType.startsWith('video/') || /\.(mp4|mkv|avi|mov|webm|3gp|wmv|flv|ogv)$/i.test(fName));
+                       const models = ['gpt-2', 'grok', 'banana-2', 'flux', 'wan 2.7', 'تغشية'];
+                       
+                       return (
+                         <div key={`edit-model-new-${index}`} className={`flex flex-col gap-1.5 p-2 rounded-lg border ${
+                           isDarkMode ? 'border-emerald-900/50 bg-emerald-950/10' : 'border-green-200 bg-green-50/20'
+                         }`}>
+                           <div className={`relative ${isAudio ? '' : 'aspect-video'} overflow-hidden rounded-md border flex items-center justify-center text-center p-1.5 w-full ${
+                             isDarkMode ? 'border-emerald-900/40 bg-[#111822]' : 'border-green-200/55 bg-white'
+                           }`}>
+                             {isFile ? (
+                               isAudio ? (
+                                 <div className="w-full p-1.5" onClick={(e) => e.stopPropagation()}>
+                                   <AudioPlayer src={fUrl} name={fName} size={fSize} isDarkMode={isDarkMode} />
+                                 </div>
+                               ) : isVideo ? (
+                                 <div className="w-full p-1.5" onClick={(e) => e.stopPropagation()}>
+                                   <VideoPlayer src={fUrl} name={fName} size={fSize} isDarkMode={isDarkMode} />
+                                 </div>
+                               ) : (
+                                 <div className="flex flex-col items-center justify-center text-center w-full min-w-0">
+                                   <span className="text-xl">{isApk ? '🤖' : '📄'}</span>
+                                   <span className={`text-[9px] font-black mt-1 leading-tight text-center break-all line-clamp-2 w-full px-1 ${
+                                     isDarkMode ? 'text-emerald-400' : 'text-green-800'
+                                   }`}>
+                                     {fName}
+                                   </span>
+                                 </div>
+                               )
+                             ) : (
+                               <img src={prev} alt="" className="h-full w-full object-cover" />
+                             )}
+                             <div className="absolute bottom-1 left-1 bg-green-600 text-[8px] text-white px-1 rounded font-black z-10">جديدة</div>
+                           </div>
 
                           {/* New Image Caption Edit Field */}
                           <div className="flex flex-col gap-1 text-right">
@@ -2243,6 +2293,36 @@ export default function PostCard({
                   {renderTextWithLinks(post.text)}
                 </p>
               </div>
+
+              {/* Audio Players */}
+              {audioList.length > 0 && (
+                <div className="mt-3 flex flex-col gap-2 w-full" onClick={(e) => e.stopPropagation()}>
+                  {audioList.map((audioItem, idx) => (
+                    <AudioPlayer
+                      key={idx}
+                      src={audioItem.url}
+                      name={audioItem.name || 'ملف صوتي'}
+                      size={audioItem.size}
+                      isDarkMode={isDarkMode}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Video Players */}
+              {videoList.length > 0 && (
+                <div className="mt-3 flex flex-col gap-2.5 w-full" onClick={(e) => e.stopPropagation()}>
+                  {videoList.map((videoItem, idx) => (
+                    <VideoPlayer
+                      key={idx}
+                      src={videoItem.url}
+                      name={videoItem.name || 'ملف فيديو'}
+                      size={videoItem.size}
+                      isDarkMode={isDarkMode}
+                    />
+                  ))}
+                </div>
+              )}
               <div className="mt-2 flex items-center justify-between">
                 {post.text.split('\n').length > 3 || post.text.length > 200 ? (
                   <button onClick={() => setIsTextExpanded(!isTextExpanded)} className={`text-[10px] font-black hover:underline ${
@@ -2251,9 +2331,10 @@ export default function PostCard({
                     {isTextExpanded ? 'عرض أقل ↑' : 'عرض المزيد ↓'}
                   </button>
                 ) : <div />}
-                <div className="flex items-center gap-1 relative">
-                  <button 
-                    onClick={handleTestPromptClick} 
+                {audioList.length === 0 && videoList.length === 0 && (
+                  <div className="flex items-center gap-1 relative">
+                    <button 
+                      onClick={handleTestPromptClick} 
                     className={`flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold transition-all ${
                       isDarkMode 
                         ? 'text-[#16af75] bg-[#111822] hover:bg-[#111822] hover:border-[#16af75]/50 border border-[#656c74] shadow-md pulsate-prompt-dark' 
@@ -2590,6 +2671,7 @@ export default function PostCard({
                     </AnimatePresence>
                   </div>
                 </div>
+                )}
               </div>
             </div>
           )}
