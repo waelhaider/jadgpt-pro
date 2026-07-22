@@ -1773,7 +1773,7 @@ export default function PostCard({
                     className={`p-1.5 rounded-lg transition-all cursor-pointer ${
                       post.isPinned 
                         ? 'bg-red-50 hover:bg-red-100 text-red-600 shadow-xs' 
-                        : 'hover:bg-natural-secondary-bg hover:text-natural-text text-natural-muted/70'
+                        : 'hover:bg-natural-secondary-bg hover:text-natural-text text-[#B4C6D8]'
                     }`}
                     title={post.isPinned ? "إلغاء التثبيت" : "تثبيت المنشور في الأعلى"}
                   >
@@ -1785,7 +1785,7 @@ export default function PostCard({
                   </button>
                   <button 
                     onClick={() => setIsEditing(true)} 
-                    className="p-1.5 hover:bg-natural-secondary-bg hover:text-natural-text rounded-lg text-natural-muted/70 transition-all cursor-pointer"
+                    className="p-1.5 hover:bg-natural-secondary-bg hover:text-natural-text rounded-lg text-[#B4C6D8] transition-all cursor-pointer"
                     title="تعديل المنشور"
                   >
                     <Edit3 size={14} />
