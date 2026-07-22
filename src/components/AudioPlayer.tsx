@@ -412,180 +412,12 @@ export default function AudioPlayer({ src, name, size, isDarkMode = false }: Aud
         )}
       </div>
 
-      {/* Mobile-friendly Player Bar - All-in-one Single Row */}
-      <div className="flex flex-row items-center gap-2 sm:gap-3.5 mt-1.5 w-full justify-between relative">
+      {/* Restructured Player Layout: Seek Bar Full Width + Buttons Row */}
+      <div className="flex flex-col gap-2 mt-2 w-full relative">
         
-        {/* Volume & Additional Actions Group - On the rightmost side (RTL start) */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 relative" ref={optionsMenuRef}>
-          {/* Three-dots menu for extra settings */}
-          <div className="relative">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowOptionsMenu(!showOptionsMenu);
-                setShowSpeedMenu(false);
-              }}
-              className="p-1 rounded-lg transition-colors hover:bg-neutral-500/10 active:scale-95 cursor-pointer text-gray-500 shrink-0"
-              title="خيارات إضافية"
-            >
-              <MoreVertical size={14} />
-            </button>
-
-            {/* Options Dropdown Menu Popup - Fully Opaque with High Z-Index */}
-            {showOptionsMenu && (
-              <div 
-                style={{ backgroundColor: isDarkMode ? '#1c2635' : '#ffffff' }}
-                className={`absolute bottom-full right-0 mb-2 w-44 rounded-xl shadow-xl border p-1 z-[99] opacity-100 animate-in fade-in slide-in-from-bottom-2 duration-150 ${
-                  isDarkMode 
-                    ? 'border-[#2C374E] text-slate-100' 
-                    : 'border-[#f0ebe3] text-[#4A4A35]'
-                }`}
-              >
-                {/* Option: Playback Speed */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowSpeedMenu(!showSpeedMenu);
-                  }}
-                  className={`w-full flex items-center justify-between px-2.5 py-1.5 text-[10px] sm:text-xs rounded-lg transition-colors text-right cursor-pointer bg-transparent ${
-                    isDarkMode ? 'hover:bg-slate-800 text-slate-100' : 'hover:bg-neutral-100 text-[#4A4A35]'
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <Gauge size={13} className="opacity-70" />
-                    <span>سرعة التشغيل</span>
-                  </div>
-                  <span className={`text-[9px] font-bold px-1 py-0.5 rounded ${
-                    isDarkMode ? 'bg-slate-700/60 text-slate-100' : 'bg-neutral-200/55 text-neutral-800'
-                  }`}>
-                    {playbackRate}x
-                  </span>
-                </button>
-
-                {/* Speed Submenu */}
-                {showSpeedMenu && (
-                  <div className={`mt-1 border-t pt-1 flex flex-col gap-0.5 max-h-32 overflow-y-auto bg-transparent ${
-                    isDarkMode ? 'border-slate-800' : 'border-neutral-100'
-                  }`}>
-                    {[0.5, 0.75, 1, 1.25, 1.5, 2].map((rate) => (
-                      <button
-                        key={rate}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSpeedChange(rate);
-                        }}
-                        className={`w-full text-right px-6 py-1 text-[10px] rounded-md transition-colors cursor-pointer flex justify-between items-center bg-transparent ${
-                          playbackRate === rate 
-                            ? (isDarkMode ? 'bg-[#16af75]/20 text-[#16af75] font-bold' : 'bg-[#c26700]/10 text-[#c26700] font-bold')
-                            : (isDarkMode ? 'hover:bg-slate-800 text-slate-100' : 'hover:bg-neutral-100 text-[#4A4A35]')
-                        }`}
-                      >
-                        <span>{rate === 1 ? 'طبيعية (1x)' : `${rate}x`}</span>
-                        {playbackRate === rate && <span className="text-[9px]">✓</span>}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* Option: Download File */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDownload();
-                  }}
-                  className={`w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] sm:text-xs rounded-lg transition-colors text-right cursor-pointer border-t bg-transparent ${
-                    isDarkMode 
-                      ? 'hover:bg-slate-800 border-slate-800 text-slate-100' 
-                      : 'hover:bg-neutral-100 border-neutral-100 text-[#4A4A35]'
-                  }`}
-                >
-                  <Download size={13} className="opacity-70" />
-                  <span>تنزيل الملف</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Volume control block */}
-          <div className="relative flex items-center">
-            {/* Volume toggle & trigger button */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (volumeTimeoutRef.current) {
-                  clearTimeout(volumeTimeoutRef.current);
-                }
-                setShowVolumeSlider(!showVolumeSlider);
-                setShowOptionsMenu(false);
-                setShowSpeedMenu(false);
-              }}
-              disabled={isLoading || !audioUrl}
-              className={`p-1.5 rounded-lg transition-colors hover:bg-neutral-500/10 active:scale-95 cursor-pointer shrink-0 ${
-                showVolumeSlider 
-                  ? (isDarkMode ? 'bg-slate-800 text-[#16af75]' : 'bg-[#f5ece0] text-[#c26700]')
-                  : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-              }`}
-              title="مستوى الصوت"
-            >
-              {isMuted || volume === 0 ? <VolumeX size={15} /> : <Volume2 size={15} />}
-            </button>
-
-            {/* Premium Volume Slider Popover */}
-            {showVolumeSlider && (
-              <div
-                style={{ backgroundColor: isDarkMode ? '#1c2635' : '#ffffff' }}
-                className={`absolute bottom-full right-0 mb-2 p-2 rounded-xl shadow-xl border flex items-center gap-2 z-[99] animate-in fade-in slide-in-from-bottom-2 duration-150 ${
-                  isDarkMode 
-                    ? 'border-[#2C374E] text-slate-100' 
-                    : 'border-[#f0ebe3] text-[#4A4A35]'
-                }`}
-              >
-                {/* Clickable Icon inside Popover to quickly Mute/Unmute */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleMute();
-                    startVolumeSliderTimeout();
-                  }}
-                  className="p-1 rounded-lg hover:bg-neutral-500/10 transition-colors cursor-pointer text-gray-500 shrink-0"
-                  title={isMuted ? "إلغاء كتم الصوت" : "كتم الصوت"}
-                >
-                  {isMuted || volume === 0 ? <VolumeX size={14} /> : <Volume2 size={14} />}
-                </button>
-
-                {/* Slider input */}
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  value={isMuted ? 0 : volume}
-                  onChange={handleVolumeChange}
-                  onMouseUp={startVolumeSliderTimeout}
-                  onTouchEnd={startVolumeSliderTimeout}
-                  className={`w-20 sm:w-24 h-1.5 rounded-lg appearance-none cursor-pointer focus:outline-none transition-all ${
-                    isDarkMode ? 'bg-gray-800' : 'bg-gray-200'
-                  }`}
-                  style={{
-                    background: `linear-gradient(to right, ${
-                      isDarkMode ? '#16af75' : '#c26700'
-                    } ${(isMuted ? 0 : volume) * 100}%, ${isDarkMode ? '#1e293b' : '#e2e8f0'} ${(isMuted ? 0 : volume) * 100}%)`
-                  }}
-                  dir="ltr"
-                />
-
-                {/* Percentage read-out */}
-                <span className="text-[9px] font-mono font-bold text-gray-400 select-none min-w-[24px] text-center">
-                  {isMuted ? '0%' : `${Math.round(volume * 100)}%`}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Progress Slider (Seek bar) - Middle */}
-        <div className="flex-1 min-w-0 flex flex-row items-center gap-1.5" dir="ltr">
-          <span className="text-[8px] sm:text-[9px] font-mono font-bold text-gray-500 select-none shrink-0">
+        {/* Row 1: Progress Slider (Seek bar) - عداد الصوت اليساري واليميني */}
+        <div className="w-full flex flex-row items-center gap-2" dir="ltr">
+          <span className="text-[12px] sm:text-[12px] font-mono font-bold text-[#B4C6D8] select-none shrink-0">
             {formatTime(currentTime)}
           </span>
           <div className="relative group flex-1 flex items-center">
@@ -596,7 +428,7 @@ export default function AudioPlayer({ src, name, size, isDarkMode = false }: Aud
               value={currentTime}
               onChange={handleSeekChange}
               disabled={isLoading || !audioUrl}
-              className={`w-full h-1 rounded-lg appearance-none cursor-pointer focus:outline-none transition-all disabled:opacity-50 ${
+              className={`w-full h-1.5 rounded-lg appearance-none cursor-pointer focus:outline-none transition-all disabled:opacity-50 ${
                 isDarkMode ? 'bg-gray-800' : 'bg-gray-200'
               }`}
               style={{
@@ -606,52 +438,225 @@ export default function AudioPlayer({ src, name, size, isDarkMode = false }: Aud
               }}
             />
           </div>
-          <span className="text-[8px] sm:text-[9px] font-mono font-bold text-gray-500 select-none shrink-0">
+          <span className="text-[12px] sm:text-[12px] font-mono font-bold text-[#B4C6D8] select-none shrink-0">
             {formatTime(duration)}
           </span>
         </div>
 
-        {/* Buttons: Rewind, Play/Pause, FastForward - On the leftmost side (RTL end) */}
-        <div className="flex items-center gap-0.5 sm:gap-1 shrink-0 justify-center">
-          {/* Rewind */}
-          <button
-            onClick={skipBackward}
-            disabled={isLoading || !audioUrl}
-            className="p-1 sm:p-1.5 rounded-full transition-colors active:scale-90 cursor-pointer text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 disabled:opacity-40"
-            title="إرجاع ثانيتين"
-          >
-            <Rewind size={14} />
-          </button>
+        {/* Row 2: Control Buttons and Tools - زر خيارات اضافية */}
+        <div className="flex flex-row items-center justify-between w-full relative" ref={optionsMenuRef}>
+          
+          {/* Right side: Volume & Additional Actions Group (RTL start) */}
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 relative">
+            {/* Three-dots menu for extra settings */}
+            <div className="relative">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowOptionsMenu(!showOptionsMenu);
+                  setShowSpeedMenu(false);
+                }}
+                className="p-1 rounded-lg transition-colors hover:bg-neutral-500/10 active:scale-95 cursor-pointer text-[#B4C6D8] shrink-0"
+                title="خيارات إضافية"
+              >
+                <MoreVertical size={14} />
+              </button>
 
-          {/* Play/Pause */}
-          <button
-            onClick={togglePlay}
-            disabled={isLoading}
-            className={`h-7.5 w-7.5 sm:h-8.5 sm:w-8.5 rounded-full flex items-center justify-center shrink-0 shadow-md transition-all active:scale-90 hover:scale-105 cursor-pointer disabled:opacity-50 ${
-              isDarkMode 
-                ? 'bg-[#16af75] text-white hover:bg-[#129462]' 
-                : 'bg-[#c26700] text-white hover:bg-[#a65600]'
-            }`}
-            aria-label={isPlaying ? 'Pause' : 'Play'}
-          >
-            {isLoading ? (
-              <Loader2 size={13} className="animate-spin" />
-            ) : isPlaying ? (
-              <Pause size={13} fill="currentColor" />
-            ) : (
-              <Play size={13} className="translate-x-[-0.5px]" fill="currentColor" />
-            )}
-          </button>
+              {/* Options Dropdown Menu Popup - Fully Opaque with High Z-Index */}
+              {showOptionsMenu && (
+                <div 
+                  style={{ backgroundColor: isDarkMode ? '#1c2635' : '#ffffff' }}
+                  className={`absolute bottom-full right-0 mb-2 w-44 rounded-xl shadow-xl border p-1 z-[99] opacity-100 animate-in fade-in slide-in-from-bottom-2 duration-150 ${
+                    isDarkMode 
+                      ? 'border-[#2C374E] text-slate-100' 
+                      : 'border-[#f0ebe3] text-[#4A4A35]'
+                  }`}
+                >
+                  {/* Option: Playback Speed */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowSpeedMenu(!showSpeedMenu);
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 text-[10px] sm:text-xs rounded-lg transition-colors text-right cursor-pointer bg-transparent ${
+                      isDarkMode ? 'hover:bg-slate-800 text-slate-100' : 'hover:bg-neutral-100 text-[#4A4A35]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Gauge size={13} className="opacity-70" />
+                      <span>سرعة التشغيل</span>
+                    </div>
+                    <span className={`text-[9px] font-bold px-1 py-0.5 rounded ${
+                      isDarkMode ? 'bg-slate-700/60 text-slate-100' : 'bg-neutral-200/55 text-neutral-800'
+                    }`}>
+                      {playbackRate}x
+                    </span>
+                  </button>
 
-          {/* Fast Forward */}
-          <button
-            onClick={skipForward}
-            disabled={isLoading || !audioUrl}
-            className="p-1 sm:p-1.5 rounded-full transition-colors active:scale-90 cursor-pointer text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 disabled:opacity-40"
-            title="تقديم ثانيتين"
-          >
-            <FastForward size={14} />
-          </button>
+                  {/* Speed Submenu */}
+                  {showSpeedMenu && (
+                    <div className={`mt-1 border-t pt-1 flex flex-col gap-0.5 max-h-32 overflow-y-auto bg-transparent ${
+                      isDarkMode ? 'border-slate-800' : 'border-neutral-100'
+                    }`}>
+                      {[0.5, 0.75, 1, 1.25, 1.5, 2].map((rate) => (
+                        <button
+                          key={rate}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSpeedChange(rate);
+                          }}
+                          className={`w-full text-right px-6 py-1 text-[10px] rounded-md transition-colors cursor-pointer flex justify-between items-center bg-transparent ${
+                            playbackRate === rate 
+                              ? (isDarkMode ? 'bg-[#16af75]/20 text-[#16af75] font-bold' : 'bg-[#c26700]/10 text-[#c26700] font-bold')
+                              : (isDarkMode ? 'hover:bg-slate-800 text-slate-100' : 'hover:bg-neutral-100 text-[#4A4A35]')
+                          }`}
+                        >
+                          <span>{rate === 1 ? 'طبيعية (1x)' : `${rate}x`}</span>
+                          {playbackRate === rate && <span className="text-[9px]">✓</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Option: Download File */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDownload();
+                    }}
+                    className={`w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] sm:text-xs rounded-lg transition-colors text-right cursor-pointer border-t bg-transparent ${
+                      isDarkMode 
+                        ? 'hover:bg-slate-800 border-slate-800 text-slate-100' 
+                        : 'hover:bg-neutral-100 border-neutral-100 text-[#4A4A35]'
+                    }`}
+                  >
+                    <Download size={13} className="opacity-70" />
+                    <span>تنزيل الملف</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Volume control block */}
+            <div className="relative flex items-center">
+              {/* Volume toggle & trigger button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (volumeTimeoutRef.current) {
+                    clearTimeout(volumeTimeoutRef.current);
+                  }
+                  setShowVolumeSlider(!showVolumeSlider);
+                  setShowOptionsMenu(false);
+                  setShowSpeedMenu(false);
+                }}
+                disabled={isLoading || !audioUrl}
+                className={`p-1.5 rounded-lg transition-colors hover:bg-neutral-500/10 active:scale-95 cursor-pointer shrink-0 ${
+                  showVolumeSlider 
+                    ? (isDarkMode ? 'bg-slate-800 text-[#B4C6D8]' : 'bg-[#f5ece0] text-[#c26700]')
+                    : 'text-[#B4C6D8] hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+                title="مستوى الصوت"
+              >
+                {isMuted || volume === 0 ? <VolumeX size={15} /> : <Volume2 size={15} />}
+              </button>
+
+              {/* Premium Volume Slider Popover */}
+              {showVolumeSlider && (
+                <div
+                  style={{ backgroundColor: isDarkMode ? '#1c2635' : '#ffffff' }}
+                  className={`absolute bottom-full right-0 mb-2 p-2 rounded-xl shadow-xl border flex items-center gap-2 z-[99] animate-in fade-in slide-in-from-bottom-2 duration-150 ${
+                    isDarkMode 
+                      ? 'border-[#2C374E] text-slate-100' 
+                      : 'border-[#f0ebe3] text-[#4A4A35]'
+                  }`}
+                >
+                  {/* Clickable Icon inside Popover to quickly Mute/Unmute */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleMute();
+                      startVolumeSliderTimeout();
+                    }}
+                    className="p-1 rounded-lg hover:bg-neutral-500/10 transition-colors cursor-pointer text-gray-500 shrink-0"
+                    title={isMuted ? "إلغاء كتم الصوت" : "كتم الصوت"}
+                  >
+                    {isMuted || volume === 0 ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                  </button>
+
+                  {/* Slider input */}
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={isMuted ? 0 : volume}
+                    onChange={handleVolumeChange}
+                    onMouseUp={startVolumeSliderTimeout}
+                    onTouchEnd={startVolumeSliderTimeout}
+                    className={`w-20 sm:w-24 h-1.5 rounded-lg appearance-none cursor-pointer focus:outline-none transition-all ${
+                      isDarkMode ? 'bg-gray-800' : 'bg-gray-200'
+                    }`}
+                    style={{
+                      background: `linear-gradient(to right, ${
+                        isDarkMode ? '#16af75' : '#c26700'
+                      } ${(isMuted ? 0 : volume) * 100}%, ${isDarkMode ? '#1e293b' : '#e2e8f0'} ${(isMuted ? 0 : volume) * 100}%)`
+                    }}
+                    dir="ltr"
+                  />
+
+                  {/* Percentage read-out */}
+                  <span className="text-[9px] font-mono font-bold text-gray-400 select-none min-w-[24px] text-center">
+                    {isMuted ? '0%' : `${Math.round(volume * 100)}%`}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Left side: Buttons (Rewind, Play/Pause, FastForward) - (RTL end) */}
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0 justify-center">
+            {/* Rewind */}
+            <button
+              onClick={skipBackward}
+              disabled={isLoading || !audioUrl}
+              className="p-1.5 sm:p-2 rounded-full transition-colors active:scale-90 cursor-pointer text-[#B4C6D8] hover:text-gray-800 dark:hover:text-gray-200 disabled:opacity-40"
+              title="إرجاع ثانيتين"
+            >
+              <Rewind size={15} />
+            </button>
+
+            {/* Play/Pause */}
+            <button
+              onClick={togglePlay}
+              disabled={isLoading}
+              className={`h-8 w-8 sm:h-9 sm:w-9 rounded-full flex items-center justify-center shrink-0 shadow-md transition-all active:scale-90 hover:scale-105 cursor-pointer disabled:opacity-50 ${
+                isDarkMode 
+                  ? 'bg-[#16af75] text-white hover:bg-[#129462]' 
+                  : 'bg-[#c26700] text-white hover:bg-[#a65600]'
+              }`}
+              aria-label={isPlaying ? 'Pause' : 'Play'}
+            >
+              {isLoading ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : isPlaying ? (
+                <Pause size={14} fill="currentColor" />
+              ) : (
+                <Play size={14} className="translate-x-[-0.5px]" fill="currentColor" />
+              )}
+            </button>
+
+            {/* Fast Forward */}
+            <button
+              onClick={skipForward}
+              disabled={isLoading || !audioUrl}
+              className="p-1.5 sm:p-2 rounded-full transition-colors active:scale-90 cursor-pointer text-[#B4C6D8] hover:text-gray-800 dark:hover:text-gray-200 disabled:opacity-40"
+              title="تقديم ثانيتين"
+            >
+              <FastForward size={15} />
+            </button>
+          </div>
+
         </div>
       </div>
 
